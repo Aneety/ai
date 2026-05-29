@@ -85,10 +85,10 @@ jobs:
             exit 0
           fi
 
-          copy_paths=$(find aneety-platform/apps -type f \( -path '*/src/pages/*' -o -path '*/src/components/*' -o -path '*/app/*' \) \( -name '*.tsx' -o -name '*.jsx' -o -name '*.html' \) -not -path '*/node_modules/*' || true)
-          [ -n "$copy_paths" ] || exit 0
+          mapfile -t copy_paths < <(find aneety-platform/apps -type f \( -path '*/src/pages/*' -o -path '*/src/components/*' -o -path '*/app/*' \) \( -name '*.tsx' -o -name '*.jsx' -o -name '*.html' \) -not -path '*/node_modules/*' || true)
+          [ "${#copy_paths[@]}" -gt 0 ] || exit 0
 
-          if grep -nEi 'cloudflare|workers|hono|wrangler|database|supabase|postgres|queue|durable object|github actions|codex|openai|api key|token|environment variable' $copy_paths; then
+          if grep -nEi 'cloudflare|workers|hono|wrangler|database|supabase|postgres|queue|durable object|github actions|codex|openai|api key|token|environment variable' "${copy_paths[@]}"; then
             echo "Potential technical leakage in user-facing copy." >&2
             exit 1
           fi

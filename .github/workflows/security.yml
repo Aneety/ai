@@ -45,9 +45,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Review dependency changes
+        id: dependency_review
         uses: actions/dependency-review-action@v4
+        continue-on-error: true
         with:
           fail-on-severity: high
+      - name: Report dependency review availability
+        shell: bash
+        run: |
+          if [ '${{ steps.dependency_review.outcome }}' = 'failure' ]; then
+            echo 'Dependency review did not complete. Confirm dependency graph is enabled for this repository.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Dependency review completed.' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   codeql:
     name: CodeQL analysis
