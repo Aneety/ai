@@ -1,0 +1,89 @@
+name: Remote CI gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remote-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile-lint:
+    name: Compile and lint modules
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Discover app modules
+        id: discover
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          search_root="aneety-platform/apps"
+          if [ ! -d "$search_root" ]; then
+            echo "has_modules=false" >> "$GITHUB_OUTPUT"
+            echo "No $search_root directory found."
+            exit 0
+          fi
+
+          mapfile -t package_files < <(
+            find "$search_root" \
+              -mindepth 2 \
+              -maxdepth 4 \
+              -name package.json \
+              -not -path '*/node_modules/*' \
+              | sort
+          )
+
+          if [ "${#package_files[@]}" -eq 0 ]; then
+            echo "has_modules=false" >> "$GITHUB_OUTPUT"
+            echo "No app package.json files found. Remote CI gate passes for scaffold-only repository."
+            exit 0
+          fi
+
+          echo "has_modules=true" >> "$GITHUB_OUTPUT"
+          {
+            echo 'package_dirs<<EOF'
+            for package_file in "${package_files[@]}"; do
+              dirname "$package_file"
+            done
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Compile and lint discovered modules
+        if: steps.discover.outputs.has_modules == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r package_dir; do
+            [ -n "$package_dir" ] || continue
+            echo "::group::${package_dir}"
+            cd "$GITHUB_WORKSPACE/$package_dir"
+
+            if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+              npm ci
+            else
+              npm install
+            fi
+
+            npm run lint --if-present
+            npm run typecheck --if-present
+            npm run build --if-present
+            npm test --if-present
+            echo "::endgroup::"
+          done <<< "${{ steps.discover.outputs.package_dirs }}"
