@@ -1,0 +1,100 @@
+name: Governance audit
+
+on:
+  pull_request:
+  schedule:
+    - cron: '17 8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: governance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Actions-first governance audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout orchestrator
+        uses: actions/checkout@v4
+        with:
+          path: ai
+
+      - name: Checkout canonical docs
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: Aneety/.github
+          path: canonical-docs
+
+      - name: Audit docs, workflows and PR state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$GITHUB_WORKSPACE/governance-summary.md"
+          {
+            echo "# Aneety governance audit"
+            echo
+            echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            echo "## Local checks"
+          } > "$report"
+
+          required_ai=(
+            "ai/.github/workflows/ci.yml"
+            "ai/.github/workflows/policy.yml"
+            "ai/.github/workflows/security.yml"
+            "ai/.github/workflows/cloudflare-gate.yml"
+            "ai/.github/workflows/governance.yml"
+            "ai/docs/remote-ci-gate.md"
+          )
+          for file in "${required_ai[@]}"; do
+            if [ -f "$file" ]; then
+              echo "- OK: $file" >> "$report"
+            else
+              echo "- MISSING: $file" >> "$report"
+            fi
+          done
+
+          echo >> "$report"
+          echo "## Canonical docs" >> "$report"
+          if [ -d canonical-docs/docs/project ]; then
+            count=$(find canonical-docs/docs/project -type f -name '*.md' | wc -l | tr -d ' ')
+            echo "- OK: canonical docs/project found (${count} files)." >> "$report"
+          else
+            echo "- BLOCKED: canonical docs/project unavailable to this workflow." >> "$report"
+          fi
+
+          for file in \
+            canonical-docs/docs/03-processos.md \
+            canonical-docs/docs/07-governanca-github.md \
+            canonical-docs/docs/08-planejamento-ciclos-implementacao-repositorios.md; do
+            if [ -f "$file" ] && grep -q 'GitHub Actions' "$file"; then
+              echo "- OK: $file references GitHub Actions gate." >> "$report"
+            else
+              echo "- DRIFT: $file does not reference GitHub Actions gate." >> "$report"
+            fi
+          done
+
+          echo >> "$report"
+          echo "## Open PR checks" >> "$report"
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,title,headRefName,statusCheckRollup \
+            --jq '.[] | "- PR #\(.number) \(.headRefName): " + ([.statusCheckRollup[]?.conclusion // .statusCheckRollup[]?.status] | join(", "))' \
+            >> "$report" || echo "- Unable to read open PR checks." >> "$report"
+
+          cat "$report" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload governance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-summary
+          path: governance-summary.md

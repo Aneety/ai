@@ -1,0 +1,94 @@
+name: Governance policy gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: policy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: Repository policy checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate workflow syntax with actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@latest
+          "$(go env GOPATH)/bin/actionlint"
+
+      - name: Validate YAML parseability
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -e 'require "yaml"; Dir[".github/workflows/*.yml"].sort.each { |f| YAML.load_file(f); puts "yaml ok: #{f}" }'
+
+      - name: Check required governance files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f README.md
+          test -f docs/README.md
+          test -f docs/remote-ci-gate.md
+          grep -q 'GitHub Actions' README.md
+          grep -q 'Cloudflare' docs/remote-ci-gate.md
+          grep -q 'PR -> GitHub Actions -> Cloudflare' docs/remote-ci-gate.md
+
+      - name: Check Mermaid rendered assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          while IFS= read -r mmd; do
+            [ -n "$mmd" ] || continue
+            base="${mmd%.mmd}"
+            for ext in svg jpg; do
+              if [ ! -f "${base}.${ext}" ]; then
+                echo "Missing rendered Mermaid asset: ${base}.${ext}"
+                missing=1
+              fi
+            done
+          done < <(find . -name '*.mmd' -not -path './.git/*' | sort)
+          exit "$missing"
+
+      - name: Block prohibited MVP runtime artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -d aneety-platform/apps ]; then
+            exit 0
+          fi
+
+          prohibited='(^|/)(Dockerfile|docker-compose\.ya?ml)$|podman|docker desktop|docker compose|docker-compose|flask|fastapi|uvicorn|express server|nestjs|vps|server traditional|servidor tradicional|cron externo'
+          if grep -RInE "$prohibited" aneety-platform/apps --exclude-dir=node_modules --exclude='*.md' --exclude='*.mmd'; then
+            echo "Prohibited MVP runtime artifact found under aneety-platform/apps." >&2
+            exit 1
+          fi
+
+      - name: Check user-facing copy for technical leakage
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -d aneety-platform/apps ]; then
+            exit 0
+          fi
+
+          copy_paths=$(find aneety-platform/apps -type f \( -path '*/src/pages/*' -o -path '*/src/components/*' -o -path '*/app/*' \) \( -name '*.tsx' -o -name '*.jsx' -o -name '*.html' \) -not -path '*/node_modules/*' || true)
+          [ -n "$copy_paths" ] || exit 0
+
+          if grep -nEi 'cloudflare|workers|hono|wrangler|database|supabase|postgres|queue|durable object|github actions|codex|openai|api key|token|environment variable' $copy_paths; then
+            echo "Potential technical leakage in user-facing copy." >&2
+            exit 1
+          fi

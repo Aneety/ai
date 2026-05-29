@@ -1,0 +1,160 @@
+name: Cloudflare deploy gate
+
+on:
+  workflow_run:
+    workflows:
+      - Remote CI gate
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      module_path:
+        description: Optional module path under aneety-platform/apps
+        required: false
+        type: string
+      mode:
+        description: Run mode
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - deploy
+          - smoke
+      smoke_url:
+        description: Published URL for smoke mode
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CLOUDFLARE_DEPLOY_MODE: ${{ inputs.mode || 'dry-run' }}
+
+concurrency:
+  group: cloudflare-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  cloudflare-gate:
+    name: Cloudflare gate after green CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Discover deployable Workers
+        id: discover
+        shell: bash
+        run: |
+          set -euo pipefail
+          module_path='${{ inputs.module_path }}'
+
+          if [ -n "$module_path" ]; then
+            if [ ! -d "$module_path" ]; then
+              echo "has_workers=false" >> "$GITHUB_OUTPUT"
+              echo "Requested module path does not exist: $module_path"
+              exit 0
+            fi
+            search_root="$module_path"
+          else
+            search_root="aneety-platform/apps"
+          fi
+
+          if [ ! -d "$search_root" ]; then
+            echo "has_workers=false" >> "$GITHUB_OUTPUT"
+            echo "No app directory found. Cloudflare gate exits without deploy."
+            exit 0
+          fi
+
+          mapfile -t configs < <(
+            find "$search_root" \
+              -maxdepth 5 \
+              \( -name wrangler.jsonc -o -name wrangler.json -o -name wrangler.toml \) \
+              -not -path '*/node_modules/*' \
+              | sort
+          )
+
+          if [ "${#configs[@]}" -eq 0 ]; then
+            echo "has_workers=false" >> "$GITHUB_OUTPUT"
+            echo "No Wrangler config found. Cloudflare gate exits without deploy."
+            exit 0
+          fi
+
+          echo "has_workers=true" >> "$GITHUB_OUTPUT"
+          {
+            echo 'worker_dirs<<EOF'
+            for config in "${configs[@]}"; do
+              dirname "$config"
+            done
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install and validate Worker modules
+        if: steps.discover.outputs.has_workers == 'true' && env.CLOUDFLARE_DEPLOY_MODE != 'smoke'
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r worker_dir; do
+            [ -n "$worker_dir" ] || continue
+            echo "::group::${worker_dir}"
+            cd "$GITHUB_WORKSPACE/$worker_dir"
+            if [ -f package.json ]; then
+              if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+                npm ci
+              else
+                npm install
+              fi
+            fi
+            npx --yes wrangler deploy --dry-run
+            echo "::endgroup::"
+          done <<< "${{ steps.discover.outputs.worker_dirs }}"
+
+      - name: Deploy Worker modules when explicitly requested
+        if: steps.discover.outputs.has_workers == 'true' && env.CLOUDFLARE_DEPLOY_MODE == 'deploy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "Cloudflare deploy secrets are not configured." >&2
+            exit 1
+          fi
+          while IFS= read -r worker_dir; do
+            [ -n "$worker_dir" ] || continue
+            echo "::group::deploy ${worker_dir}"
+            cd "$GITHUB_WORKSPACE/$worker_dir"
+            npx --yes wrangler deploy
+            echo "::endgroup::"
+          done <<< "${{ steps.discover.outputs.worker_dirs }}"
+
+      - name: Smoke published URL
+        if: env.CLOUDFLARE_DEPLOY_MODE == 'smoke'
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='${{ inputs.smoke_url }}'
+          if [ -z "$url" ]; then
+            echo "smoke_url is required for smoke mode." >&2
+            exit 1
+          fi
+          curl --fail --show-error --silent --max-time 20 "$url" >/tmp/aneety-smoke-response
+          bytes=$(wc -c </tmp/aneety-smoke-response | tr -d ' ')
+          echo "Smoke OK for $url (${bytes} bytes)."
+
+      - name: Report no deployable module
+        if: steps.discover.outputs.has_workers != 'true' && env.CLOUDFLARE_DEPLOY_MODE != 'smoke'
+        shell: bash
+        run: |
+          echo "No deployable Cloudflare Worker config found. No Cloudflare deploy or dry-run executed."

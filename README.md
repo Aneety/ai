@@ -23,6 +23,6 @@ Este monorepo pode ser usado nesta máquina local para gerar, editar, revisar e 
 
 Para o MVP, compilação, lint, typecheck, build e testes de módulo devem passar primeiro no GitHub Actions da PR. O workflow remoto é o gate inicial para economizar máquina local e evitar gastar limite Cloudflare com falhas detectáveis antes do deploy.
 
-Deploy Cloudflare só deve acontecer depois da PR verde em compilação e lint. Após o deploy, smoke, testes integrados de API ou e2e devem rodar contra a URL publicada. O processo operacional está em [`docs/remote-ci-gate.md`](docs/remote-ci-gate.md).
+Deploy Cloudflare só deve acontecer depois da PR verde em compilação, lint, testes de módulo, política e segurança. Após o deploy, smoke, testes integrados de API ou e2e devem rodar contra a URL publicada. O processo operacional está em [`docs/remote-ci-gate.md`](docs/remote-ci-gate.md).
 
-Não usar deploy Cloudflare como verificador de compilação ou lint. Não usar execução local pesada como evidência final de aceite do MVP. Simulações locais, servidores persistentes, containers, Python, VPS, banco externo obrigatório ou runtime fora de Cloudflare Workers não substituem validação remota aprovada.
+Não usar deploy Cloudflare como verificador de compilação ou lint. Não usar execução local pesada como evidência final de aceite do MVP. Simulações locais, servidores persistentes, containers, Python, Playwright/Cypress local, Wrangler local para aceite, VPS, banco externo obrigatório ou runtime fora de Cloudflare Workers não substituem validação remota aprovada.
