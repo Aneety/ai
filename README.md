@@ -15,6 +15,12 @@ Este repositório mantém apenas ponteiros e estrutura de orquestração. Não d
 - `docs/` — ponteiro para documentação canônica.
 - `aneety-platform/apps/` — raiz reservada para módulos internos por responsabilidade.
 
-## Regra de implementação
+## Regra de implementação e validação
 
 Cada responsabilidade com implementação própria deve nascer como módulo interno em `aneety-platform/apps/<responsabilidade>/...`, seguindo o contrato canônico publicado em `Aneety/.github/docs`. Separação em repositório próprio fica fora do contrato atual do MVP e só pode acontecer depois de atualização documental aprovada.
+
+Este monorepo pode ser usado nesta máquina local para gerar, editar, revisar e versionar código fonte, contratos, documentação e artefatos de controle.
+
+Para o MVP, compilar, executar, testar, publicar, validar smoke ou gerar evidência operacional de código fonte deve acontecer exclusivamente no ecossistema Cloudflare Workers, por Cloudflare Workers Builds, preview remoto, runtime remoto, `wrangler deploy --dry-run`, `wrangler dev --remote` ou mecanismo Cloudflare equivalente aprovado em documentação canônica.
+
+Não usar execução local como evidência de aceite do MVP. Simulações locais, servidores persistentes, containers, Python, VPS, banco externo obrigatório ou runtime fora de Cloudflare Workers não substituem validação Cloudflare-backed.
