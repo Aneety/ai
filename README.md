@@ -21,6 +21,8 @@ Cada responsabilidade com implementação própria deve nascer como módulo inte
 
 Este monorepo pode ser usado nesta máquina local para gerar, editar, revisar e versionar código fonte, contratos, documentação e artefatos de controle.
 
-Para o MVP, compilar, executar, testar, publicar, validar smoke ou gerar evidência operacional de código fonte deve acontecer exclusivamente no ecossistema Cloudflare Workers, por Cloudflare Workers Builds, preview remoto, runtime remoto, `wrangler deploy --dry-run`, `wrangler dev --remote` ou mecanismo Cloudflare equivalente aprovado em documentação canônica.
+Para o MVP, compilação, lint, typecheck, build e testes de módulo devem passar primeiro no GitHub Actions da PR. O workflow remoto é o gate inicial para economizar máquina local e evitar gastar limite Cloudflare com falhas detectáveis antes do deploy.
 
-Não usar execução local como evidência de aceite do MVP. Simulações locais, servidores persistentes, containers, Python, VPS, banco externo obrigatório ou runtime fora de Cloudflare Workers não substituem validação Cloudflare-backed.
+Deploy Cloudflare só deve acontecer depois da PR verde em compilação e lint. Após o deploy, smoke, testes integrados de API ou e2e devem rodar contra a URL publicada. O processo operacional está em [`docs/remote-ci-gate.md`](docs/remote-ci-gate.md).
+
+Não usar deploy Cloudflare como verificador de compilação ou lint. Não usar execução local pesada como evidência final de aceite do MVP. Simulações locais, servidores persistentes, containers, Python, VPS, banco externo obrigatório ou runtime fora de Cloudflare Workers não substituem validação remota aprovada.
