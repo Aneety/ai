@@ -13,7 +13,13 @@ run_codex() {
 task_id="$1"
 interval="${CODEX_CLOUD_WATCH_INTERVAL:-30}"
 max_polls="${CODEX_CLOUD_WATCH_MAX_POLLS:-40}"
-codex_cli="${CODEX_CLOUD_CLI:-codex}"
+if [ -n "${CODEX_CLOUD_CLI:-}" ]; then
+  codex_cli="$CODEX_CLOUD_CLI"
+elif [ -x /opt/homebrew/bin/codex ]; then
+  codex_cli="/opt/homebrew/bin/codex"
+else
+  codex_cli="codex"
+fi
 
 if ! run_codex cloud status --help >/tmp/codex-cloud-status-help 2>&1; then
   fail "configured Codex CLI does not expose 'cloud status'; set CODEX_CLOUD_CLI to a newer CLI command before watching"

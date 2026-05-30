@@ -1,0 +1,29 @@
+{
+  "name": "ai",
+  "version": "1.0.0",
+  "description": "Repositório canônico da plataforma Aneety.",
+  "type": "module",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "codex-cloud:scheduler": "node .codex/cloud/scheduler.mjs",
+    "codex-cloud:scheduler:once": "node .codex/cloud/scheduler.mjs --once",
+    "codex-cloud:scheduler:dry-run": "node .codex/cloud/scheduler.mjs --dry-run",
+    "test": "node --check .codex/cloud/scheduler.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Aneety/ai.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Aneety/ai/issues"
+  },
+  "homepage": "https://github.com/Aneety/ai#readme",
+  "dependencies": {
+    "node-cron": "^4.2.1"
+  }
+}

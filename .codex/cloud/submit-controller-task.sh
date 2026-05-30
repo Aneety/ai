@@ -16,7 +16,13 @@ cd "$repo_root"
 branch="${CODEX_CLOUD_BRANCH:-main}"
 attempts="${CODEX_CLOUD_ATTEMPTS:-1}"
 prompt_file="${CODEX_CLOUD_PROMPT_FILE:-.codex/cloud/controller-prompt.md}"
-codex_cli="${CODEX_CLOUD_CLI:-codex}"
+if [ -n "${CODEX_CLOUD_CLI:-}" ]; then
+  codex_cli="$CODEX_CLOUD_CLI"
+elif [ -x /opt/homebrew/bin/codex ]; then
+  codex_cli="/opt/homebrew/bin/codex"
+else
+  codex_cli="codex"
+fi
 
 [ -f "$prompt_file" ] || fail "prompt file not found: $prompt_file"
 
@@ -25,7 +31,7 @@ if ! run_codex cloud exec --help >/tmp/codex-cloud-exec-help 2>&1; then
 fi
 
 log "submitting controller task"
-log "env=${CODEX_CLOUD_ENV_ID} branch=${branch} attempts=${attempts} prompt=${prompt_file} cli=${codex_cli}"
+log "env_id=present branch=${branch} attempts=${attempts} prompt=${prompt_file} cli=${codex_cli}"
 
 run_codex cloud exec \
   --env "$CODEX_CLOUD_ENV_ID" \
