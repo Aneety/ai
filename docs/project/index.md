@@ -49,6 +49,8 @@
 - 2026-05-30 — PR [#7](https://github.com/Aneety/ai/pull/7) já está mergeada em `Aneety/ai`; `gh pr checks 7 --repo Aneety/ai` e `gh run view` confirmaram `Governance audit`, `Security gate`, `Remote CI gate`, `Governance policy gate` e `Cloudflare deploy gate` verdes entre o PR `codex/ai-canonical-transition` e o push em `main` no SHA `33620f5b834a`.
 - 2026-05-30 — `aneety-platform/apps/.gitkeep` continua sendo a única entrada em `Aneety/ai`, então todas as responsabilidades permanecem `bloqueado` em `repositorio` por falta de raiz canônica, não mais por sujeira local.
 
+- 2026-05-30 — monitoramento Codex Cloud registrado em [`controller-monitoring-2026-05-30.md`](./controller-monitoring-2026-05-30.md): `gh` autenticado para leitura, nenhum PR aberto no momento da consulta, workflows ativos listados, últimos runs de `main` verdes no SHA `1a039111882ee949722bd3980c4f6550d323fa32`, 22 responsabilidades ainda bloqueadas em `repositorio` por falta de raízes canônicas, e push/PR remoto bloqueado por `403 Permission to Aneety/ai.git denied to Malnati`.
+
 ## Governança mínima de atualização
 
 1. Confirmar fonte documental e critério de aceite.

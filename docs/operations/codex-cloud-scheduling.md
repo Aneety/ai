@@ -8,6 +8,7 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety fora da a
 - A automação local permanece pausada.
 - O agendamento externo deve chamar `codex cloud exec` contra o ambiente Codex Cloud já validado.
 - A task remota pode gerar diff ou PR, mas não deve fazer merge automático.
+- O wrapper foi validado com a task `task_e_6a1a82c1423883278473fd88ccdb8cae`, que terminou `READY` e gerou diff de monitoramento sem merge automático.
 
 ## Scripts versionados
 
@@ -25,17 +26,25 @@ Opcionais:
 - `CODEX_CLOUD_BRANCH`: branch usada na task; padrão `main`.
 - `CODEX_CLOUD_ATTEMPTS`: tentativas best-of-N; padrão `1`.
 - `CODEX_CLOUD_PROMPT_FILE`: prompt da task; padrão `.codex/cloud/controller-prompt.md`.
+- `CODEX_CLOUD_CLI`: comando do Codex CLI; padrão `codex`. Use quando o binário global estiver antigo, por exemplo `npx --yes --package @openai/codex@latest codex`.
 - `CODEX_CLOUD_WATCH_INTERVAL`: intervalo em segundos para o watcher; padrão `30`.
 - `CODEX_CLOUD_WATCH_MAX_POLLS`: número máximo de leituras; padrão `40`.
 
 ## Pré-requisito do executor
 
-O executor externo precisa ter Codex CLI com suporte a `codex cloud exec`. Se `codex cloud exec --help` falhar, atualize o CLI antes de agendar.
+O executor externo precisa ter Codex CLI com suporte a `codex cloud exec`. Se `codex cloud exec --help` falhar, atualize o CLI ou configure `CODEX_CLOUD_CLI` para um comando mais novo antes de agendar.
 
 ## Execução manual
 
 ```sh
 CODEX_CLOUD_ENV_ID='<env-id>' .codex/cloud/submit-controller-task.sh
+```
+
+
+Quando o `codex` global ainda não expõe `cloud exec`, use:
+
+```sh
+CODEX_CLOUD_CLI='npx --yes --package @openai/codex@latest codex' CODEX_CLOUD_ENV_ID='<env-id>' .codex/cloud/submit-controller-task.sh
 ```
 
 O comando imprime a URL da task. Para acompanhar:
