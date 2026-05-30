@@ -1,23 +1,34 @@
 # Gate CI remoto antes de deploy Cloudflare
 
-Este repositório usa GitHub Actions como primeiro gate obrigatório para compilar e validar módulos do monorepo antes de qualquer deploy Cloudflare.
+Este repositório usa GitHub Actions como primeiro gate obrigatório para compilar, validar e auditar módulos do monorepo antes de qualquer execução Cloudflare com efeito operacional.
 
 ## Fluxo obrigatório
 
 1. Abrir ou atualizar PR.
-2. Aguardar o workflow `Remote CI gate` executar no GitHub Actions.
-3. Se o workflow falhar, ler logs/checks da PR, corrigir localmente e fazer novo push.
-4. Só iniciar deploy Cloudflare quando compilação, lint, typecheck, build e testes de módulo estiverem verdes na PR.
+2. Aguardar os workflows `Remote CI gate`, `Governance policy gate` e `Security gate` no GitHub Actions.
+3. Se algum workflow falhar, ler logs/checks da PR, corrigir localmente e fazer novo push.
+4. Só iniciar `Cloudflare deploy gate` quando compilação, lint, typecheck, build, testes de módulo, política e segurança estiverem verdes na PR.
 5. Depois do deploy, executar smoke, testes integrados de API ou e2e contra a URL publicada.
+
+Resumo: PR -> GitHub Actions -> Cloudflare -> smoke/API/e2e publicado.
+
+## O que roda no GitHub Actions
+
+- `ci.yml`: descobre módulos em `aneety-platform/apps/**`, detecta package manager, instala dependências em runner remoto, executa `lint`, `typecheck`, `build` e `test` quando existirem.
+- `policy.yml`: valida workflows, arquivos obrigatórios, assets Mermaid, proibições de runtime MVP e vazamento técnico em copy de UI.
+- `security.yml`: executa dependency review, CodeQL quando houver fonte compatível e varredura textual de segredos sem imprimir valores.
+- `cloudflare-gate.yml`: executa dry-run, deploy manual explícito ou smoke de URL publicada somente depois de CI verde ou por acionamento manual controlado.
+- `governance.yml`: audita periodicamente docs canônicos, workflows, PRs e drift, publicando resumo como artifact/check summary sem auto-commit.
 
 ## Restrições operacionais
 
 - Não usar deploy Cloudflare como verificador de compilação ou lint.
 - Não gastar ciclos Cloudflare com falhas que o GitHub Actions consegue detectar antes.
 - Não usar execução local pesada como evidência final de aceite.
+- Não usar Podman, Docker, containers, servidor local persistente, Python de runtime MVP, Playwright/Cypress local ou Wrangler local para fechar aceite do MVP.
 - Manter o MVP em runtime 100% compatível com Cloudflare Workers.
-- Usar máquina local apenas para inspeção, edição e validações leves/determinísticas.
+- Usar máquina local apenas para inspeção, edição, Git, leitura de logs/checks e validações leves/determinísticas.
 
 ## Evidência mínima
 
-Antes de deploy, a PR deve mostrar o check `Compile and lint modules` como aprovado. Depois do deploy, a evidência deve apontar para a URL real testada e para o resultado dos testes de smoke/API/e2e.
+Antes de deploy, a PR deve mostrar checks verdes de compilação/lint/teste, política e segurança. Depois do deploy, a evidência deve apontar para a URL real testada e para o resultado dos testes de smoke/API/e2e.

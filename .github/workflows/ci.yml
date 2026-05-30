@@ -14,20 +14,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  compile-lint:
-    name: Compile and lint modules
+  discover:
+    name: Discover app modules
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    outputs:
+      has_modules: ${{ steps.discover.outputs.has_modules }}
+      package_dirs: ${{ steps.discover.outputs.package_dirs }}
+      cache_key: ${{ steps.discover.outputs.cache_key }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Discover app modules
+      - name: Discover package modules
         id: discover
         shell: bash
         run: |
@@ -36,6 +35,7 @@ jobs:
           search_root="aneety-platform/apps"
           if [ ! -d "$search_root" ]; then
             echo "has_modules=false" >> "$GITHUB_OUTPUT"
+            echo "cache_key=no-modules" >> "$GITHUB_OUTPUT"
             echo "No $search_root directory found."
             exit 0
           fi
@@ -43,7 +43,7 @@ jobs:
           mapfile -t package_files < <(
             find "$search_root" \
               -mindepth 2 \
-              -maxdepth 4 \
+              -maxdepth 5 \
               -name package.json \
               -not -path '*/node_modules/*' \
               | sort
@@ -51,6 +51,7 @@ jobs:
 
           if [ "${#package_files[@]}" -eq 0 ]; then
             echo "has_modules=false" >> "$GITHUB_OUTPUT"
+            echo "cache_key=scaffold-only" >> "$GITHUB_OUTPUT"
             echo "No app package.json files found. Remote CI gate passes for scaffold-only repository."
             exit 0
           fi
@@ -64,26 +65,114 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Compile and lint discovered modules
-        if: steps.discover.outputs.has_modules == 'true'
+          lock_hash="$({ find "$search_root" -name package-lock.json -o -name npm-shrinkwrap.json -o -name pnpm-lock.yaml -o -name yarn.lock -o -name bun.lock -o -name bun.lockb; } | sort | xargs shasum 2>/dev/null | shasum | awk '{print $1}')"
+          echo "cache_key=${lock_hash:-no-locks}" >> "$GITHUB_OUTPUT"
+
+  compile-lint:
+    name: Compile, lint and test modules
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: needs.discover.outputs.has_modules == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack
+        shell: bash
+        run: corepack enable
+
+      - name: Cache package manager stores
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.pnpm-store
+            ~/.cache/yarn
+            ~/.bun/install/cache
+          key: aneety-node-${{ runner.os }}-${{ needs.discover.outputs.cache_key }}
+          restore-keys: |
+            aneety-node-${{ runner.os }}-
+
+      - name: Install dependencies and run module checks
         shell: bash
         run: |
           set -euo pipefail
+
+          has_script() {
+            node -e "const pkg=require('./package.json'); process.exit(pkg.scripts && pkg.scripts[process.argv[1]] ? 0 : 1)" "$1"
+          }
+
+          run_script_if_present() {
+            local manager="$1"
+            local script="$2"
+            if has_script "$script"; then
+              case "$manager" in
+                npm) npm run "$script" ;;
+                pnpm) pnpm run "$script" ;;
+                yarn) yarn run "$script" ;;
+                bun) bun run "$script" ;;
+                *) echo "Unknown package manager: $manager" >&2; exit 1 ;;
+              esac
+            else
+              echo "No $script script in $(pwd)."
+            fi
+          }
+
+          install_dependencies() {
+            if [ -f pnpm-lock.yaml ]; then
+              echo "manager=pnpm"
+              pnpm install --frozen-lockfile
+              return
+            fi
+            if [ -f yarn.lock ]; then
+              echo "manager=yarn"
+              yarn install --immutable || yarn install --frozen-lockfile || yarn install
+              return
+            fi
+            if [ -f bun.lock ] || [ -f bun.lockb ]; then
+              echo "manager=bun"
+              npm install --global bun
+              bun install --frozen-lockfile
+              return
+            fi
+            echo "manager=npm"
+            if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+              npm ci
+            else
+              npm install
+            fi
+          }
 
           while IFS= read -r package_dir; do
             [ -n "$package_dir" ] || continue
             echo "::group::${package_dir}"
             cd "$GITHUB_WORKSPACE/$package_dir"
 
-            if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-              npm ci
-            else
-              npm install
-            fi
+            manager_line="$(install_dependencies | tee /tmp/aneety-install.log | grep '^manager=' | tail -1)"
+            manager="${manager_line#manager=}"
 
-            npm run lint --if-present
-            npm run typecheck --if-present
-            npm run build --if-present
-            npm test --if-present
+            run_script_if_present "$manager" lint
+            run_script_if_present "$manager" typecheck
+            run_script_if_present "$manager" build
+            run_script_if_present "$manager" test
             echo "::endgroup::"
-          done <<< "${{ steps.discover.outputs.package_dirs }}"
+          done <<< "${{ needs.discover.outputs.package_dirs }}"
+
+  scaffold-ok:
+    name: Scaffold-only repository gate
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: needs.discover.outputs.has_modules != 'true'
+    steps:
+      - name: Report scaffold-only state
+        shell: bash
+        run: |
+          echo "No package.json files found under aneety-platform/apps/**."
+          echo "Remote CI gate passes for repository scaffolding only."
