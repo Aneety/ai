@@ -3,6 +3,24 @@ set -euo pipefail
 
 log() { printf '[codex-cloud-maintenance] %s\n' "$*"; }
 
+prepend_local_bin() {
+  local local_bin="${HOME:-/tmp}/.local/bin"
+  case ":$PATH:" in
+    *":$local_bin:"*) ;;
+    *) export PATH="$local_bin:$PATH" ;;
+  esac
+}
+
+ensure_origin() {
+  if ! git remote get-url origin >/dev/null 2>&1; then
+    log "origin remote missing; adding read-only canonical origin"
+    git remote add origin https://github.com/Aneety/ai.git
+  fi
+}
+
+prepend_local_bin
+ensure_origin
+
 log "repo status"
 git status --short
 log "branch: $(git branch --show-current 2>/dev/null || true)"
