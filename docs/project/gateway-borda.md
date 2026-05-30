@@ -13,7 +13,7 @@
 
 | Ciclo | Status | Prioridade | Gate | Evidência | Bloqueio | Próxima ação |
 | --- | --- | --- | --- | --- | --- | --- |
-| `repositorio` | `validacao` | alta | `arquitetura` | Branch atual cria `aneety-platform/apps/gateway-borda/`, `worker-gateway/` e `pkg-contratos-publicos/`; evidência final exige PR mergeado e checks verdes. | Aguardando PR, checks remotos e merge. | Após merge e gates verdes, marcar `concluido` e iniciar ciclo `deploy` somente com runtime 100% Workers e evidência remota. |
+| `repositorio` | `validacao` | alta | `arquitetura` | [PR #14](https://github.com/Aneety/ai/pull/14) cria `aneety-platform/apps/gateway-borda/`, `worker-gateway/` e `pkg-contratos-publicos/`; evidência final exige PR mergeado e checks verdes. | Aguardando checks remotos e merge da PR #14. | Após merge e gates verdes, marcar `concluido` e iniciar ciclo `deploy` somente com runtime 100% Workers e evidência remota. |
 | `deploy` | `triagem` | alta | `processo` | — | Aguardando ciclo `repositorio` ficar verde neste arquivo. | Executar `deploy` depois de concluir `repositorio` com evidência objetiva. |
 | `publicacao` | `triagem` | alta | `processo` | — | Aguardando ciclo `deploy` ficar verde neste arquivo. | Executar `publicacao` depois de concluir `deploy` com evidência objetiva. |
 | `banco` | `triagem` | alta | `DB` | — | Não aplicável no contrato atual desta responsabilidade. | Ignorar até mudança contratual aprovada nos documentos normativos. |
@@ -35,4 +35,4 @@
 ## Histórico curto
 
 - 2026-05-29 — backlog migrado do painel operacional anterior para `docs/project`.
-- 2026-05-30 — ciclo `repositorio` em `validacao`: branch cria a raiz canônica `aneety-platform/apps/gateway-borda/` com contrato inicial de `worker-gateway` e `pkg-contratos-publicos`; aguarda PR mergeado e checks verdes para evidência final.
+- 2026-05-30 — ciclo `repositorio` em `validacao`: PR #14 cria a raiz canônica `aneety-platform/apps/gateway-borda/` com contrato inicial de `worker-gateway` e `pkg-contratos-publicos`; aguarda PR mergeado e checks verdes para evidência final.

@@ -12,7 +12,7 @@
 
 | Responsabilidade | Owner | Prioridade | Ciclo ativo | Status | Arquivo | Evidência atual | Bloqueio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `gateway-borda` | Ricardo Malnati | alta | `repositorio` | `validacao` | [gateway-borda](./gateway-borda.md) | Branch atual cria raiz canônica `aneety-platform/apps/gateway-borda/` com `worker-gateway` e `pkg-contratos-publicos`. | Aguardando PR, checks remotos e merge. |
+| `gateway-borda` | Ricardo Malnati | alta | `repositorio` | `validacao` | [gateway-borda](./gateway-borda.md) | [PR #14](https://github.com/Aneety/ai/pull/14) cria raiz canônica `aneety-platform/apps/gateway-borda/` com `worker-gateway` e `pkg-contratos-publicos`. | Aguardando checks remotos e merge da PR #14. |
 | `tenant-white-label` | Ricardo Malnati | alta | `repositorio` | `bloqueado` | [tenant-white-label](./tenant-white-label.md) | Issue histórica #4 + inspeção local 2026-05-30 | Sem raiz em `Aneety/ai`; checkout local limpo, bloqueio agora é estrutural. |
 | `identidade-acesso` | Ricardo Malnati | alta | `repositorio` | `bloqueado` | [identidade-acesso](./identidade-acesso.md) | Issue histórica #5 + inspeção local 2026-05-30 | Sem raiz em `Aneety/ai`; checkout local limpo, bloqueio agora é estrutural. |
 | `onboarding-acesso` | Ricardo Malnati | alta | `repositorio` | `bloqueado` | [onboarding-acesso](./onboarding-acesso.md) | Issue histórica #6 + inspeção local 2026-05-30 | Sem raiz em `Aneety/ai`; checkout local limpo, bloqueio agora é estrutural. |
@@ -47,7 +47,7 @@
 - 2026-05-30 — transição definida: `Aneety/ai` passa a concentrar documentação, backlog operacional, assets, PRs, checks e evidências.
 - 2026-05-30 — `docs/project` neste repositório segue como fonte única de backlog operacional; nenhuma consulta a painel fora do repositório é necessária.
 - 2026-05-30 — PR [#7](https://github.com/Aneety/ai/pull/7) já está mergeada em `Aneety/ai`; `gh pr checks 7 --repo Aneety/ai` e `gh run view` confirmaram `Governance audit`, `Security gate`, `Remote CI gate`, `Governance policy gate` e `Cloudflare deploy gate` verdes entre o PR `codex/ai-canonical-transition` e o push em `main` no SHA `33620f5b834a`.
-- 2026-05-30 — `gateway-borda` passa a ter raiz canônica em validação nesta branch; demais responsabilidades seguem bloqueadas em `repositorio` por falta de raiz canônica.
+- 2026-05-30 — `gateway-borda` passa a ter raiz canônica em validação na PR #14; demais responsabilidades seguem bloqueadas em `repositorio` por falta de raiz canônica.
 
 - 2026-05-30 — monitoramento Codex Cloud registrado em [`controller-monitoring-2026-05-30.md`](./controller-monitoring-2026-05-30.md): `gh` autenticado para leitura, nenhum PR aberto no momento da consulta, workflows ativos listados, últimos runs de `main` verdes no SHA `1a039111882ee949722bd3980c4f6550d323fa32`, 22 responsabilidades ainda bloqueadas em `repositorio` por falta de raízes canônicas, e push/PR remoto bloqueado por `403 Permission to Aneety/ai.git denied to Malnati`.
 
