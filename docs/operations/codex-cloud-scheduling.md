@@ -14,6 +14,7 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety fora da a
 
 - `.codex/cloud/submit-controller-task.sh` — submete uma task usando `.codex/cloud/controller-prompt.md`.
 - `.codex/cloud/watch-task.sh` — acompanha uma task até `READY` ou falha.
+- `.codex/cloud/scheduler.mjs` — agendador Node.js com `node-cron`, executando submit/watch a cada 30 minutos por padrão.
 
 ## Variáveis do agendador
 
@@ -26,9 +27,12 @@ Opcionais:
 - `CODEX_CLOUD_BRANCH`: branch usada na task; padrão `main`.
 - `CODEX_CLOUD_ATTEMPTS`: tentativas best-of-N; padrão `1`.
 - `CODEX_CLOUD_PROMPT_FILE`: prompt da task; padrão `.codex/cloud/controller-prompt.md`.
-- `CODEX_CLOUD_CLI`: comando do Codex CLI; padrão `codex`. Use quando o binário global estiver antigo, por exemplo `npx --yes --package @openai/codex@latest codex`.
+- `CODEX_CLOUD_CLI`: comando do Codex CLI; se ausente, os wrappers preferem `/opt/homebrew/bin/codex` quando existir e depois `codex`. Use quando o binário global estiver antigo, por exemplo `npx --yes --package @openai/codex@latest codex`.
 - `CODEX_CLOUD_WATCH_INTERVAL`: intervalo em segundos para o watcher; padrão `30`.
 - `CODEX_CLOUD_WATCH_MAX_POLLS`: número máximo de leituras; padrão `40`.
+- `CODEX_CLOUD_ENV_FILE`: arquivo local carregado pelo agendador Node.js; padrão `$HOME/.codex/automations/aneety-project-hourly-controller/cloud-env.sh`.
+- `CODEX_CLOUD_SCHEDULE`: expressão cron do agendador Node.js; padrão `*/30 * * * *`.
+- `CODEX_CLOUD_SCHEDULE_TZ`: timezone do agendador Node.js; padrão `America/Asuncion`.
 
 ## Pré-requisito do executor
 
@@ -60,6 +64,40 @@ Use um scheduler externo que consiga executar o Codex CLI autenticado e preserva
 ```sh
 cd /path/to/Aneety/ai
 CODEX_CLOUD_ENV_ID='<env-id>' .codex/cloud/submit-controller-task.sh
+```
+
+Ou use o agendador Node.js versionado:
+
+```sh
+npm install
+npm run codex-cloud:scheduler
+```
+
+Antes de iniciar, crie um arquivo local fora do repositório com permissão restrita:
+
+```sh
+mkdir -p "$HOME/.codex/automations/aneety-project-hourly-controller"
+umask 077
+cat > "$HOME/.codex/automations/aneety-project-hourly-controller/cloud-env.sh" <<'EOF'
+export CODEX_CLOUD_ENV_ID='<env-id>'
+export CODEX_CLOUD_BRANCH='main'
+export CODEX_CLOUD_ATTEMPTS='1'
+export CODEX_CLOUD_WATCH_INTERVAL='30'
+export CODEX_CLOUD_WATCH_MAX_POLLS='40'
+EOF
+chmod 600 "$HOME/.codex/automations/aneety-project-hourly-controller/cloud-env.sh"
+```
+
+Para validar sem submeter task:
+
+```sh
+npm run codex-cloud:scheduler:dry-run
+```
+
+Para executar uma vez e acompanhar até estado final:
+
+```sh
+npm run codex-cloud:scheduler:once
 ```
 
 Regras:
