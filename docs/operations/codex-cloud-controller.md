@@ -14,6 +14,8 @@ Este documento descreve o modo cloud-safe do controlador Markdown da Aneety. Ele
 - `.codex/cloud/maintenance.sh` — atualiza referências Git, valida YAML dos workflows e lista PRs/runs quando possível.
 - `.codex/cloud/run-controller-check.sh` — gera diagnóstico idempotente do painel, implementação e checks sem editar arquivos.
 - `.codex/cloud/controller-prompt.md` — prompt durável para uma task manual no Codex Cloud.
+- `.codex/cloud/submit-controller-task.sh` — wrapper para submeter o prompt do controlador via `codex cloud exec`.
+- `.codex/cloud/watch-task.sh` — wrapper para acompanhar uma task remota até `READY` ou falha.
 
 ## Variáveis e segredos
 
@@ -51,3 +53,4 @@ Use allowlist mínima:
 4. Configurar `GH_TOKEN` apenas se a task precisar de `gh`. Se a imagem base não trouxer `gh`, deixar `github.com`, `release-assets.githubusercontent.com` e `objects.githubusercontent.com` liberados para o bootstrap do setup.
 5. Executar uma task manual usando `.codex/cloud/controller-prompt.md`.
 6. Aceitar o modo remoto somente se a task conseguir ler repo, PRs/checks e gerar relatório sem depender de máquina local.
+7. Para recorrência, seguir `docs/operations/codex-cloud-scheduling.md` em scheduler externo; não reativar a automação local como fallback.
