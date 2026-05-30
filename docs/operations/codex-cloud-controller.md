@@ -10,7 +10,7 @@ Este documento descreve o modo cloud-safe do controlador Markdown da Aneety. Ele
 
 ## Arquivos do modo cloud-safe
 
-- `.codex/cloud/setup.sh` — valida ferramentas mínimas e autenticação GitHub quando `GH_TOKEN` estiver presente.
+- `.codex/cloud/setup.sh` — valida ferramentas mínimas, instala `gh` em `${HOME}/.local/bin` quando ele não existir na imagem Linux e valida autenticação GitHub quando `GH_TOKEN` estiver presente.
 - `.codex/cloud/maintenance.sh` — atualiza referências Git, valida YAML dos workflows e lista PRs/runs quando possível.
 - `.codex/cloud/run-controller-check.sh` — gera diagnóstico idempotente do painel, implementação e checks sem editar arquivos.
 - `.codex/cloud/controller-prompt.md` — prompt durável para uma task manual no Codex Cloud.
@@ -28,6 +28,7 @@ Use allowlist mínima:
 - `github.com`
 - `api.github.com`
 - `githubusercontent.com`
+- `release-assets.githubusercontent.com` e `objects.githubusercontent.com`, quando o setup precisar baixar o pacote oficial do GitHub CLI a partir de release hospedada no GitHub.
 - `npmjs.com` e `npmjs.org` somente se uma etapa futura instalar pacotes durante setup.
 
 ## Comandos permitidos
@@ -47,6 +48,6 @@ Use allowlist mínima:
 1. Criar ambiente Codex Cloud apontando para `Aneety/ai`.
 2. Configurar setup script como `.codex/cloud/setup.sh`.
 3. Configurar maintenance script como `.codex/cloud/maintenance.sh`.
-4. Configurar `GH_TOKEN` apenas se a task precisar de `gh`.
+4. Configurar `GH_TOKEN` apenas se a task precisar de `gh`. Se a imagem base não trouxer `gh`, deixar `github.com`, `release-assets.githubusercontent.com` e `objects.githubusercontent.com` liberados para o bootstrap do setup.
 5. Executar uma task manual usando `.codex/cloud/controller-prompt.md`.
 6. Aceitar o modo remoto somente se a task conseguir ler repo, PRs/checks e gerar relatório sem depender de máquina local.
