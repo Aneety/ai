@@ -1,0 +1,9 @@
+flowchart TD
+  A["Pedido pronto para logística"] --> B["Criar demanda de coleta ou entrega"]
+  B --> C{"Entregador aceita?"}
+  C -->|"Não"| D["Registrar rejeição e oferecer novamente"]
+  C -->|"Sim"| E["Registrar check-in na origem"]
+  E --> F["Atualizar localização e mapa"]
+  F --> G["Registrar check-out no destino"]
+  G --> H["Atualizar rastreabilidade do pedido"]
+  D --> B

@@ -1,25 +1,23 @@
 # Aneety AI
 
-Repositório orquestrador da nova plataforma Aneety.
+Repositório canônico da plataforma Aneety.
 
-Este repositório nasce limpo: o código dos repositórios históricos Lia não foi importado. A linha Lia permanece como fonte histórica de aprendizado, evidências, decisões e massas de demonstração, enquanto novas responsabilidades Aneety devem ser criadas como módulos internos do monorepo quando houver contrato, owner, dados tratados, custo zero, testes e critério de aceite.
+Este monorepo concentra documentação, backlog operacional, assets reutilizáveis, módulos por responsabilidade, workflows, PRs, checks e evidências da nova linha Aneety. O código dos repositórios históricos Lia não foi importado; a linha Lia permanece apenas como fonte histórica de aprendizado, decisões e massas de demonstração.
 
-## Documentação canônica
+## Fontes canônicas
 
-A documentação oficial da plataforma fica em [`Aneety/.github/docs`](https://github.com/Aneety/.github/tree/main/docs).
+- `docs/` — documentação normativa da plataforma, incluindo arquitetura, requisitos, processos, modelagem, governança e planejamento.
+- `docs/project/` — painel operacional versionado com status, owner, evidência, bloqueio e próxima ação por responsabilidade.
+- `assets/` — assets reutilizáveis da plataforma, sempre com fonte SVG quando aplicável.
+- `aneety-platform/apps/` — raiz dos módulos internos por responsabilidade.
 
-Este repositório mantém apenas ponteiros e estrutura de orquestração. Não duplique arquitetura, ADRs, guias ou catálogo de repositórios aqui.
+## Regra de implementação
 
-## Estrutura inicial
-
-- `docs/` — ponteiro para documentação canônica.
-- `aneety-platform/apps/` — raiz reservada para módulos internos por responsabilidade.
-
-## Regra de implementação e validação
-
-Cada responsabilidade com implementação própria deve nascer como módulo interno em `aneety-platform/apps/<responsabilidade>/...`, seguindo o contrato canônico publicado em `Aneety/.github/docs`. Separação em repositório próprio fica fora do contrato atual do MVP e só pode acontecer depois de atualização documental aprovada.
+Cada responsabilidade com implementação própria deve nascer como módulo interno em `aneety-platform/apps/<responsabilidade>/...`, seguindo o contrato publicado em `docs/`. Separação em repositório próprio fica fora do contrato atual do MVP e só pode acontecer depois de atualização documental aprovada.
 
 Este monorepo pode ser usado nesta máquina local para gerar, editar, revisar e versionar código fonte, contratos, documentação e artefatos de controle.
+
+## Regra de validação
 
 Para o MVP, compilação, lint, typecheck, build e testes de módulo devem passar primeiro no GitHub Actions da PR. O workflow remoto é o gate inicial para economizar máquina local e evitar gastar limite Cloudflare com falhas detectáveis antes do deploy.
 

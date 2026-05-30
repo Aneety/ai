@@ -1,0 +1,8 @@
+flowchart TD
+  A["Etapa exige qualidade"] --> B["Registrar checkpoint"]
+  B --> C{"Evidência obrigatória presente?"}
+  C -->|"Não"| D["Bloquear avanço e solicitar correção"]
+  C -->|"Sim"| E["Revisar aprovação"]
+  E --> F{"Aprovado?"}
+  F -->|"Não"| D
+  F -->|"Sim"| G["Liberar próxima etapa"]

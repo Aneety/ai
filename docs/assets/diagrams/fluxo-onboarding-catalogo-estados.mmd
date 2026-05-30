@@ -1,0 +1,8 @@
+flowchart TD
+  A["Administrador convida usuário ou ator"] --> B["Usuário aceita convite e completa primeiro acesso"]
+  B --> C["Operação escolhe item do catálogo"]
+  C --> D["Formulário captura atributos de personalização"]
+  D --> E["Máquina de estados define próximo passo permitido"]
+  E --> F{"Transição permitida para o papel?"}
+  F -->|"Não"| G["Bloquear ação e orientar próxima etapa"]
+  F -->|"Sim"| H["Registrar evento e liberar próxima ação"]

@@ -26,13 +26,6 @@ jobs:
         with:
           path: ai
 
-      - name: Checkout canonical docs
-        uses: actions/checkout@v4
-        continue-on-error: true
-        with:
-          repository: Aneety/.github
-          path: canonical-docs
-
       - name: Audit docs, workflows and PR state
         env:
           GH_TOKEN: ${{ github.token }}
@@ -67,17 +60,17 @@ jobs:
 
           echo >> "$report"
           echo "## Canonical docs" >> "$report"
-          if [ -d canonical-docs/docs/project ]; then
-            count=$(find canonical-docs/docs/project -type f -name '*.md' | wc -l | tr -d ' ')
-            echo "- OK: canonical docs/project found (${count} files)." >> "$report"
+          if [ -d ai/docs/project ]; then
+            count=$(find ai/docs/project -type f -name '*.md' | wc -l | tr -d ' ')
+            echo "- OK: ai/docs/project found (${count} files)." >> "$report"
           else
-            echo "- BLOCKED: canonical docs/project unavailable to this workflow." >> "$report"
+            echo "- BLOCKED: ai/docs/project unavailable in this repository." >> "$report"
           fi
 
           for file in \
-            canonical-docs/docs/03-processos.md \
-            canonical-docs/docs/07-governanca-github.md \
-            canonical-docs/docs/08-planejamento-ciclos-implementacao-repositorios.md; do
+            ai/docs/03-processos.md \
+            ai/docs/07-governanca-github.md \
+            ai/docs/08-planejamento-ciclos-implementacao-repositorios.md; do
             if [ -f "$file" ] && grep -q 'GitHub Actions' "$file"; then
               echo "- OK: $file references GitHub Actions gate." >> "$report"
             else

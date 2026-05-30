@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Aneety mark</title>
+  <desc id="desc">Abstract A-shaped network mark for Aneety.</desc>
+  <defs>
+    <linearGradient id="bg" x1="84" y1="72" x2="428" y2="440" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F172A"/>
+      <stop offset="0.52" stop-color="#123A49"/>
+      <stop offset="1" stop-color="#0D9488"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="146" y1="380" x2="366" y2="126" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A7F3D0"/>
+      <stop offset="0.48" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#14B8A6"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#0F172A" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <rect x="48" y="48" width="416" height="416" rx="120" fill="url(#bg)" filter="url(#softShadow)"/>
+  <path d="M151 358L246 148C250 139 263 139 267 148L361 358" fill="none" stroke="url(#stroke)" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M202 282H310" fill="none" stroke="#E0F2FE" stroke-width="34" stroke-linecap="round"/>
+  <circle cx="151" cy="358" r="24" fill="#A7F3D0"/>
+  <circle cx="256" cy="148" r="24" fill="#38BDF8"/>
+  <circle cx="361" cy="358" r="24" fill="#14B8A6"/>
+  <circle cx="202" cy="282" r="14" fill="#ECFEFF"/>
+  <circle cx="310" cy="282" r="14" fill="#ECFEFF"/>
+</svg>
