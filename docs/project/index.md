@@ -40,12 +40,13 @@
 - `Aneety/ai` ainda contém apenas `aneety-platform/apps/.gitkeep`; nenhuma responsabilidade tem raiz concreta em `aneety-platform/apps/<responsabilidade>/...`, então nenhum ciclo `repositorio` pode permanecer verde por evidência de implementação.
 - Painel operacional ativo consolidado em `Aneety/ai/docs/project`; não há dependência de painel fora do repositório para status, owner, evidência ou bloqueio.
 - `Aneety/ai` concentra workflows/checks, documentação, backlog e assets; mudanças passam pelo gate remoto deste repositório.
+- GitHub Actions em `main` seguem verdes, mas `gh run view 26675134837` e `26675141018` registraram anotação objetiva de depreciação Node.js 20 em `actions/checkout@v4` e `actions/setup-node@v4`; próxima ação mínima é abrir PR de workflow para remover esse risco antes do corte informado pelo GitHub.
 
 ## Últimas atualizações
 
 - 2026-05-30 — transição definida: `Aneety/ai` passa a concentrar documentação, backlog operacional, assets, PRs, checks e evidências.
 - 2026-05-30 — `docs/project` neste repositório segue como fonte única de backlog operacional; nenhuma consulta a painel fora do repositório é necessária.
-- 2026-05-30 — PR [#6](https://github.com/Aneety/ai/pull/6) já está mergeada em `Aneety/ai`; `gh run list -R Aneety/ai` confirmou `Governance audit`, `Security gate`, `Remote CI gate`, `Governance policy gate` e `Cloudflare deploy gate` verdes em `main` no SHA `46449a37ff52`.
+- 2026-05-30 — PR [#7](https://github.com/Aneety/ai/pull/7) já está mergeada em `Aneety/ai`; `gh pr checks 7 --repo Aneety/ai` e `gh run view` confirmaram `Governance audit`, `Security gate`, `Remote CI gate`, `Governance policy gate` e `Cloudflare deploy gate` verdes entre o PR `codex/ai-canonical-transition` e o push em `main` no SHA `33620f5b834a`.
 - 2026-05-30 — `aneety-platform/apps/.gitkeep` continua sendo a única entrada em `Aneety/ai`, então todas as responsabilidades permanecem `bloqueado` em `repositorio` por falta de raiz canônica, não mais por sujeira local.
 
 ## Governança mínima de atualização
