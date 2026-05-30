@@ -11,7 +11,7 @@ Encerrar o MVP Lia como linha ativa de implementação e preservar seu valor com
 - Partes da implementação e testes ainda carregam decisões temporárias de protótipo e autenticação transitória.
 - O contrato atual evoluiu mais rápido que a base de código, criando diferença entre intenção, documentação e apps publicados.
 - A nova linha deve nascer no monorepo `Aneety/ai`, com responsabilidades próprias como módulos internos em `aneety-platform/apps/<responsabilidade>/...`.
-- Todos os projetos/repositórios Aneety devem ser clonados em `/Users/mal/GitHub/Aneety/*`, sempre alinhando `https://github.com/Aneety/<repo>` com `/Users/mal/GitHub/Aneety/<repo>`.
+- O sucessor operacional deve usar o checkout do repositório `Aneety/ai` disponível no ambiente, seja local ou Codex Cloud.
 
 ## O que preservar
 
@@ -23,9 +23,9 @@ Encerrar o MVP Lia como linha ativa de implementação e preservar seu valor com
 - Superfície operacional para atendimento, produção, qualidade e logística.
 - Administração de usuários, perfis, tenants, permissões e white-label.
 - Estrutura `aneety-platform/apps/<responsabilidade>/<prefixo>-<nome>` descrita em `01-arquitetura.md` e `05-estrutura-repositorios.md`.
-- Clone local obrigatório de todos os projetos/repositórios em `/Users/mal/GitHub/Aneety/*`, incluindo `/Users/mal/GitHub/Aneety/ai`, `/Users/mal/GitHub/Aneety/ai` e `/Users/mal/GitHub/Aneety/ai/assets`.
-- Documentação canônica de todos os projetos/repositórios em `Aneety/ai`, com clone local em `/Users/mal/GitHub/Aneety/ai`, incluindo arquitetura, catálogo de repositórios, guias de usuário, documentação de desenvolvedor, ADRs e especificações.
-- Assets reutilizáveis do projeto em `Aneety/ai/assets`, com clone local em `/Users/mal/GitHub/Aneety/ai/assets` e versão SVG canônica para logos, ícones, ilustrações, diagramas, marcas, pictogramas e elementos visuais compartilhados.
+- Checkout obrigatório do sucessor: `Aneety/ai`, com documentação em `docs/`, backlog em `docs/project/` e assets reutilizáveis em `assets/`.
+- Documentação canônica em `docs/`, incluindo arquitetura, catálogo de módulos, guias de usuário, documentação de desenvolvedor, ADRs e especificações.
+- Assets reutilizáveis do projeto em `assets/`, com versão SVG canônica para logos, ícones, ilustrações, diagramas, marcas, pictogramas e elementos visuais compartilhados.
 - Publicação sob `aneety.com` e regra de **custo zero sempre**.
 
 ## O que não carregar para o sucessor
@@ -57,10 +57,10 @@ Encerrar o MVP Lia como linha ativa de implementação e preservar seu valor com
 - Decisão registrada nesta documentação canônica em `Aneety/ai/docs`.
 - Responsabilidade mapeada para `aneety-platform/apps/<responsabilidade>/...`.
 - Implementação própria prevista como módulo interno no monorepo `Aneety/ai`, em `aneety-platform/apps/<responsabilidade>/...`.
-- Clone local previsto para o contrato atual em `/Users/mal/GitHub/Aneety/ai`, com documentação em `docs/` e assets em `assets/`.
+- Checkout previsto para o contrato atual: `Aneety/ai`, com documentação em `docs/` e assets em `assets/`.
 - Documentação e governança previstas primeiro em `docs/`, antes de qualquer separação futura em repositório próprio pós-MVP.
-- Registro documental previsto em `Aneety/ai`, clonado em `/Users/mal/GitHub/Aneety/ai`.
-- Asset reutilizável previsto em `Aneety/ai/assets`, clonado em `/Users/mal/GitHub/Aneety/ai/assets`, com SVG canônico quando houver visual compartilhado.
+- Registro documental previsto em `docs/`.
+- Asset reutilizável previsto em `assets/`, com SVG canônico quando houver visual compartilhado.
 - Prefixo técnico escolhido conforme o contrato de nomes.
 - Regra de custo zero sempre e runtime explicitada.
 - Dados, segredos e permissões classificados.

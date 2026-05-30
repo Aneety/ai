@@ -381,9 +381,9 @@ flowchart TD
 ## Técnico
 
 - Org GitHub oficial: `https://github.com/Aneety`.
-- Clone local obrigatório: `/Users/mal/GitHub/Aneety/ai`.
-- Remoto canônico: `https://github.com/Aneety/ai`, correspondente ao clone local `/Users/mal/GitHub/Aneety/ai`.
-- Monorepo canônico: `Aneety/ai` (`https://github.com/Aneety/ai.git`, clone local `/Users/mal/GitHub/Aneety/ai`).
+- Checkout obrigatório: o checkout de `Aneety/ai`.
+- Remoto canônico: `https://github.com/Aneety/ai`, correspondente ao checkout de `Aneety/ai`.
+- Monorepo canônico: `Aneety/ai` (`https://github.com/Aneety/ai.git`, checkout de `Aneety/ai`).
 - Documentação canônica: `docs/`.
 - Assets reutilizáveis: `assets/`.
 - Cada responsabilidade/derivação com implementação própria deve nascer como módulo interno em `Aneety/ai`, dentro de `aneety-platform/apps/<responsabilidade>/...`, sem repositório próprio nem submódulo por responsabilidade no contrato atual do MVP.

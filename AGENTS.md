@@ -12,6 +12,6 @@ Required order:
 4. Start Cloudflare dry-run, deploy, smoke, API integration or e2e only after the PR gate is green.
 5. Record evidence from the PR checks, Cloudflare run and published URL.
 
-Do not use this MacBook as the acceptance runtime for the MVP. Do not use local containers, local servers, local Python services, local Playwright/Cypress, local Wrangler dev/deploy, Podman or Docker to close MVP evidence. Local work is limited to inspection, editing, Git operations, reading logs/checks and lightweight syntax validation.
+Do not use local or cloud Codex environments as the acceptance runtime for the MVP. Do not use local/cloud containers, local/cloud servers, Python services, Playwright/Cypress, Wrangler dev/deploy, Podman or Docker to close MVP evidence. Codex local or cloud work is limited to inspection, editing, Git operations, reading logs/checks and lightweight syntax validation.
 
 MVP runtime remains 100% compatible with Cloudflare Workers. If the remote path is unavailable, register an objective blocker instead of creating a local fallback.
