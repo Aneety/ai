@@ -42,9 +42,9 @@ Referências operacionais do próprio GitHub:
 - [Issue forms/templates](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository) podem padronizar entradas futuras em `.github/ISSUE_TEMPLATE` quando uma issue realmente for necessária.
 - PRs, comentários e checks continuam como evidência rastreável para atualizar `docs/project`.
 
-## Papel do Codex local e da Cloudflare
+## Papel do Codex local ou Codex Cloud e da Cloudflare
 
-Codex nesta máquina local é ambiente de controle, monitoramento, definição de Markdown, geração de código fonte e preparação de artefatos. Ele não deve executar o produto MVP como runtime de aceite.
+Codex local ou Codex Cloud é ambiente de controle, monitoramento, definição de Markdown, geração de código fonte e preparação de artefatos. Nenhum deles deve executar o produto MVP como runtime de aceite.
 
 Para código fonte do MVP, evidência de build, execução, teste, smoke, publicação ou validação manual só fecha ciclo quando vier de Cloudflare Workers Builds, preview remoto, runtime remoto, `wrangler deploy --dry-run`, `wrangler dev --remote` ou mecanismo Cloudflare equivalente aprovado em documentação canônica.
 
@@ -57,7 +57,7 @@ Antes de comparar, revisar ou alterar qualquer repositório Aneety, a automaçã
 - executar `git status --short`, registrar branch atual, SHA atual e remotos do repositório;
 - executar `git fetch --all --prune` antes de usar o checkout como base de comparação;
 - se houver mudança local não criada no ciclo atual, não sobrescrever, não limpar e não editar aquele checkout; registrar bloqueio objetivo em `docs/project/<responsabilidade>.md` ou em `docs/project/index.md` quando o impacto for global;
-- se `/Users/mal/GitHub/Aneety/ai` estiver sujo, esse checkout não pode ser usado como fonte de verdade para decisão documental; a leitura canônica deve acontecer por `origin/main`, worktree limpo ou clone limpo equivalente;
+- se o checkout de `Aneety/ai` estiver sujo, esse checkout não pode ser usado como fonte de verdade para decisão documental; a leitura canônica deve acontecer por `origin/main`, worktree limpo ou clone limpo equivalente;
 - alterações documentais em `Aneety/ai` devem acontecer somente em branch derivada de `main` atualizado dentro de worktree limpo.
 
 ## Modelo de Issues

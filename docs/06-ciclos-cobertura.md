@@ -27,7 +27,7 @@ Regras obrigatórias:
 - Implementação própria exige módulo interno em `Aneety/ai`, no caminho `aneety-platform/apps/<responsabilidade>/...`, com documentação canônica correspondente em `docs/`.
 - Documentação canônica vive em `Aneety/ai/docs`; este diretório mantém o contrato vigente da transição.
 - Custo zero sempre: qualquer dependência paga bloqueia o ciclo até redesenho.
-- Codex pode gerar e editar código fonte localmente, mas build, execução, teste, smoke e evidência operacional do MVP devem ser Cloudflare-backed por Cloudflare Workers Builds, preview remoto, runtime remoto, `wrangler deploy --dry-run`, `wrangler dev --remote` ou mecanismo Cloudflare equivalente aprovado. Validação local não fecha ciclo.
+- Codex pode gerar e editar código fonte localmente, mas build, execução, teste, smoke e evidência operacional do MVP devem ser Cloudflare-backed por Cloudflare Workers Builds, preview remoto, runtime remoto, `wrangler deploy --dry-run`, `wrangler dev --remote` ou mecanismo Cloudflare equivalente aprovado. Validação local ou cloud não fecha ciclo.
 
 ## Sequência CRUD obrigatória
 

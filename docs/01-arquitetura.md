@@ -10,7 +10,7 @@ Aneety Platform será uma plataforma white-label para operar pedidos de produtos
 Toda responsabilidade deve existir sob `aneety-platform/apps/<responsabilidade>/...` dentro do monorepo `Aneety/ai`. Dentro de cada responsabilidade, o nome do diretório deve seguir o padrão `aneety-platform/apps/<responsabilidade>/<mfe|mc|gw|worker|fe|job|auto|db|pkg|core|int|wl>-<nome>`.
 
 ```text
-Aneety/ai -> /Users/mal/GitHub/Aneety/ai
+Aneety/ai -> <checkout-root>
   aneety-platform/
     apps/
       <responsabilidade>/
@@ -39,7 +39,7 @@ Regra mandatória do MVP atual: execução 100% Cloudflare Workers. Enquanto o M
 - Toda responsabilidade começa com requisito, interface e critério de aceite antes da implementação.
 - Toda responsabilidade deve ser classificada em `aneety-platform/apps/<responsabilidade>/...` antes de criar módulo, package, app ou adapter interno.
 - Quando uma responsabilidade virar implementação própria, ela deve nascer dentro do monorepo `Aneety/ai` no caminho canônico correspondente. Separação em repositório próprio só pode acontecer depois do MVP e com ADR/PR documental aprovado.
-- O contrato atual usa `Aneety/ai` como repositório único: remoto `https://github.com/Aneety/ai` e clone local `/Users/mal/GitHub/Aneety/ai`.
+- O contrato atual usa `Aneety/ai` como repositório único: remoto `https://github.com/Aneety/ai` e checkout de `Aneety/ai`.
 - A documentação canônica vive em `docs/`, com objetivo, owner, status, runtime, dados, contratos, critérios de aceite e links operacionais.
 - Assets reutilizáveis vivem em `assets/`, com SVG canônico e histórico versionado antes de uso por microfrontends, documentação, apresentação, marketing ou operação.
 - Dependências entre responsabilidades passam por gateway, BFF ou contrato compartilhado versionado; microfrontend não chama banco nem serviço externo privilegiado diretamente.
@@ -137,5 +137,5 @@ Limites obrigatórios:
 - Cada módulo deve ter contrato, testes e owner claro antes de expandir escopo.
 - Cada implementação com responsabilidade própria deve viver em `Aneety/ai` no caminho canônico da responsabilidade. Novo repositório de implementação por responsabilidade fica fora do contrato atual.
 - Todos os módulos devem ser documentados em `docs/`; o monorepo mantém README, documentação canônica e painel operacional alinhados.
-- O contrato atual usa `Aneety/ai` como repositório único: remoto `https://github.com/Aneety/ai` e clone local `/Users/mal/GitHub/Aneety/ai`.
+- O contrato atual usa `Aneety/ai` como repositório único: remoto `https://github.com/Aneety/ai` e checkout de `Aneety/ai`.
 - Todos os assets reutilizáveis devem ser versionados em SVG em `assets/`; módulos de implementação não devem criar variações locais sem registrar a fonte SVG canônica.

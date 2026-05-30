@@ -27,7 +27,7 @@ Antes de comparar, editar ou usar qualquer repo local da org `Aneety` como evid�
 - executar `git fetch --all --prune`;
 - pular edição se houver mudança local humana não pertencente ao ciclo.
 
-Regra adicional para a fonte canônica: se `/Users/mal/GitHub/Aneety/ai` estiver sujo, divergente ou com falha de atualização de `origin/main`, esse checkout não pode decidir status do backlog. Nessa situação, a leitura normativa e o painel operacional devem ser confirmados por `origin/main` ou por clone/worktree limpo antes de qualquer atualização em `docs/project`.
+Regra adicional para a fonte canônica: se o checkout de `Aneety/ai` estiver sujo, divergente ou com falha de atualização de `origin/main`, esse checkout não pode decidir status do backlog. Nessa situação, a leitura normativa e o painel operacional devem ser confirmados por `origin/main` ou por clone/worktree limpo antes de qualquer atualização em `docs/project`.
 
 ## Gates antes de criar responsabilidade ou módulo
 
@@ -51,12 +51,12 @@ Antes de comparar backlog, documentação, issue histórica ou implementação e
 - executar `git status --short`, registrar branch atual, SHA atual e remotos;
 - executar `git fetch --all --prune` antes de usar o checkout como base de decisão;
 - preservar mudanças locais não criadas no ciclo atual; se o checkout estiver sujo, registrar bloqueio no arquivo correspondente de `docs/project` e pular edição naquele repositório;
-- quando `/Users/mal/GitHub/Aneety/ai` estiver sujo, ler a documentação canônica por `origin/main`, worktree limpo ou clone limpo equivalente; o checkout sujo não pode servir como fonte de verdade;
+- quando o checkout de `Aneety/ai` estiver sujo, ler a documentação canônica por `origin/main`, worktree limpo ou clone limpo equivalente; o checkout sujo não pode servir como fonte de verdade;
 - tratar checkout limpo e branch derivada de `main` atualizado como pré-condição para editar `Aneety/ai`.
 
 ## Limite operacional para Codex e validação
 
-`Aneety/ai` é o monorepo de geração, edição e versionamento de código fonte. Codex nesta máquina local pode preparar fonte, contratos, Markdown, PRs e comandos, mas não deve usar execução local como evidência de aceite do MVP.
+`Aneety/ai` é o monorepo de geração, edição e versionamento de código fonte. Codex local ou Codex Cloud pode preparar fonte, contratos, Markdown, PRs e comandos, mas não deve usar execução local/cloud como evidência de aceite do MVP.
 
 Para código fonte do MVP, compilação, lint, typecheck, build e testes de módulo devem passar primeiro em GitHub Actions na PR. Codex deve ler feedback de checks/logs da PR, corrigir e fazer novo push até o gate remoto ficar verde. Só depois disso entram Cloudflare dry-run, deploy, smoke, testes integrados de API ou e2e contra URL publicada.
 

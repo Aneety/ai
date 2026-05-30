@@ -15,7 +15,7 @@ Todo asset reutilizável deve ser mantido em `assets/` com versão SVG canônica
 Cada responsabilidade deve refletir a estrutura `aneety-platform/apps/<responsabilidade>/<mfe|mc|gw|worker|fe|job|auto|db|pkg|core|int|wl>-<nome>`.
 
 ```text
-Aneety/ai -> /Users/mal/GitHub/Aneety/ai
+Aneety/ai -> <checkout-root>
   aneety-platform/
     apps/
       <responsabilidade>/
@@ -37,12 +37,12 @@ Aneety/ai -> /Users/mal/GitHub/Aneety/ai
 
 A lista acima define categorias possíveis. Não obriga toda responsabilidade a possuir todos os módulos. Cada diretório folha vira módulo interno, pacote, worker, frontend ou adapter do monorepo quando a implementação própria existir.
 
-## Clone local obrigatório
+## Checkout obrigatório
 
-- Clone local canônico: `/Users/mal/GitHub/Aneety/ai`.
-- Documentação canônica: `/Users/mal/GitHub/Aneety/ai/docs`.
-- Painel operacional: `/Users/mal/GitHub/Aneety/ai/docs/project`.
-- Assets reutilizáveis: `/Users/mal/GitHub/Aneety/ai/assets`.
+- Checkout canônico: `Aneety/ai`.
+- Documentação canônica: `docs`.
+- Painel operacional: `docs/project`.
+- Assets reutilizáveis: `assets`.
 - Novos clones de implementação por responsabilidade não fazem parte do contrato atual.
 
 ## Documentação central

@@ -294,7 +294,7 @@ flowchart TD
 
 ## Limite de execução do Codex
 
-Codex nesta máquina local pode gerar, editar, revisar e versionar código fonte, contratos, documentação e artefatos Markdown de controle. Para código fonte do MVP, compilação, lint, typecheck, build e testes de módulo devem passar primeiro em GitHub Actions na PR. O MacBook não é runtime de aceite do MVP.
+Codex local ou Codex Cloud pode gerar, editar, revisar e versionar código fonte, contratos, documentação e artefatos Markdown de controle. Para código fonte do MVP, compilação, lint, typecheck, build e testes de módulo devem passar primeiro em GitHub Actions na PR. Nenhum ambiente Codex local ou cloud é runtime de aceite do MVP.
 
 A ordem mandatória é: PR -> GitHub Actions verdes -> Cloudflare -> smoke/API/e2e publicado. Deploy, preview, dry-run Cloudflare, smoke, teste integrado de API ou e2e só entram depois do gate remoto da PR, salvo investigação manual explícita registrada como bloqueio ou exceção.
 
