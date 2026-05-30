@@ -32,12 +32,19 @@ function fail(message) {
   process.exit(1);
 }
 
+function reportScheduledFailure(message) {
+  console.error(`[codex-cloud-scheduler] scheduled cycle failed: ${message}`);
+}
+
 function runBash(command, options = {}) {
+  const childEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.toLowerCase().startsWith('npm_')),
+  );
   return new Promise((resolve) => {
-    const child = spawn('bash', ['-lc', command], {
+    const child = spawn('bash', ['-c', command], {
       cwd: repoRoot,
       env: {
-        ...process.env,
+        ...childEnv,
         PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH ?? ''}`,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -138,7 +145,7 @@ async function main() {
       try {
         await runCycle(context.execution?.reason ?? 'scheduled');
       } catch (error) {
-        fail(error.message);
+        reportScheduledFailure(error.message);
       }
     },
     {
