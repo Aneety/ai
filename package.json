@@ -10,7 +10,8 @@
     "codex-cloud:scheduler": "node .codex/cloud/scheduler.mjs",
     "codex-cloud:scheduler:once": "node .codex/cloud/scheduler.mjs --once",
     "codex-cloud:scheduler:dry-run": "node .codex/cloud/scheduler.mjs --dry-run",
-    "test": "node --check .codex/cloud/scheduler.mjs"
+    "codex-cloud:monitor": "node .codex/cloud/monitor-scheduler.mjs",
+    "test": "node --check .codex/cloud/scheduler.mjs && node --check .codex/cloud/monitor-scheduler.mjs"
   },
   "repository": {
     "type": "git",
