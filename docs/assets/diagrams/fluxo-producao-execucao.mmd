@@ -1,0 +1,8 @@
+flowchart TD
+  A["Pedido aprovado"] --> B["Demanda enviada ao produtor ou equipe"]
+  B --> C{"Responsável aceita?"}
+  C -->|"Não"| D["Registrar rejeição ou reatribuir"]
+  C -->|"Sim"| E["Iniciar produção ou execução"]
+  E --> F["Registrar notas, checklist e evidências"]
+  F --> G["Concluir etapa operacional"]
+  D --> B

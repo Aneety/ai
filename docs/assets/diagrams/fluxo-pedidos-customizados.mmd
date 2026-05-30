@@ -1,0 +1,8 @@
+flowchart TD
+  A["Consumidor inicia pedido"] --> B["Operação registra dados do pedido"]
+  B --> C["Define produto ou serviço customizado"]
+  C --> D["Atribui responsável e etapa atual"]
+  D --> E["Acompanha status e pendências"]
+  E --> F{"Pedido concluído?"}
+  F -->|"Não"| D
+  F -->|"Sim"| G["Histórico e rastreabilidade disponíveis"]

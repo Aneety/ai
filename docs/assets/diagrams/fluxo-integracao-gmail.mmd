@@ -1,0 +1,9 @@
+flowchart TD
+  A["Fluxo precisa de e-mail"] --> B{"Gmail habilitado para tenant?"}
+  B -->|"Não"| C["Operar sem Gmail"]
+  B -->|"Sim"| D["Chamar worker de e-mail"]
+  D --> E["Adapter int-gmail executa envio ou registro"]
+  E --> F{"Falha ou limite?"}
+  F -->|"Sim"| G["Registrar pendência controlada"]
+  F -->|"Não"| H["Persistir metadados e auditoria fora do Gmail"]
+  G --> C

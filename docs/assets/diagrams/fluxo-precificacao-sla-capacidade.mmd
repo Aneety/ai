@@ -1,0 +1,9 @@
+flowchart TD
+  A["Pedido ou orçamento iniciado"] --> B["Calcular preço base, personalização e urgência"]
+  B --> C["Verificar agenda, capacidade e raio de atendimento"]
+  C --> D{"Capacidade disponível?"}
+  D -->|"Não"| E["Sugerir prazo, responsável ou alternativa"]
+  D -->|"Sim"| F["Gerar orçamento e promessa operacional"]
+  F --> G{"Cliente aprova?"}
+  G -->|"Não"| H["Registrar recusa ou ajuste"]
+  G -->|"Sim"| I["Criar pedido com SLA e responsáveis"]

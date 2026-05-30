@@ -1,0 +1,8 @@
+flowchart TD
+  A["Pedido exige pagamento"] --> B["Criar intenção de pagamento"]
+  B --> C["Enviar ao adapter de pagamento"]
+  C --> D{"Provedor disponível?"}
+  D -->|"Não"| E["Registrar pendência sem corromper pedido"]
+  D -->|"Sim"| F["Consultar status"]
+  F --> G["Conciliar pagamento com pedido"]
+  G --> H["Atualizar status financeiro"]

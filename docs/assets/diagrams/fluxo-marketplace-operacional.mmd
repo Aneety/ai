@@ -1,0 +1,9 @@
+flowchart TD
+  A["Operação abre marketplace"] --> B["Listar atores permitidos pelo tenant"]
+  B --> C["Filtrar por tipo, proximidade ou disponibilidade"]
+  C --> D["Favoritar ou selecionar ator"]
+  D --> E["Enviar demanda operacional"]
+  E --> F{"Ator aceita?"}
+  F -->|"Não"| G["Registrar motivo e escolher alternativa"]
+  F -->|"Sim"| H["Vincular ator ao fluxo do pedido"]
+  G --> C

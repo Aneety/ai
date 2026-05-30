@@ -1,0 +1,8 @@
+flowchart TD
+  A["Usuário solicita acesso"] --> B{"Google SSO habilitado para tenant?"}
+  B -->|"Não"| C["Autenticar pelo modelo próprio Aneety"]
+  B -->|"Sim"| D["Validar vínculo externo permitido"]
+  D --> E{"Vínculo válido?"}
+  E -->|"Não"| F["Recusar acesso e auditar"]
+  E -->|"Sim"| G["Emitir sessão própria Aneety"]
+  G --> H["Aplicar tenant, perfil, permissões e expiração"]

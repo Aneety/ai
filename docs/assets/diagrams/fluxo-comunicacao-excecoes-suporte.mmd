@@ -1,0 +1,9 @@
+flowchart TD
+  A["Evento operacional ocorre"] --> B["Gerar notificação ou mensagem interna"]
+  B --> C{"Há exceção?"}
+  C -->|"Não"| D["Registrar comunicação no histórico"]
+  C -->|"Sim"| E["Abrir disputa, correção, retrabalho ou suporte"]
+  E --> F["Responsável analisa e propõe ação"]
+  F --> G{"Resolvido?"}
+  G -->|"Não"| H["Escalar ou manter pendência"]
+  G -->|"Sim"| I["Atualizar pedido e auditar decisão"]

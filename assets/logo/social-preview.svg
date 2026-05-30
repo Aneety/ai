@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">Aneety assets social preview</title>
+  <desc id="desc">Social preview image for the Aneety assets repository.</desc>
+  <defs>
+    <linearGradient id="canvas" x1="0" y1="0" x2="1280" y2="640" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F8FAFC"/>
+      <stop offset="0.48" stop-color="#ECFEFF"/>
+      <stop offset="1" stop-color="#CCFBF1"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(999 146) rotate(125) scale(420 340)">
+      <stop offset="0" stop-color="#38BDF8" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#38BDF8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(188 516) rotate(-20) scale(470 250)">
+      <stop offset="0" stop-color="#14B8A6" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#14B8A6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="markBg" x1="108" y1="110" x2="412" y2="414" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F172A"/>
+      <stop offset="0.52" stop-color="#123A49"/>
+      <stop offset="1" stop-color="#0D9488"/>
+    </linearGradient>
+    <linearGradient id="markStroke" x1="172" y1="353" x2="348" y2="168" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A7F3D0"/>
+      <stop offset="0.48" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#14B8A6"/>
+    </linearGradient>
+    <linearGradient id="word" x1="480" y1="214" x2="915" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F172A"/>
+      <stop offset="1" stop-color="#0D9488"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#0F172A" flood-opacity="0.20"/>
+    </filter>
+  </defs>
+  <rect width="1280" height="640" fill="url(#canvas)"/>
+  <rect width="1280" height="640" fill="url(#glowA)"/>
+  <rect width="1280" height="640" fill="url(#glowB)"/>
+  <path d="M890 95C999 65 1114 119 1162 221C1209 323 1177 449 1084 514C991 579 860 567 781 489C701 411 689 284 753 193C786 146 833 111 890 95Z" fill="#FFFFFF" opacity="0.50"/>
+  <path d="M62 556C211 461 367 488 504 573" fill="none" stroke="#0D9488" stroke-opacity="0.12" stroke-width="44" stroke-linecap="round"/>
+  <rect x="100" y="110" width="320" height="320" rx="92" fill="url(#markBg)" filter="url(#shadow)"/>
+  <path d="M179 349L252 187C256 179 265 179 269 187L342 349" fill="none" stroke="url(#markStroke)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M219 289H301" fill="none" stroke="#E0F2FE" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="179" cy="349" r="19" fill="#A7F3D0"/>
+  <circle cx="260" cy="187" r="19" fill="#38BDF8"/>
+  <circle cx="342" cy="349" r="19" fill="#14B8A6"/>
+  <text x="480" y="289" fill="url(#word)" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="128" font-weight="800" letter-spacing="-6">Aneety</text>
+  <text x="488" y="354" fill="#0F766E" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="42" font-weight="700" letter-spacing="0.5">Assets</text>
+  <text x="488" y="415" fill="#334155" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="30" font-weight="520">Identidade visual reutilizável para produtos Aneety.</text>
+  <g transform="translate(488 475)">
+    <rect width="146" height="46" rx="23" fill="#0F172A"/>
+    <text x="73" y="31" text-anchor="middle" fill="#ECFEFF" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="700">Logo</text>
+    <rect x="166" width="136" height="46" rx="23" fill="#0D9488"/>
+    <text x="234" y="31" text-anchor="middle" fill="#ECFEFF" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="700">Ícones</text>
+    <rect x="322" width="196" height="46" rx="23" fill="#0284C7"/>
+    <text x="420" y="31" text-anchor="middle" fill="#F0F9FF" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="700">Visual system</text>
+  </g>
+</svg>

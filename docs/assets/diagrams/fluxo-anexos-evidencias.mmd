@@ -1,0 +1,8 @@
+flowchart TD
+  A["Checkpoint solicita evidência"] --> B["Capturar foto, assinatura ou documento"]
+  B --> C["Validar tipo, tamanho e permissão"]
+  C --> D{"Arquivo aceito?"}
+  D -->|"Não"| E["Informar erro operacional"]
+  D -->|"Sim"| F["Salvar bytes no adapter"]
+  F --> G["Salvar metadados e vínculo no banco"]
+  G --> H["Disponibilizar por permissão"]

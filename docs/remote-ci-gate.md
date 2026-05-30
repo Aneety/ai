@@ -18,7 +18,7 @@ Resumo: PR -> GitHub Actions -> Cloudflare -> smoke/API/e2e publicado.
 - `policy.yml`: valida workflows, arquivos obrigatórios, assets Mermaid, proibições de runtime MVP e vazamento técnico em copy de UI.
 - `security.yml`: executa dependency review, CodeQL quando houver fonte compatível e varredura textual de segredos sem imprimir valores.
 - `cloudflare-gate.yml`: executa dry-run, deploy manual explícito ou smoke de URL publicada somente depois de CI verde ou por acionamento manual controlado.
-- `governance.yml`: audita periodicamente docs canônicos, workflows, PRs e drift, publicando resumo como artifact/check summary sem auto-commit.
+- `governance.yml`: audita periodicamente `docs/`, workflows, PRs e drift, publicando resumo como artifact/check summary sem auto-commit.
 
 ## Restrições operacionais
 

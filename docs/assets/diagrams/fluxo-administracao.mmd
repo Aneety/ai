@@ -1,0 +1,7 @@
+flowchart TD
+  A["Administrador acessa gestão"] --> B["Gerir usuários e identidades"]
+  B --> C["Associar tenant, perfil e permissões"]
+  C --> D{"Usuário ativo?"}
+  D -->|"Não"| E["Bloquear acesso operacional"]
+  D -->|"Sim"| F["Liberar ações por perfil"]
+  F --> G["Exibir métricas por tenant e operação"]

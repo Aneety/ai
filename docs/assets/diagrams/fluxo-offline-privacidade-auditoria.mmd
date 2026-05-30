@@ -1,0 +1,11 @@
+flowchart TD
+  A["Usuário atua em campo"] --> B{"Há conexão?"}
+  B -->|"Não"| C["Salvar ação e evidência na fila local"]
+  B -->|"Sim"| D["Enviar ação ao gateway"]
+  C --> E["Sincronizar quando rede voltar"]
+  E --> F{"Conflito detectado?"}
+  F -->|"Sim"| G["Bloquear merge automático e pedir resolução"]
+  F -->|"Não"| H["Persistir ação"]
+  D --> H
+  H --> I["Aplicar consentimento, permissão e retenção"]
+  I --> J["Registrar auditoria operacional"]
