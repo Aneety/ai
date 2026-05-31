@@ -7,8 +7,8 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - O modo Codex Cloud foi aceito em `docs/project/codex-cloud-validation-2026-05-30.md`.
 - A automação local do Codex App fica ativa somente como monitor do agendamento; ela não submete task, não inicia scheduler, não cria PR e não faz merge.
 - O agendamento Node.js externo deve chamar `codex cloud exec` contra o ambiente Codex Cloud já validado.
-- A task remota pode gerar diff ou PR, mas não deve fazer merge automático.
-- O wrapper foi validado com a task `task_e_6a1a82c1423883278473fd88ccdb8cae`, que terminou `READY` e gerou diff de monitoramento sem merge automático.
+- A task remota deve gerar branch/commit/PR quando houver mudança e credencial suficiente; se não houver permissão, deve registrar blocker e deixar diff na task. Nunca deve fazer merge automático.
+- O wrapper foi validado com tasks `READY`; o scheduler roda em worktree isolado para evitar aplicar diffs no checkout canônico.
 
 ## Scripts versionados
 
@@ -126,7 +126,7 @@ Regras:
 1. Não usar a automação local como executor/submissor; ela é somente monitor.
 2. Não armazenar tokens no repositório.
 3. Não expor `GH_TOKEN` em logs.
-4. Conferir a task e seus diffs antes de abrir ou aceitar PR.
+4. Conferir task, branch, commit, PR e checks antes de aceitar a mudança.
 5. Manter o aceite de código em GitHub Actions e Cloudflare gate.
 6. Nunca executar submit/watch diretamente no checkout canônico; o scheduler deve usar worktree isolado e limpá-lo após cada ciclo.
 
@@ -137,5 +137,6 @@ O agendamento só está operacional quando uma execução recorrente conseguir:
 1. submeter a task;
 2. terminar em `READY`;
 3. deixar evidência de URL/id da task;
-4. não fazer merge automático;
-5. ser visível pelo monitor local sem blockers críticos.
+4. abrir PR no GitHub ou registrar blocker objetivo de permissão/autenticação;
+5. não fazer merge automático;
+6. ser visível pelo monitor local sem blockers críticos.
