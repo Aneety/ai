@@ -15,6 +15,17 @@ const envFile =
     'cloud-env.sh',
   );
 
+const isolatedWorktree =
+  process.env.CODEX_CLOUD_WORKTREE_DIR ??
+  path.join(
+    process.env.HOME ?? '',
+    '.codex',
+    'automations',
+    'aneety-project-hourly-controller',
+    'scheduler-worktree',
+    'ai',
+  );
+
 function log(message) {
   console.log(`[codex-cloud-monitor] ${message}`);
 }
@@ -101,6 +112,27 @@ async function checkProcess() {
   }
 }
 
+async function checkIsolatedWorktree() {
+  const exists = await run(`git -C ${shellQuote(isolatedWorktree)} rev-parse --is-inside-work-tree`, { quiet: true });
+  if (exists.code !== 0) {
+    warn('scheduler_worktree_missing');
+    return;
+  }
+
+  const status = await run('git status --short', { cwd: isolatedWorktree, quiet: true });
+  if (status.code !== 0) {
+    warn('scheduler_worktree_status_failed');
+    return;
+  }
+
+  const dirtyLines = status.stdout.trim().split('\n').filter(Boolean);
+  if (dirtyLines.length === 0) {
+    log('scheduler_worktree=clean');
+  } else {
+    warn(`scheduler_worktree_dirty_count_${dirtyLines.length}`);
+  }
+}
+
 async function checkCloudTasks(hasEnvFile) {
   const base = '${CODEX_CLOUD_CLI:-codex} cloud list --json --limit 20';
   const command = hasEnvFile
@@ -135,6 +167,7 @@ async function main() {
   const hasEnvFile = await checkEnvFile();
   await checkDryRun(hasEnvFile);
   await checkProcess();
+  await checkIsolatedWorktree();
   await checkCloudTasks(hasEnvFile);
   log('monitor_complete');
 }

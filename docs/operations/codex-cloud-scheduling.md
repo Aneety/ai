@@ -14,8 +14,8 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 
 - `.codex/cloud/submit-controller-task.sh` — submete uma task usando `.codex/cloud/controller-prompt.md`.
 - `.codex/cloud/watch-task.sh` — acompanha uma task até `READY` ou falha.
-- `.codex/cloud/scheduler.mjs` — agendador Node.js com `node-cron`, executando submit/watch a cada 30 minutos por padrão.
-- `.codex/cloud/monitor-scheduler.mjs` — monitor local do agendamento, do arquivo de ambiente, do processo scheduler e das tasks Codex Cloud recentes.
+- `.codex/cloud/scheduler.mjs` — agendador Node.js com `node-cron`, executando submit/watch a cada 30 minutos por padrão em worktree isolado fora do checkout canônico.
+- `.codex/cloud/monitor-scheduler.mjs` — monitor local do agendamento, do arquivo de ambiente, do processo scheduler, do worktree isolado e das tasks Codex Cloud recentes.
 
 ## Variáveis do agendador
 
@@ -32,6 +32,7 @@ Opcionais:
 - `CODEX_CLOUD_WATCH_INTERVAL`: intervalo em segundos para o watcher; padrão `30`.
 - `CODEX_CLOUD_WATCH_MAX_POLLS`: número máximo de leituras; padrão `40`.
 - `CODEX_CLOUD_ENV_FILE`: arquivo local carregado pelo agendador Node.js; padrão `$HOME/.codex/automations/aneety-project-hourly-controller/cloud-env.sh`.
+- `CODEX_CLOUD_WORKTREE_DIR`: worktree isolado usado pelo agendador para submit/watch; padrão `$HOME/.codex/automations/aneety-project-hourly-controller/scheduler-worktree/ai`.
 - `CODEX_CLOUD_SCHEDULE`: expressão cron do agendador Node.js; padrão `*/30 * * * *`.
 - `CODEX_CLOUD_SCHEDULE_TZ`: timezone do agendador Node.js; padrão `America/Asuncion`.
 
@@ -114,6 +115,8 @@ Interpretação do monitor:
 - `env_file_missing`: falta o arquivo local de ambiente.
 - `env_file_mode_expected_600_actual_*`: permissão do arquivo local está mais aberta que o permitido.
 - `scheduler_process_not_running`: o executor persistente do agendador Node.js não está rodando.
+- `scheduler_worktree_missing`: o worktree isolado ainda não foi criado pelo scheduler.
+- `scheduler_worktree_dirty_count_*`: o worktree isolado ficou sujo após submit/watch; o checkout canônico deve permanecer limpo.
 - `cloud_task_list_failed`: o CLI não conseguiu consultar tasks do Codex Cloud.
 - `cloud_task_list_empty`: nenhuma task recente foi encontrada.
 - `scheduler_dry_run=ok`: a pré-checagem local passou, mas isso ainda não comprova task real.
@@ -125,6 +128,7 @@ Regras:
 3. Não expor `GH_TOKEN` em logs.
 4. Conferir a task e seus diffs antes de abrir ou aceitar PR.
 5. Manter o aceite de código em GitHub Actions e Cloudflare gate.
+6. Nunca executar submit/watch diretamente no checkout canônico; o scheduler deve usar worktree isolado e limpá-lo após cada ciclo.
 
 ## Critério de aceite do agendamento
 
