@@ -11,7 +11,8 @@
     "codex-cloud:scheduler:once": "node .codex/cloud/scheduler.mjs --once",
     "codex-cloud:scheduler:dry-run": "node .codex/cloud/scheduler.mjs --dry-run",
     "codex-cloud:monitor": "node .codex/cloud/monitor-scheduler.mjs",
-    "test": "node --check .codex/cloud/scheduler.mjs && node --check .codex/cloud/monitor-scheduler.mjs"
+    "test": "node --check .codex/cloud/scheduler.mjs && node --check .codex/cloud/monitor-scheduler.mjs",
+    "codex-cloud:publish-task-diff": "bash .codex/cloud/publish-task-diff.sh"
   },
   "repository": {
     "type": "git",

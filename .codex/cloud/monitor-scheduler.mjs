@@ -162,6 +162,28 @@ async function checkCloudTasks(hasEnvFile) {
   }
 }
 
+async function checkOpenControllerPr() {
+  const result = await run(
+    'env -u GH_TOKEN gh pr list --repo Aneety/ai --state open --limit 100 --json number,headRefName,url',
+    { quiet: true },
+  );
+  if (result.code !== 0) {
+    warn('open_controller_pr_check_failed');
+    return;
+  }
+
+  try {
+    const prs = JSON.parse(result.stdout);
+    const controllerPrs = prs.filter((pr) => String(pr.headRefName ?? '').startsWith('codex/repositorio-'));
+    log(`open_controller_pr_count=${controllerPrs.length}`);
+    for (const pr of controllerPrs.slice(0, 3)) {
+      log(`open_controller_pr=#${pr.number} branch=${pr.headRefName} url=${pr.url}`);
+    }
+  } catch {
+    warn('open_controller_pr_json_parse_failed');
+  }
+}
+
 async function main() {
   process.chdir(path.resolve(repoRoot));
   const hasEnvFile = await checkEnvFile();
@@ -169,6 +191,7 @@ async function main() {
   await checkProcess();
   await checkIsolatedWorktree();
   await checkCloudTasks(hasEnvFile);
+  await checkOpenControllerPr();
   log('monitor_complete');
 }
 
