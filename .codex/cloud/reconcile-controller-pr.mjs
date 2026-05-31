@@ -100,6 +100,18 @@ export function shouldFallbackToAllChecks(stderr) {
   return /no required checks reported/i.test(String(stderr ?? ''));
 }
 
+export function parseChecksPayload(stdout) {
+  const raw = String(stdout ?? '').trim();
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 async function loadRequiredChecks(prNumber) {
   let result = await runGh(
     `pr checks ${shellQuote(String(prNumber))} --repo ${shellQuote(repo)} --required --json name,state,workflow,link`,
@@ -110,8 +122,10 @@ async function loadRequiredChecks(prNumber) {
       `pr checks ${shellQuote(String(prNumber))} --repo ${shellQuote(repo)} --json name,state,workflow,link`,
     );
   }
+  const parsedChecks = parseChecksPayload(result.stdout);
+  if (parsedChecks) return parsedChecks;
   if (result.code !== 0) throw new Error('open_controller_pr_checks_failed');
-  return JSON.parse(result.stdout || '[]');
+  return [];
 }
 
 function normalizeCheckState(state) {
