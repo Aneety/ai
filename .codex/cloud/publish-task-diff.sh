@@ -137,7 +137,18 @@ if [ -n "$existing_exact" ]; then
 fi
 
 if [ -n "$target_cycle" ] && [ -n "$target_responsibility" ]; then
-  existing_prefix_url="$(run_gh pr list --repo "$repo" --state open --limit 100 --json number,headRefName,url --jq '.[] | select(.headRefName | startswith("codex/'"$target_cycle"'-'"$target_responsibility"'")) | (.number|tostring) + " " + .headRefName + " " + .url' | head -1' || true)"
+  branch_prefix="codex/${target_cycle}-${target_responsibility}"
+  existing_prefix_url="$(
+    run_gh pr list --repo "$repo" --state open --limit 100 --json number,headRefName,url |
+      node -e '
+        const prefix = process.argv[1];
+        const payload = JSON.parse(require("fs").readFileSync(0, "utf8") || "[]");
+        const match = payload.find((pr) => String(pr.headRefName ?? "").startsWith(prefix));
+        if (match) {
+          process.stdout.write(`${match.number} ${match.headRefName} ${match.url}`);
+        }
+      ' "$branch_prefix" || true
+  )"
   if [ -n "$existing_prefix_url" ]; then
     pr_number="${existing_prefix_url%% *}"
     rest="${existing_prefix_url#* }"
