@@ -138,18 +138,23 @@ cat >"$pr_body" <<BODY
 
 - Publishes Codex Cloud task \`$task_id\` as a GitHub branch and PR.
 - Keeps the canonical local checkout untouched; the diff was applied only in the scheduler's isolated worktree.
-- Leaves merge to the normal PR/check gate.
+- Hands the PR back to the scheduler for required-check reconciliation and automatic merge after the gate is green.
 
 ## Validation
 
 - Source task: \`$task_id\`.
 - Branch: \`$branch\`.
 - Commit: \`$commit_sha\`.
-- Merge: not performed.
+- Merge strategy after green checks: scheduler-driven.
 BODY
 
 pr_url="$(run_gh pr create --repo "$repo" --base "$base_branch" --head "$branch" --title "$title" --body-file "$pr_body" --draft)"
-log "pr_created url=${pr_url} branch=${branch} commit=${commit_sha}"
+pr_number="${pr_url##*/}"
+log "pr_created url=${pr_url} branch=${branch} commit=${commit_sha} number=#${pr_number}"
+log "pr_url=${pr_url}"
+log "pr_number=${pr_number}"
+log "pr_branch=${branch}"
+log "pr_commit=${commit_sha}"
 
 if [ -n "$pr_url" ]; then
   changed_docs=0

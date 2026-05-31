@@ -1,10 +1,19 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { access, stat } from 'node:fs/promises';
+import { access, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
 const repoRoot = process.cwd();
+const stateFile =
+  process.env.CODEX_CLOUD_STATE_FILE ??
+  path.join(
+    process.env.HOME ?? '',
+    '.codex',
+    'automations',
+    'aneety-project-hourly-controller',
+    'runtime-state.json',
+  );
 const envFile =
   process.env.CODEX_CLOUD_ENV_FILE ??
   path.join(
@@ -25,6 +34,8 @@ const isolatedWorktree =
     'scheduler-worktree',
     'ai',
   );
+const prWatchInterval = positiveInteger(process.env.CODEX_CLOUD_PR_WATCH_INTERVAL, 30);
+const prWatchMaxPolls = positiveInteger(process.env.CODEX_CLOUD_PR_WATCH_MAX_POLLS, 60);
 
 function log(message) {
   console.log(`[codex-cloud-monitor] ${message}`);
@@ -36,6 +47,11 @@ function warn(message) {
 
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+function positiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function run(command, options = {}) {
@@ -67,6 +83,12 @@ function run(command, options = {}) {
   });
 }
 
+function extractField(output, key) {
+  const regex = new RegExp(`${key}=([^\\s]+)`, 'g');
+  const matches = [...output.matchAll(regex)];
+  return matches.length > 0 ? matches.at(-1)[1] : null;
+}
+
 async function checkEnvFile() {
   try {
     await access(envFile);
@@ -86,8 +108,19 @@ function withEnvFile(command) {
     'export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:${PATH:-}"',
     `set -a; . ${shellQuote(envFile)}; set +a`,
     'if [ -z "${CODEX_CLOUD_CLI:-}" ] && [ -x /opt/homebrew/bin/codex ]; then export CODEX_CLOUD_CLI=/opt/homebrew/bin/codex; fi',
+    `export CODEX_CLOUD_PR_WATCH_INTERVAL=${shellQuote(String(prWatchInterval))}`,
+    `export CODEX_CLOUD_PR_WATCH_MAX_POLLS=${shellQuote(String(prWatchMaxPolls))}`,
     command,
   ].join('; ');
+}
+
+async function readRuntimeState() {
+  try {
+    const raw = await readFile(stateFile, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 async function checkDryRun(hasEnvFile) {
@@ -162,25 +195,59 @@ async function checkCloudTasks(hasEnvFile) {
   }
 }
 
-async function checkOpenControllerPr() {
-  const result = await run(
-    'env -u GH_TOKEN gh pr list --repo Aneety/ai --state open --limit 100 --json number,headRefName,url',
-    { quiet: true },
-  );
+async function checkOpenControllerPr(hasEnvFile) {
+  const command = hasEnvFile
+    ? withEnvFile('node .codex/cloud/reconcile-controller-pr.mjs --probe-only')
+    : 'node .codex/cloud/reconcile-controller-pr.mjs --probe-only';
+  const result = await run(command, { quiet: true });
   if (result.code !== 0) {
     warn('open_controller_pr_check_failed');
     return;
   }
 
-  try {
-    const prs = JSON.parse(result.stdout);
-    const controllerPrs = prs.filter((pr) => String(pr.headRefName ?? '').startsWith('codex/repositorio-'));
-    log(`open_controller_pr_count=${controllerPrs.length}`);
-    for (const pr of controllerPrs.slice(0, 3)) {
-      log(`open_controller_pr=#${pr.number} branch=${pr.headRefName} url=${pr.url}`);
+  const state = extractField(result.stdout, 'open_controller_pr_state') ?? 'unknown';
+  const prNumber = extractField(result.stdout, 'open_controller_pr')?.replace(/^#/, '') ?? null;
+  const prBranch = extractField(result.stdout, 'branch');
+  const prUrl = extractField(result.stdout, 'url');
+  const mergedSha = extractField(result.stdout, 'sha');
+  const failedChecks = extractField(result.stdout, 'open_controller_pr_failed_checks');
+  const pendingChecks = extractField(result.stdout, 'open_controller_pr_pending_checks');
+
+  if (prNumber) {
+    log('open_controller_pr_count=1');
+    log(`open_controller_pr=#${prNumber} branch=${prBranch ?? 'unknown'} url=${prUrl ?? 'unknown'}`);
+  } else {
+    log('open_controller_pr_count=0');
+  }
+
+  if (state === 'none') {
+    const runtimeState = await readRuntimeState();
+    if (runtimeState?.openControllerPrState === 'merged' && runtimeState.lastMergedSha) {
+      log('open_controller_pr_state=merged');
+      log(
+        `open_controller_pr_merged=#${runtimeState.lastMergedPrNumber ?? 'unknown'} sha=${runtimeState.lastMergedSha} timestamp=${runtimeState.lastMergedAt ?? 'unknown'}`,
+      );
+    } else {
+      log('open_controller_pr_state=none');
     }
-  } catch {
-    warn('open_controller_pr_json_parse_failed');
+    return;
+  }
+
+  log(`open_controller_pr_state=${state}`);
+  if (pendingChecks) {
+    log(`open_controller_pr_pending_checks=${pendingChecks}`);
+  }
+  if (failedChecks) {
+    log(`open_controller_pr_failed_checks=${failedChecks}`);
+  }
+  if (state === 'failed') {
+    warn('open_controller_pr_failed');
+  }
+  if (state === 'timeout') {
+    warn('open_controller_pr_timeout');
+  }
+  if (state === 'merged' && mergedSha) {
+    log(`open_controller_pr_merged=#${prNumber ?? 'unknown'} sha=${mergedSha}`);
   }
 }
 
@@ -191,7 +258,7 @@ async function main() {
   await checkProcess();
   await checkIsolatedWorktree();
   await checkCloudTasks(hasEnvFile);
-  await checkOpenControllerPr();
+  await checkOpenControllerPr(hasEnvFile);
   log('monitor_complete');
 }
 
