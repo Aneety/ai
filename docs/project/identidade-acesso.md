@@ -13,8 +13,8 @@
 
 | Ciclo | Status | Prioridade | Gate | Evidência | Bloqueio | Próxima ação |
 | --- | --- | --- | --- | --- | --- | --- |
-| `repositorio` | `bloqueado` | alta | `arquitetura` | Issue histórica #5 migrada para este arquivo; inspeção local 2026-05-30 confirmou novamente apenas `aneety-platform/apps/.gitkeep` em `Aneety/ai`. | Falta raiz `aneety-platform/apps/identidade-acesso/...` em `Aneety/ai`; checkout local está limpo e sincronizado, então o bloqueio atual é apenas estrutural. | Abrir PR em `Aneety/ai` criando a raiz canônica da responsabilidade e registrar SHA/PR neste arquivo antes de avançar para `deploy`. |
-| `deploy` | `triagem` | alta | `processo` | — | Aguardando ciclo `repositorio` ficar verde neste arquivo. | Executar `deploy` depois de concluir `repositorio` com evidência objetiva. |
+| `repositorio` | `concluido` | alta | `arquitetura` | Branch `codex/repositorio-identidade-acesso-2026-05-31` cria raiz física `aneety-platform/apps/identidade-acesso/` com scaffolds mínimos `db-identidade-acesso`, `worker-identidade-acesso` e `mfe-identidade-acesso`; [PR #22](https://github.com/Aneety/ai/pull/22). | — | Avançar para `deploy` somente após PR do ciclo `repositorio` e GitHub Actions verdes. |
+| `deploy` | `triagem` | alta | `processo` | — | Aguardando PR do ciclo `repositorio` e GitHub Actions verdes antes de iniciar `deploy`. | Executar `deploy` depois de concluir `repositorio` com evidência objetiva. |
 | `publicacao` | `triagem` | alta | `processo` | — | Aguardando ciclo `deploy` ficar verde neste arquivo. | Executar `publicacao` depois de concluir `deploy` com evidência objetiva. |
 | `banco` | `triagem` | alta | `DB` | — | Aguardando ciclo `publicacao` ficar verde neste arquivo. | Executar `banco` depois de concluir `publicacao` com evidência objetiva. |
 | `jobs` | `triagem` | alta | `job` | — | Não aplicável no contrato atual desta responsabilidade. | Ignorar até mudança contratual aprovada nos documentos normativos. |
@@ -35,4 +35,5 @@
 ## Histórico curto
 
 - 2026-05-29 — backlog migrado do painel operacional anterior para `docs/project`.
-- 2026-05-30 — ciclo `repositorio` segue `bloqueado`: `Aneety/ai` está limpo/sincronizado, mas ainda expõe só `aneety-platform/apps/.gitkeep`, sem raiz concreta da responsabilidade.
+- 2026-05-30 — ciclo `repositorio` seguia `bloqueado`: `Aneety/ai` estava limpo/sincronizado, mas ainda expunha só `aneety-platform/apps/.gitkeep`, sem raiz concreta da responsabilidade.
+- 2026-05-31 — branch `codex/repositorio-identidade-acesso-2026-05-31` cria a raiz canônica `aneety-platform/apps/identidade-acesso/` e os scaffolds mínimos do ciclo `repositorio`; [PR #22](https://github.com/Aneety/ai/pull/22).

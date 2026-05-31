@@ -14,7 +14,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `gateway-borda` | Ricardo Malnati | alta | `deploy` | `concluido` | [gateway-borda](./gateway-borda.md) | [PR #14](https://github.com/Aneety/ai/pull/14) valida raiz canônica `aneety-platform/apps/gateway-borda/` com checks remotos verdes antes do merge. | — |
 | `tenant-white-label` | Ricardo Malnati | alta | `deploy` | `triagem` | [tenant-white-label](./tenant-white-label.md) | Branch `codex/repositorio-tenant-white-label-2026-05-31` cria raiz física e scaffolds mínimos; [PR #19](https://github.com/Aneety/ai/pull/19). | Aguardando PR do ciclo `repositorio` e GitHub Actions verdes antes de iniciar `deploy`. |
-| `identidade-acesso` | Ricardo Malnati | alta | `repositorio` | `bloqueado` | [identidade-acesso](./identidade-acesso.md) | Issue histórica #5 + inspeção local 2026-05-30 | Sem raiz em `Aneety/ai`; checkout local limpo, bloqueio agora é estrutural. |
+| `identidade-acesso` | Ricardo Malnati | alta | `deploy` | `triagem` | [identidade-acesso](./identidade-acesso.md) | Branch `codex/repositorio-identidade-acesso-2026-05-31` cria raiz física e scaffolds mínimos; [PR #22](https://github.com/Aneety/ai/pull/22). | Aguardando PR do ciclo `repositorio` e GitHub Actions verdes antes de iniciar `deploy`. |
 | `onboarding-acesso` | Ricardo Malnati | alta | `repositorio` | `bloqueado` | [onboarding-acesso](./onboarding-acesso.md) | Issue histórica #6 + inspeção local 2026-05-30 | Sem raiz em `Aneety/ai`; checkout local limpo, bloqueio agora é estrutural. |
 | `pedidos-customizados` | Ricardo Malnati | alta | `repositorio` | `bloqueado` | [pedidos-customizados](./pedidos-customizados.md) | Issue histórica #7 + inspeção local 2026-05-30 | Sem raiz em `Aneety/ai`; checkout local limpo, bloqueio agora é estrutural. |
 | `workflow-estados` | Ricardo Malnati | alta | `repositorio` | `bloqueado` | [workflow-estados](./workflow-estados.md) | Issue histórica #8 + inspeção local 2026-05-30 | Sem raiz em `Aneety/ai`; checkout local limpo, bloqueio agora é estrutural. |
@@ -37,7 +37,7 @@
 
 ## Bloqueios globais
 
-- `gateway-borda` é a primeira responsabilidade com raiz canônica concluída em `aneety-platform/apps/gateway-borda/`; as demais responsabilidades seguem sem raiz concreta em `aneety-platform/apps/<responsabilidade>/...`.
+- `gateway-borda` foi a primeira responsabilidade com raiz canônica concluída em `aneety-platform/apps/gateway-borda/`; `tenant-white-label` também possui raiz canônica em `aneety-platform/apps/tenant-white-label/`; `identidade-acesso` passa a possuir raiz canônica em `aneety-platform/apps/identidade-acesso/` neste ciclo. As demais responsabilidades seguem sem raiz concreta em `aneety-platform/apps/<responsabilidade>/...`.
 - Painel operacional ativo consolidado em `Aneety/ai/docs/project`; não há dependência de painel fora do repositório para status, owner, evidência ou bloqueio.
 - `Aneety/ai` concentra workflows/checks, documentação, backlog e assets; mudanças passam pelo gate remoto deste repositório.
 - GitHub Actions em `main` seguem verdes, mas `gh run view 26675134837` e `26675141018` registraram anotação objetiva de depreciação Node.js 20 em `actions/checkout@v4` e `actions/setup-node@v4`; próxima ação mínima é abrir PR de workflow para remover esse risco antes do corte informado pelo GitHub.
@@ -48,6 +48,7 @@
 - 2026-05-30 — `docs/project` neste repositório segue como fonte única de backlog operacional; nenhuma consulta a painel fora do repositório é necessária.
 - 2026-05-30 — PR [#7](https://github.com/Aneety/ai/pull/7) já está mergeada em `Aneety/ai`; `gh pr checks 7 --repo Aneety/ai` e `gh run view` confirmaram `Governance audit`, `Security gate`, `Remote CI gate`, `Governance policy gate` e `Cloudflare deploy gate` verdes entre o PR `codex/ai-canonical-transition` e o push em `main` no SHA `33620f5b834a`.
 - 2026-05-30 — `gateway-borda` conclui o ciclo `repositorio` pela PR #14; demais responsabilidades seguem bloqueadas em `repositorio` por falta de raiz canônica.
+- 2026-05-31 — `identidade-acesso` avança do ciclo `repositorio` para `deploy` em triagem no branch `codex/repositorio-identidade-acesso-2026-05-31`, com raiz física e scaffolds mínimos; [PR #22](https://github.com/Aneety/ai/pull/22).
 
 - 2026-05-30 — monitoramento Codex Cloud registrado em [`controller-monitoring-2026-05-30.md`](./controller-monitoring-2026-05-30.md): `gh` autenticado para leitura, nenhum PR aberto no momento da consulta, workflows ativos listados, últimos runs de `main` verdes no SHA `1a039111882ee949722bd3980c4f6550d323fa32`, 22 responsabilidades ainda bloqueadas em `repositorio` por falta de raízes canônicas, e push/PR remoto bloqueado por `403 Permission to Aneety/ai.git denied to Malnati`.
 
