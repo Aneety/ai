@@ -1,13 +1,22 @@
 #!/usr/bin/env node
 import cron from 'node-cron';
 import { spawn } from 'node:child_process';
-import { access, mkdir } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
 const canonicalRepoRoot = process.cwd();
 const schedule = process.env.CODEX_CLOUD_SCHEDULE ?? '*/30 * * * *';
 const timezone = process.env.CODEX_CLOUD_SCHEDULE_TZ ?? 'America/Asuncion';
+const stateFile =
+  process.env.CODEX_CLOUD_STATE_FILE ??
+  path.join(
+    process.env.HOME ?? '',
+    '.codex',
+    'automations',
+    'aneety-project-hourly-controller',
+    'runtime-state.json',
+  );
 const envFile =
   process.env.CODEX_CLOUD_ENV_FILE ??
   path.join(
@@ -28,6 +37,8 @@ const isolatedWorktree =
     'ai',
   );
 const autoPublishDiff = process.env.CODEX_CLOUD_AUTO_PUBLISH_DIFF !== '0';
+const prWatchInterval = positiveInteger(process.env.CODEX_CLOUD_PR_WATCH_INTERVAL, 30);
+const prWatchMaxPolls = positiveInteger(process.env.CODEX_CLOUD_PR_WATCH_MAX_POLLS, 60);
 const mode = process.argv.includes('--once')
   ? 'once'
   : process.argv.includes('--dry-run')
@@ -35,6 +46,11 @@ const mode = process.argv.includes('--once')
     : 'schedule';
 
 let executionRoot = canonicalRepoRoot;
+
+function positiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 function log(message) {
   console.log(`[codex-cloud-scheduler] ${message}`);
@@ -102,8 +118,36 @@ function withEnvFile(command) {
     'export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:${PATH:-}"',
     `set -a; . ${quotedEnvFile}; set +a`,
     'if [ -z "${CODEX_CLOUD_CLI:-}" ] && [ -x /opt/homebrew/bin/codex ]; then export CODEX_CLOUD_CLI=/opt/homebrew/bin/codex; fi',
+    `export CODEX_CLOUD_PR_WATCH_INTERVAL=${shellQuote(String(prWatchInterval))}`,
+    `export CODEX_CLOUD_PR_WATCH_MAX_POLLS=${shellQuote(String(prWatchMaxPolls))}`,
     command,
   ].join('; ');
+}
+
+function extractField(output, key) {
+  const regex = new RegExp(`${key}=([^\\s]+)`, 'g');
+  const matches = [...output.matchAll(regex)];
+  return matches.length > 0 ? matches.at(-1)[1] : null;
+}
+
+async function loadRuntimeState() {
+  try {
+    const raw = await readFile(stateFile, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+async function writeRuntimeState(patch) {
+  const current = await loadRuntimeState();
+  const next = {
+    ...current,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  await mkdir(path.dirname(stateFile), { recursive: true, mode: 0o700 });
+  await writeFile(stateFile, JSON.stringify(next, null, 2));
 }
 
 async function prepareIsolatedWorktree() {
@@ -163,6 +207,23 @@ async function cleanIsolatedWorktree() {
   log('isolated_worktree=clean');
 }
 
+async function syncIsolatedWorktreeToMain() {
+  const branch = process.env.CODEX_CLOUD_BRANCH ?? 'main';
+  const result = await runBash(
+    [
+      `git -C ${shellQuote(isolatedWorktree)} fetch origin ${shellQuote(branch)} --prune`,
+      `git -C ${shellQuote(isolatedWorktree)} checkout --detach ${shellQuote(`origin/${branch}`)}`,
+      `git -C ${shellQuote(isolatedWorktree)} reset --hard ${shellQuote(`origin/${branch}`)}`,
+      `git -C ${shellQuote(isolatedWorktree)} clean -fd`,
+      `git -C ${shellQuote(isolatedWorktree)} rev-parse ${shellQuote(`origin/${branch}`)}`,
+    ].join(' && '),
+    { cwd: isolatedWorktree, quiet: true },
+  );
+  if (result.code !== 0) throw new Error(`failed to sync isolated worktree to origin/${branch}`);
+  const lines = result.output.trim().split('\n').filter(Boolean);
+  return lines.at(-1) ?? 'unknown';
+}
+
 async function preflight() {
   await assertReadable(envFile);
   await prepareIsolatedWorktree();
@@ -178,30 +239,53 @@ async function preflight() {
   }
 
   if (autoPublishDiff) {
-    const result = await runBash('test -x .codex/cloud/publish-task-diff.sh', { quiet: true });
-    if (result.code !== 0) throw new Error('preflight failed: publish-task-diff.sh executable');
+    const result = await runBash('test -x .codex/cloud/publish-task-diff.sh && test -f .codex/cloud/reconcile-controller-pr.mjs', {
+      quiet: true,
+    });
+    if (result.code !== 0) throw new Error('preflight failed: publish or reconcile artifacts missing');
   }
 }
 
-async function findOpenControllerPr() {
-  if (!autoPublishDiff) return null;
+async function reconcileOpenControllerPr({ wait = false } = {}) {
+  if (!autoPublishDiff) return { state: 'none' };
+  const modeFlag = wait ? '--wait' : '--probe-only';
+  const result = await runBash(withEnvFile(`node .codex/cloud/reconcile-controller-pr.mjs ${modeFlag}`));
+  if (result.code !== 0) throw new Error(`reconcile controller pr failed with exit ${result.code}`);
 
-  const result = await runBash(
-    'env -u GH_TOKEN gh pr list --repo Aneety/ai --state open --limit 100 --json number,headRefName,title,url',
-    { quiet: true },
-  );
-  if (result.code !== 0) {
-    log('open_controller_pr_check=unavailable');
-    return null;
-  }
+  const state = extractField(result.output, 'open_controller_pr_state') ?? 'unknown';
+  const prNumber = extractField(result.output, 'open_controller_pr_merged')
+    ? extractField(result.output, 'open_controller_pr_merged')?.replace(/^#/, '')
+    : extractField(result.output, 'open_controller_pr')?.replace(/^#/, '');
+  const prUrl = extractField(result.output, 'url');
+  const prBranch = extractField(result.output, 'branch');
+  const mergedSha = extractField(result.output, 'sha');
+  const failedChecks = extractField(result.output, 'open_controller_pr_failed_checks');
+  const pendingChecks = extractField(result.output, 'open_controller_pr_pending_checks');
+  const mergeError = extractField(result.output, 'open_controller_pr_merge_error');
 
-  try {
-    const prs = JSON.parse(result.output);
-    return prs.find((pr) => String(pr.headRefName ?? '').startsWith('codex/repositorio-')) ?? null;
-  } catch {
-    log('open_controller_pr_check=json_parse_failed');
-    return null;
-  }
+  await writeRuntimeState({
+    openControllerPrState: state,
+    lastPrNumber: prNumber ?? null,
+    lastPrUrl: prUrl ?? null,
+    lastPrBranch: prBranch ?? null,
+    lastMergedPrNumber: state === 'merged' ? prNumber ?? null : undefined,
+    lastMergedSha: state === 'merged' ? mergedSha ?? null : undefined,
+    lastMergedAt: state === 'merged' ? new Date().toISOString() : undefined,
+    lastFailedChecks: failedChecks ?? null,
+    lastPendingChecks: pendingChecks ?? null,
+    lastMergeError: mergeError ?? null,
+  });
+
+  return {
+    state,
+    prNumber,
+    prUrl,
+    prBranch,
+    mergedSha,
+    failedChecks,
+    pendingChecks,
+    mergeError,
+  };
 }
 
 async function publishTaskDiff(taskId) {
@@ -213,6 +297,12 @@ async function publishTaskDiff(taskId) {
   log(`publishing task diff task=${taskId}`);
   const publish = await runBash(withEnvFile(`.codex/cloud/publish-task-diff.sh ${shellQuote(taskId)}`));
   if (publish.code !== 0) throw new Error(`publish failed with exit ${publish.code}`);
+  await writeRuntimeState({
+    lastTaskId: taskId,
+    lastPublishedPrBranch: extractField(publish.output, 'pr_branch'),
+    lastPublishedPrNumber: extractField(publish.output, 'pr_number'),
+    lastPublishedPrUrl: extractField(publish.output, 'pr_url'),
+  });
 }
 
 function extractTaskId(output) {
@@ -222,13 +312,27 @@ function extractTaskId(output) {
 async function runCycle(reason) {
   log(`cycle started reason=${reason}`);
   await preflight();
+  await writeRuntimeState({
+    lastCycleReason: reason,
+    lastCycleStartedAt: new Date().toISOString(),
+    lastError: null,
+  });
 
   try {
-    const openControllerPr = await findOpenControllerPr();
-    if (openControllerPr) {
-      log(
-        `cycle skipped open_controller_pr=#${openControllerPr.number} branch=${openControllerPr.headRefName} url=${openControllerPr.url}`,
-      );
+    const initialReconciliation = await reconcileOpenControllerPr({ wait: true });
+    if (initialReconciliation.state !== 'none') {
+      if (initialReconciliation.state === 'merged') {
+        const mergedSha = await syncIsolatedWorktreeToMain();
+        log(`cycle_finished_merged_pr=#${initialReconciliation.prNumber} sha=${mergedSha}`);
+        await writeRuntimeState({
+          openControllerPrState: 'merged',
+          lastMergedPrNumber: initialReconciliation.prNumber ?? null,
+          lastMergedSha: mergedSha,
+          lastMergedAt: new Date().toISOString(),
+        });
+      } else {
+        log(`cycle blocked open_controller_pr_state=${initialReconciliation.state}`);
+      }
       return;
     }
 
@@ -241,10 +345,32 @@ async function runCycle(reason) {
     log(`watching task=${taskId}`);
     const watch = await runBash(withEnvFile(`.codex/cloud/watch-task.sh ${shellQuote(taskId)}`));
     if (watch.code !== 0) throw new Error(`watch failed with exit ${watch.code}`);
+    await writeRuntimeState({
+      lastTaskId: taskId,
+      lastTaskCompletedAt: new Date().toISOString(),
+    });
 
     await publishTaskDiff(taskId);
-
+    const publishedReconciliation = await reconcileOpenControllerPr({ wait: true });
+    if (publishedReconciliation.state === 'merged') {
+      const mergedSha = await syncIsolatedWorktreeToMain();
+      log(`cycle_finished_merged_pr=#${publishedReconciliation.prNumber} sha=${mergedSha}`);
+      await writeRuntimeState({
+        openControllerPrState: 'merged',
+        lastMergedPrNumber: publishedReconciliation.prNumber ?? null,
+        lastMergedSha: mergedSha,
+        lastMergedAt: new Date().toISOString(),
+      });
+    } else {
+      log(`cycle blocked open_controller_pr_state=${publishedReconciliation.state}`);
+    }
     log(`cycle finished task=${taskId}`);
+  } catch (error) {
+    await writeRuntimeState({
+      lastError: error.message,
+      lastErrorAt: new Date().toISOString(),
+    });
+    throw error;
   } finally {
     await cleanIsolatedWorktree();
   }
@@ -256,6 +382,10 @@ async function main() {
   if (mode === 'dry-run') {
     await preflight();
     await cleanIsolatedWorktree();
+    await writeRuntimeState({
+      lastDryRunAt: new Date().toISOString(),
+      openControllerPrState: 'dry_run_ok',
+    });
     log('dry-run ok');
     return;
   }

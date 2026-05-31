@@ -1,6 +1,6 @@
 # Aneety cloud-safe source controller prompt
 
-Executar o próximo ciclo operacional da Aneety Platform dentro do repositório `Aneety/ai` no Codex Cloud, produzindo código fonte versionável e PR no GitHub quando houver mudança. O controlador não deve depender de painel externo e não deve fazer merge automático.
+Executar o próximo ciclo operacional da Aneety Platform dentro do repositório `Aneety/ai` no Codex Cloud, produzindo código fonte versionável, PR no GitHub e merge automático quando os checks obrigatórios ficarem verdes. O controlador não deve depender de painel externo.
 
 ## Fontes canônicas
 
@@ -23,7 +23,7 @@ A próxima responsabilidade padrão é a primeira linha de prioridade alta em `d
 4. Não consulte nem dependa de painel fora deste repositório.
 5. Não use paths absolutos da máquina local nem paths de cache de plugins.
 6. Não execute runtime local, container, servidor local, Wrangler local como aceite, Python de runtime MVP ou fallback fora de Cloudflare Workers.
-7. Não faça merge automático.
+7. Depois de abrir a PR, acompanhar checks obrigatórios e concluir squash merge automático quando o gate estiver verde.
 8. Não use `codex cloud apply` nem qualquer comando que aplique diff de task no checkout local do executor; a saída deve ser branch/commit/PR no GitHub ou blocker.
 9. Se criar Markdown com Mermaid, manter `.mmd`, renderizar `.svg` e `.jpg`, linkar os três artefatos e mostrar o código em bloco `mmd`.
 
@@ -51,7 +51,7 @@ Para a responsabilidade escolhida:
 5. Criar PR no GitHub contra `main`, preferencialmente draft se ainda faltarem checks.
 6. Se a evidência em `docs/project` ainda não tiver a URL do PR, atualizar os documentos com a URL, fazer segundo commit e push.
 7. Acompanhar `gh pr checks` e `gh run` quando disponíveis.
-8. Se os checks ficarem verdes, deixar PR pronto para revisão, mas não fazer merge.
+8. Se os checks ficarem verdes, concluir squash merge automático, apagar a branch remota e registrar PR, merge commit e SHA final de `main`.
 9. Se `gh` não estiver autenticado ou o push/PR falhar por permissão, registrar blocker objetivo com causa, impacto e próxima ação. Nesse caso, deixe o diff preparado na task, mas não tente credenciais alternativas.
 
 ## Evidência obrigatória no relatório final
@@ -62,4 +62,4 @@ Para a responsabilidade escolhida:
 - Comandos executados e resultados.
 - Branch, commit e URL do PR, quando criados.
 - Checks de PR ou blocker de permissão/autenticação.
-- Declaração explícita de que não houve merge automático.
+- Declaração explícita do merge automático concluído ou do blocker objetivo que impediu concluir o merge.

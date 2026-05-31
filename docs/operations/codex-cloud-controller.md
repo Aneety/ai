@@ -13,10 +13,11 @@ Este documento descreve o modo cloud-safe do controlador de implementação da A
 - `.codex/cloud/setup.sh` — valida ferramentas mínimas, instala `gh` em `${HOME}/.local/bin` quando ele não existir na imagem Linux e valida autenticação GitHub quando `GH_TOKEN` estiver presente.
 - `.codex/cloud/maintenance.sh` — atualiza referências Git, valida YAML dos workflows e lista PRs/runs quando possível.
 - `.codex/cloud/run-controller-check.sh` — gera diagnóstico idempotente do painel, implementação e checks sem editar arquivos.
-- `.codex/cloud/controller-prompt.md` — prompt durável para uma task no Codex Cloud criar scaffolds de código fonte, atualizar `docs/project`, fazer push e abrir PR sem merge automático.
+- `.codex/cloud/controller-prompt.md` — prompt durável para uma task no Codex Cloud criar scaffolds de código fonte, atualizar `docs/project`, fazer push, abrir PR e concluir merge automático depois dos checks verdes.
 - `.codex/cloud/submit-controller-task.sh` — wrapper para submeter o prompt do controlador via `codex cloud exec`.
 - `.codex/cloud/watch-task.sh` — wrapper para acompanhar uma task remota até `READY` ou falha.
 - `.codex/cloud/publish-task-diff.sh` — fallback operacional versionado para publicar o diff de uma task `READY` como branch/commit/PR a partir do worktree isolado local, sem aplicar nada no checkout canônico.
+- `.codex/cloud/reconcile-controller-pr.mjs` — helper versionado para reconciliar checks obrigatórios da PR operacional e concluir squash merge automático quando o gate remoto estiver verde.
 
 ## Variáveis e segredos
 
@@ -44,8 +45,9 @@ Use allowlist mínima:
 
 - Codex Cloud deve preparar código fonte, documentação operacional e diff auditável; quando houver credencial suficiente, deve também criar branch, commit, push e PR.
 - Se a task `READY` não criar PR por limitação de credencial ou superfície cloud, o scheduler pode publicar o diff com `.codex/cloud/publish-task-diff.sh`, exclusivamente em worktree isolado e sem tocar no checkout canônico.
-- Nem Codex Cloud nem scheduler devem aplicar diff no checkout canônico do executor ou fazer merge automático.
+- Nem Codex Cloud nem scheduler devem aplicar diff no checkout canônico do executor; o merge automático acontece no GitHub e o worktree isolado é apenas reconciliado de volta para `origin/main`.
 - O controlador não fecha aceite do MVP com execução local ou cloud. Aceite de código fonte continua em GitHub Actions, Cloudflare gate e smoke/API/e2e publicado.
+- Para ciclos de dados do MVP, Supabase pode ser usado como provedor operacional padrão quando o contrato da responsabilidade exigir persistência compatível com Workers, sem virar dependência obrigatória do contrato de produto ou texto visível ao usuário final.
 - Se credencial, ambiente ou permissão estiverem ausentes, registrar bloqueio objetivo em `docs/project` em vez de criar fallback.
 
 ## Validação manual recomendada

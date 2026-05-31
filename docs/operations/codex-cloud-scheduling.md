@@ -9,12 +9,14 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - O agendamento Node.js externo deve chamar `codex cloud exec` contra o ambiente Codex Cloud já validado.
 - A task remota deve gerar diff auditável e tentar branch/commit/PR quando houver credencial suficiente; se o PR não for criado dentro do Codex Cloud, o scheduler publica o diff via worktree isolado e `gh`, sem tocar no checkout canônico.
 - O wrapper foi validado com tasks `READY`; o scheduler roda em worktree isolado para evitar aplicar diffs no checkout canônico.
+- Quando existir PR operacional `codex/repositorio-*`, o scheduler entra em reconciliação: consulta checks obrigatórios, aguarda o gate remoto, faz squash merge automático, apaga a branch remota e registra o SHA final de `main`.
 
 ## Scripts versionados
 
 - `.codex/cloud/submit-controller-task.sh` — submete uma task usando `.codex/cloud/controller-prompt.md`.
 - `.codex/cloud/watch-task.sh` — acompanha uma task até `READY` ou falha.
 - `.codex/cloud/publish-task-diff.sh` — publica o diff de uma task `READY` em branch/commit/PR usando somente worktree isolado; recusa execução no checkout canônico por padrão.
+- `.codex/cloud/reconcile-controller-pr.mjs` — reconcilia PR operacional aberta, classifica `pending|failed|merge_ready|merged|timeout` e executa squash merge automático quando permitido.
 - `.codex/cloud/scheduler.mjs` — agendador Node.js com `node-cron`, executando submit/watch a cada 30 minutos por padrão em worktree isolado fora do checkout canônico.
 - `.codex/cloud/monitor-scheduler.mjs` — monitor local do agendamento, do arquivo de ambiente, do processo scheduler, do worktree isolado e das tasks Codex Cloud recentes.
 
@@ -37,9 +39,15 @@ Opcionais:
 - `CODEX_CLOUD_SCHEDULE`: expressão cron do agendador Node.js; padrão `*/30 * * * *`.
 - `CODEX_CLOUD_SCHEDULE_TZ`: timezone do agendador Node.js; padrão `America/Asuncion`.
 - `CODEX_CLOUD_AUTO_PUBLISH_DIFF`: publica o diff `READY` como PR pelo worktree isolado; padrão ligado. Use `0` para desativar.
+- `CODEX_CLOUD_AUTO_MERGE`: habilita merge automático pelo scheduler; padrão ligado.
+- `CODEX_CLOUD_AUTO_MERGE_METHOD`: estratégia de merge; padrão `squash`.
+- `CODEX_CLOUD_PR_WATCH_INTERVAL`: intervalo em segundos para reconciliar checks da PR; padrão `30`.
+- `CODEX_CLOUD_PR_WATCH_MAX_POLLS`: máximo de leituras dos checks da PR no mesmo ciclo; padrão `60`.
+- `CODEX_CLOUD_AUTO_DELETE_BRANCH`: apaga branch remota depois do merge; padrão ligado.
 - `CODEX_CLOUD_GITHUB_REPO`: repositório usado pelo publicador de PR; padrão `Aneety/ai`.
 - `CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN`: usar `GH_TOKEN` do ambiente para criar PR; padrão desligado para preferir a sessão `gh` do keychain local, evitando tokens de ambiente com permissão incompleta para pull requests.
 - `CODEX_CLOUD_PUBLISH_WORKTREE_DIR`: worktree autorizado para aplicar diff antes do push; por padrão acompanha `CODEX_CLOUD_WORKTREE_DIR`.
+- `CODEX_CLOUD_STATE_FILE`: arquivo local de estado runtime do scheduler/monitor; padrão `$HOME/.codex/automations/aneety-project-hourly-controller/runtime-state.json`.
 
 ## Pré-requisito do executor
 
@@ -95,6 +103,8 @@ npm ci
 npm run codex-cloud:scheduler:dry-run
 ```
 
+O `dry-run` valida submit/watch/status, a presença do helper de reconciliação e a capacidade de preparar o worktree isolado sem submeter task real.
+
 Para executar uma vez e acompanhar até estado final:
 
 ```sh
@@ -125,7 +135,11 @@ Interpretação do monitor:
 - `cloud_task_list_failed`: o CLI não conseguiu consultar tasks do Codex Cloud.
 - `cloud_task_list_empty`: nenhuma task recente foi encontrada.
 - `scheduler_dry_run=ok`: a pré-checagem local passou, mas isso ainda não comprova task real.
-- `open_controller_pr_exists`: há PR operacional aberto para ciclo `repositorio`; o scheduler não deve criar duplicatas até o PR ser revisado/mergeado/fechado.
+- `open_controller_pr_state=pending`: há PR operacional aberta aguardando checks obrigatórios.
+- `open_controller_pr_state=failed`: há PR operacional aberta com falha de checks ou blocker de merge.
+- `open_controller_pr_state=merge_ready`: a PR já ficou apta para merge; o scheduler deve concluir o merge no mesmo ciclo quando `CODEX_CLOUD_AUTO_MERGE=1`.
+- `open_controller_pr_state=merged`: o último ciclo concluiu merge automático e registrou o SHA final de `main`.
+- `open_controller_pr_state=timeout`: a PR continuou aberta além da janela `CODEX_CLOUD_PR_WATCH_INTERVAL * CODEX_CLOUD_PR_WATCH_MAX_POLLS`.
 
 Regras:
 
@@ -134,8 +148,9 @@ Regras:
 3. Não expor `GH_TOKEN` em logs.
 4. Conferir task, branch, commit, PR e checks antes de aceitar a mudança.
 5. Manter o aceite de código em GitHub Actions e Cloudflare gate.
-6. Nunca executar submit/watch/publish diretamente no checkout canônico; o scheduler deve usar worktree isolado e limpá-lo após cada ciclo.
-7. Se já existir PR aberto `codex/repositorio-*`, o scheduler pula o ciclo para evitar PRs duplicados para a mesma frente.
+6. Nunca executar submit/watch/publish diretamente no checkout canônico; o scheduler deve usar worktree isolado, fazer merge no GitHub e reconciliar o worktree de volta para `origin/main`.
+7. Se já existir PR aberto `codex/repositorio-*`, o scheduler não submete task nova; primeiro reconcilia a PR até `merged` ou blocker objetivo.
+8. Para ciclos de dados, Supabase pode ser usado como provedor operacional permitido/padrão quando a responsabilidade exigir, sem virar dependência obrigatória do contrato de produto nem copy de usuário final.
 
 ## Critério de aceite do agendamento
 
@@ -145,5 +160,6 @@ O agendamento só está operacional quando uma execução recorrente conseguir:
 2. terminar em `READY`;
 3. deixar evidência de URL/id da task;
 4. abrir PR no GitHub a partir do diff `READY` ou registrar blocker objetivo de permissão/autenticação;
-5. não fazer merge automático;
-6. ser visível pelo monitor local sem blockers críticos.
+5. acompanhar os checks obrigatórios, concluir squash merge automático e registrar o SHA final de `main`;
+6. apagar branch remota quando o merge concluir;
+7. ser visível pelo monitor local sem blockers críticos.
