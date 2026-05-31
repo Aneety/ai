@@ -9,7 +9,7 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - O agendamento Node.js externo deve chamar `codex cloud exec` contra o ambiente Codex Cloud já validado.
 - A task remota deve gerar diff auditável e tentar branch/commit/PR quando houver credencial suficiente; se o PR não for criado dentro do Codex Cloud, o scheduler publica o diff via worktree isolado e `gh`, sem tocar no checkout canônico.
 - O wrapper foi validado com tasks `READY`; o scheduler roda em worktree isolado para evitar aplicar diffs no checkout canônico.
-- Quando existir PR operacional `codex/repositorio-*`, o scheduler entra em reconciliação: consulta checks obrigatórios, aguarda o gate remoto, faz squash merge automático, apaga a branch remota e registra o SHA final de `main`.
+- Quando existir PR operacional do controlador no padrão `codex/<ciclo>-<responsabilidade>-<YYYY-MM-DD>`, o scheduler entra em reconciliação: consulta checks obrigatórios, aguarda o gate remoto, faz squash merge automático, apaga a branch remota e registra o SHA final de `main`.
 
 ## Scripts versionados
 
@@ -17,8 +17,8 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - `.codex/cloud/watch-task.sh` — acompanha uma task até `READY` ou falha.
 - `.codex/cloud/publish-task-diff.sh` — publica o diff de uma task `READY` em branch/commit/PR usando somente worktree isolado; recusa execução no checkout canônico por padrão.
 - `.codex/cloud/reconcile-controller-pr.mjs` — reconcilia PR operacional aberta, classifica `pending|failed|merge_ready|merged|timeout` e executa squash merge automático quando permitido.
-- `.codex/cloud/scheduler.mjs` — agendador Node.js com `node-cron`, executando submit/watch a cada 30 minutos por padrão em worktree isolado fora do checkout canônico.
-- `.codex/cloud/monitor-scheduler.mjs` — monitor local do agendamento, do arquivo de ambiente, do processo scheduler, do worktree isolado e das tasks Codex Cloud recentes.
+- `.codex/cloud/scheduler.mjs` — agendador Node.js com `node-cron`, resolvendo o próximo item acionável de toda a matriz `docs/project`, executando submit/watch a cada 30 minutos por padrão em worktree isolado fora do checkout canônico e registrando progresso em `runtime-state.json`.
+- `.codex/cloud/monitor-scheduler.mjs` — monitor local do agendamento, do arquivo de ambiente, do processo scheduler, do worktree isolado, das tasks Codex Cloud recentes e do estado derivado do backlog (`controller_progress_state`, `awaiting_next_tick`, `last_success_age_seconds`, `backlog_completion_state`).
 
 ## Variáveis do agendador
 
@@ -48,6 +48,26 @@ Opcionais:
 - `CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN`: usar `GH_TOKEN` do ambiente para criar PR; padrão desligado para preferir a sessão `gh` do keychain local, evitando tokens de ambiente com permissão incompleta para pull requests.
 - `CODEX_CLOUD_PUBLISH_WORKTREE_DIR`: worktree autorizado para aplicar diff antes do push; por padrão acompanha `CODEX_CLOUD_WORKTREE_DIR`.
 - `CODEX_CLOUD_STATE_FILE`: arquivo local de estado runtime do scheduler/monitor; padrão `$HOME/.codex/automations/aneety-project-hourly-controller/runtime-state.json`.
+
+## Campos mínimos esperados em `runtime-state.json`
+
+O arquivo local de estado deve preservar saúde operacional entre ciclos, incluindo no mínimo:
+
+- `lastScheduledSlotAt`
+- `lastCycleStartedAt`
+- `lastCycleState`
+- `lastTaskId`
+- `lastTaskCompletedAt`
+- `lastPrNumber`
+- `lastPrUrl`
+- `lastMergedPrNumber`
+- `lastMergedSha`
+- `lastMergedAt`
+- `lastError`
+- `lastActionableResponsibility`
+- `lastActionableCycle`
+
+`npm run codex-cloud:scheduler:dry-run` pode atualizar somente campos próprios de pré-checagem, como `lastDryRunAt`, sem apagar os campos operacionais acima.
 
 ## Pré-requisito do executor
 
@@ -133,8 +153,12 @@ Interpretação do monitor:
 - `scheduler_worktree_missing`: o worktree isolado ainda não foi criado pelo scheduler.
 - `scheduler_worktree_dirty_count_*`: o worktree isolado ficou sujo após submit/watch; o checkout canônico deve permanecer limpo.
 - `cloud_task_list_failed`: o CLI não conseguiu consultar tasks do Codex Cloud.
-- `cloud_task_list_empty`: nenhuma task recente foi encontrada.
+- `cloud_task_list_empty`: nenhuma task recente foi encontrada. Só vira blocker quando também não houver PR em reconciliação, merge recente, task recente em `runtime-state.json` nem janela válida `awaiting_next_tick`.
 - `scheduler_dry_run=ok`: a pré-checagem local passou, mas isso ainda não comprova task real.
+- `controller_progress_state`: estado derivado do controlador (`ready_for_cycle`, `awaiting_next_tick`, `idle_between_slots`, `pending`, `merge_ready`, `blocked`, `complete`).
+- `awaiting_next_tick=true`: o processo iniciou ou reiniciou perto do boundary do cron e ainda aguarda o próximo slot válido antes da primeira task nova.
+- `last_success_age_seconds`: idade do sucesso operacional mais recente (`merge` ou conclusão útil de ciclo).
+- `backlog_completion_state`: `in_progress`, `blocked` ou `complete` para a matriz inteira.
 - `open_controller_pr_state=pending`: há PR operacional aberta aguardando checks obrigatórios.
 - `open_controller_pr_state=failed`: há PR operacional aberta com falha de checks ou blocker de merge.
 - `open_controller_pr_state=merge_ready`: a PR já ficou apta para merge; o scheduler deve concluir o merge no mesmo ciclo quando `CODEX_CLOUD_AUTO_MERGE=1`.
@@ -149,7 +173,7 @@ Regras:
 4. Conferir task, branch, commit, PR e checks antes de aceitar a mudança.
 5. Manter o aceite de código em GitHub Actions e Cloudflare gate.
 6. Nunca executar submit/watch/publish diretamente no checkout canônico; o scheduler deve usar worktree isolado, fazer merge no GitHub e reconciliar o worktree de volta para `origin/main`.
-7. Se já existir PR aberto `codex/repositorio-*`, o scheduler não submete task nova; primeiro reconcilia a PR até `merged` ou blocker objetivo.
+7. Se já existir PR aberta do controlador no padrão `codex/<ciclo>-<responsabilidade>-<YYYY-MM-DD>`, o scheduler não submete task nova; primeiro reconcilia a PR até `merged` ou blocker objetivo.
 8. Para ciclos de dados, Supabase pode ser usado como provedor operacional permitido/padrão quando a responsabilidade exigir, sem virar dependência obrigatória do contrato de produto nem copy de usuário final.
 
 ## Critério de aceite do agendamento

@@ -13,11 +13,11 @@ Este documento descreve o modo cloud-safe do controlador de implementação da A
 - `.codex/cloud/setup.sh` — valida ferramentas mínimas, instala `gh` em `${HOME}/.local/bin` quando ele não existir na imagem Linux e valida autenticação GitHub quando `GH_TOKEN` estiver presente.
 - `.codex/cloud/maintenance.sh` — atualiza referências Git, valida YAML dos workflows e lista PRs/runs quando possível.
 - `.codex/cloud/run-controller-check.sh` — gera diagnóstico idempotente do painel, implementação e checks sem editar arquivos.
-- `.codex/cloud/controller-prompt.md` — prompt durável para uma task no Codex Cloud criar scaffolds de código fonte, atualizar `docs/project`, fazer push, abrir PR e concluir merge automático depois dos checks verdes.
+- `.codex/cloud/controller-prompt.md` — template durável e parametrizado pelo scheduler para a task executar exatamente um par `{ciclo, responsabilidade}`, atualizar `docs/project`, fazer push e abrir PR no padrão `codex/<ciclo>-<responsabilidade>-<YYYY-MM-DD>` quando houver mudança. A task não faz merge; o scheduler reconcilia checks e merge depois.
 - `.codex/cloud/submit-controller-task.sh` — wrapper para submeter o prompt do controlador via `codex cloud exec`.
 - `.codex/cloud/watch-task.sh` — wrapper para acompanhar uma task remota até `READY` ou falha.
 - `.codex/cloud/publish-task-diff.sh` — fallback operacional versionado para publicar o diff de uma task `READY` como branch/commit/PR a partir do worktree isolado local, sem aplicar nada no checkout canônico.
-- `.codex/cloud/reconcile-controller-pr.mjs` — helper versionado para reconciliar checks obrigatórios da PR operacional e concluir squash merge automático quando o gate remoto estiver verde.
+- `.codex/cloud/reconcile-controller-pr.mjs` — helper versionado para reconciliar qualquer PR operacional do controlador, classificar `pending|failed|merge_ready|merged|timeout` e concluir squash merge automático quando o gate remoto estiver verde.
 
 ## Variáveis e segredos
 

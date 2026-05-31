@@ -170,6 +170,7 @@ Normalização obrigatória:
 - `status:validacao` — implementação feita, aguardando evidência final ou revisão.
 - `status:bloqueado` — item parado por decisão, dependência, acesso, dado, secret, custo, runtime, arquitetura ou evidência ausente.
 - `status:concluido` — item encerrado com evidência final e painel Markdown atualizado.
+- `status:na` — ciclo explicitamente não aplicável ao contrato atual da responsabilidade, com justificativa canônica no arquivo correspondente.
 
 Regras:
 
@@ -188,7 +189,7 @@ Regras:
 
 ### Campos obrigatórios
 
-- **Status:** triagem, pronto, em ciclo, validação, bloqueado, concluído.
+- **Status:** triagem, pronto, em ciclo, validação, bloqueado, concluído, na.
 - **Ciclo:** uma etapa da ordem fixa de `06-ciclos-cobertura.md`.
 - **Responsabilidade:** domínio/capacidade da plataforma.
 - **Repo destino:** repositório onde a mudança será feita.
@@ -204,6 +205,7 @@ Regras:
 - Mover para `em ciclo` somente se a etapa anterior estiver verde com evidência.
 - Mover para `validacao` somente com PR, diff ou artefato pronto para revisão.
 - Mover para `concluido` somente com evidência final linkada.
+- Mover para `na` somente quando o contrato atual da responsabilidade não exigir aquele ciclo; nesse caso o bloqueio deve ficar vazio e a próxima ação deve apontar reavaliação apenas se houver mudança contratual aprovada.
 - Atualizar `docs/project/index.md` sempre que `Status`, `Owner`, `Prioridade`, `Ciclo ativo` ou bloqueio global mudarem.
 - Quando o bloqueio vier de checkout sujo, branch errada, SHA defasado ou fetch pendente, registrar a causa objetiva e o repo afetado no painel Markdown antes de qualquer outra ação.
 

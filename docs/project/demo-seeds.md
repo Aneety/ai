@@ -20,7 +20,7 @@
 | `jobs` | `triagem` | media | `job` | — | Aguardando ciclo `banco` ficar verde neste arquivo. | Executar `jobs` depois de concluir `banco` com evidência objetiva. |
 | `backend` | `triagem` | media | `backend` | — | Aguardando ciclo `jobs` ficar verde neste arquivo. | Executar `backend` depois de concluir `jobs` com evidência objetiva. |
 | `teste-integracao-api` | `triagem` | media | `teste` | — | Aguardando ciclo `backend` ficar verde neste arquivo. | Executar `teste-integracao-api` depois de concluir `backend` com evidência objetiva. |
-| `microfrontend` | `triagem` | media | `microfrontend` | — | Não aplicável no contrato atual desta responsabilidade. | Ignorar até mudança contratual aprovada nos documentos normativos. |
+| `microfrontend` | `na` | media | `microfrontend` | — | — | Reavaliar somente se houver mudança contratual aprovada nos documentos normativos. |
 | `smoke` | `triagem` | media | `smoke` | — | Aguardando ciclo `teste-integracao-api` ficar verde neste arquivo. | Executar `smoke` depois de concluir `teste-integracao-api` com evidência objetiva. |
 | `teste` | `triagem` | media | `teste` | — | Aguardando ciclo `smoke` ficar verde neste arquivo. | Executar `teste` depois de concluir `smoke` com evidência objetiva. |
 | `documentacao` | `triagem` | media | `documentacao` | — | Aguardando ciclo `teste` ficar verde neste arquivo. | Executar `documentacao` depois de concluir `teste` com evidência objetiva. |

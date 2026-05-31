@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process';
 import { access, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { loadControllerBacklog, resolveNextBacklogTarget } from './controller-backlog.mjs';
+import { deriveMonitorState } from './controller-progress.mjs';
 
 const repoRoot = process.cwd();
 const stateFile =
@@ -23,7 +25,6 @@ const envFile =
     'aneety-project-hourly-controller',
     'cloud-env.sh',
   );
-
 const isolatedWorktree =
   process.env.CODEX_CLOUD_WORKTREE_DIR ??
   path.join(
@@ -63,6 +64,7 @@ function run(command, options = {}) {
       cwd: options.cwd ?? repoRoot,
       env: {
         ...childEnv,
+        ...(options.env ?? {}),
         PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH ?? ''}`,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -123,14 +125,35 @@ async function readRuntimeState() {
   }
 }
 
+async function readMainSha(runtimeState) {
+  const exists = await run(`git -C ${shellQuote(isolatedWorktree)} rev-parse --is-inside-work-tree`, { quiet: true });
+  if (exists.code === 0) {
+    const sha = await run(`git -C ${shellQuote(isolatedWorktree)} rev-parse HEAD`, { quiet: true });
+    if (sha.code === 0) return sha.stdout.trim().split('\n').filter(Boolean).at(-1) ?? null;
+  }
+  return runtimeState?.lastNoProgressMainSha ?? runtimeState?.lastMergedSha ?? null;
+}
+
+async function resolveBacklogTarget() {
+  try {
+    const backlog = await loadControllerBacklog(repoRoot);
+    return resolveNextBacklogTarget(backlog);
+  } catch (error) {
+    warn('controller_backlog_parse_failed');
+    log(`controller_backlog_error=${String(error.message ?? error)}`);
+    return { state: 'blocked', reason: error.message ?? 'controller_backlog_parse_failed' };
+  }
+}
+
 async function checkDryRun(hasEnvFile) {
-  if (!hasEnvFile) return;
+  if (!hasEnvFile) return false;
   const result = await run('npm run codex-cloud:scheduler:dry-run', { quiet: true });
   if (result.code === 0) {
     log('scheduler_dry_run=ok');
-  } else {
-    warn('scheduler_dry_run_failed');
+    return true;
   }
+  warn('scheduler_dry_run_failed');
+  return false;
 }
 
 async function checkProcess() {
@@ -143,19 +166,20 @@ async function checkProcess() {
   } else {
     log(`scheduler_process_count=${lines.length}`);
   }
+  return lines.length;
 }
 
 async function checkIsolatedWorktree() {
   const exists = await run(`git -C ${shellQuote(isolatedWorktree)} rev-parse --is-inside-work-tree`, { quiet: true });
   if (exists.code !== 0) {
     warn('scheduler_worktree_missing');
-    return;
+    return { exists: false, dirtyCount: null };
   }
 
   const status = await run('git status --short', { cwd: isolatedWorktree, quiet: true });
   if (status.code !== 0) {
     warn('scheduler_worktree_status_failed');
-    return;
+    return { exists: true, dirtyCount: null };
   }
 
   const dirtyLines = status.stdout.trim().split('\n').filter(Boolean);
@@ -164,6 +188,7 @@ async function checkIsolatedWorktree() {
   } else {
     warn(`scheduler_worktree_dirty_count_${dirtyLines.length}`);
   }
+  return { exists: true, dirtyCount: dirtyLines.length };
 }
 
 async function checkCloudTasks(hasEnvFile) {
@@ -174,35 +199,35 @@ async function checkCloudTasks(hasEnvFile) {
   const result = await run(command, { quiet: true, cwd: '/tmp' });
   if (result.code !== 0) {
     warn('cloud_task_list_failed');
-    return;
+    return { count: null, latest: null, failed: true };
   }
 
   try {
     const payload = JSON.parse(result.stdout);
     const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
     log(`cloud_task_count=${tasks.length}`);
-    const latest = tasks[0];
+    const latest = tasks[0] ?? null;
     if (latest) {
       const id = String(latest.id ?? latest.task_id ?? latest.taskId ?? 'unknown');
       const status = latest.status ?? latest.state ?? 'unknown';
       const updated = latest.updated_at ?? latest.updatedAt ?? latest.created_at ?? latest.createdAt ?? 'unknown';
       log(`latest_task=${id} status=${status} timestamp=${updated}`);
-    } else {
-      warn('cloud_task_list_empty');
     }
+    return { count: tasks.length, latest, failed: false };
   } catch {
     warn('cloud_task_list_json_parse_failed');
+    return { count: null, latest: null, failed: true };
   }
 }
 
-async function checkOpenControllerPr(hasEnvFile) {
+async function checkOpenControllerPr(hasEnvFile, runtimeState) {
   const command = hasEnvFile
     ? withEnvFile('node .codex/cloud/reconcile-controller-pr.mjs --probe-only')
     : 'node .codex/cloud/reconcile-controller-pr.mjs --probe-only';
   const result = await run(command, { quiet: true });
   if (result.code !== 0) {
     warn('open_controller_pr_check_failed');
-    return;
+    return { state: 'unknown', count: null };
   }
 
   const state = extractField(result.stdout, 'open_controller_pr_state') ?? 'unknown';
@@ -221,16 +246,16 @@ async function checkOpenControllerPr(hasEnvFile) {
   }
 
   if (state === 'none') {
-    const runtimeState = await readRuntimeState();
     if (runtimeState?.openControllerPrState === 'merged' && runtimeState.lastMergedSha) {
       log('open_controller_pr_state=merged');
       log(
         `open_controller_pr_merged=#${runtimeState.lastMergedPrNumber ?? 'unknown'} sha=${runtimeState.lastMergedSha} timestamp=${runtimeState.lastMergedAt ?? 'unknown'}`,
       );
-    } else {
-      log('open_controller_pr_state=none');
+      return { state: 'merged', count: 0, prNumber: runtimeState.lastMergedPrNumber ?? null, mergedSha: runtimeState.lastMergedSha };
     }
-    return;
+
+    log('open_controller_pr_state=none');
+    return { state: 'none', count: 0 };
   }
 
   log(`open_controller_pr_state=${state}`);
@@ -249,6 +274,15 @@ async function checkOpenControllerPr(hasEnvFile) {
   if (state === 'merged' && mergedSha) {
     log(`open_controller_pr_merged=#${prNumber ?? 'unknown'} sha=${mergedSha}`);
   }
+
+  return {
+    state,
+    count: prNumber ? 1 : 0,
+    prNumber,
+    prBranch,
+    prUrl,
+    mergedSha,
+  };
 }
 
 async function main() {
@@ -257,8 +291,41 @@ async function main() {
   await checkDryRun(hasEnvFile);
   await checkProcess();
   await checkIsolatedWorktree();
-  await checkCloudTasks(hasEnvFile);
-  await checkOpenControllerPr(hasEnvFile);
+
+  const runtimeState = await readRuntimeState();
+  const cloudTasks = await checkCloudTasks(hasEnvFile);
+  const prState = await checkOpenControllerPr(hasEnvFile, runtimeState);
+  const resolvedTarget = await resolveBacklogTarget();
+  const mainSha = await readMainSha(runtimeState);
+  const derived = deriveMonitorState({
+    resolvedTarget,
+    runtimeState,
+    mainSha,
+    openControllerPrState: prState.state,
+    cloudTaskCount: cloudTasks.count ?? 0,
+  });
+
+  if (resolvedTarget.state === 'actionable') {
+    log(`next_actionable_responsibility=${resolvedTarget.responsibility}`);
+    log(`next_actionable_cycle=${resolvedTarget.cycle}`);
+  }
+  if (runtimeState?.lastActionableResponsibility) {
+    log(`last_actionable_responsibility=${runtimeState.lastActionableResponsibility}`);
+  }
+  if (runtimeState?.lastActionableCycle) {
+    log(`last_actionable_cycle=${runtimeState.lastActionableCycle}`);
+  }
+  log(`controller_progress_state=${derived.controllerProgressState}`);
+  log(`awaiting_next_tick=${derived.awaitingNextTick}`);
+  log(`backlog_completion_state=${derived.backlogCompletionState}`);
+  if (derived.lastSuccessAgeSeconds != null) {
+    log(`last_success_age_seconds=${derived.lastSuccessAgeSeconds}`);
+  }
+
+  if ((cloudTasks.count ?? 0) === 0 && derived.shouldWarnCloudTaskListEmpty) {
+    warn('cloud_task_list_empty');
+  }
+
   log('monitor_complete');
 }
 

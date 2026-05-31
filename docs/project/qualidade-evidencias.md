@@ -17,7 +17,7 @@
 | `deploy` | `triagem` | media | `processo` | — | Aguardando ciclo `repositorio` ficar verde neste arquivo. | Executar `deploy` depois de concluir `repositorio` com evidência objetiva. |
 | `publicacao` | `triagem` | media | `processo` | — | Aguardando ciclo `deploy` ficar verde neste arquivo. | Executar `publicacao` depois de concluir `deploy` com evidência objetiva. |
 | `banco` | `triagem` | media | `DB` | — | Aguardando ciclo `publicacao` ficar verde neste arquivo. | Executar `banco` depois de concluir `publicacao` com evidência objetiva. |
-| `jobs` | `triagem` | media | `job` | — | Não aplicável no contrato atual desta responsabilidade. | Ignorar até mudança contratual aprovada nos documentos normativos. |
+| `jobs` | `na` | media | `job` | — | — | Reavaliar somente se houver mudança contratual aprovada nos documentos normativos. |
 | `backend` | `triagem` | media | `backend` | — | Aguardando ciclo `banco` ficar verde neste arquivo. | Executar `backend` depois de concluir `banco` com evidência objetiva. |
 | `teste-integracao-api` | `triagem` | media | `teste` | — | Aguardando ciclo `backend` ficar verde neste arquivo. | Executar `teste-integracao-api` depois de concluir `backend` com evidência objetiva. |
 | `microfrontend` | `triagem` | media | `microfrontend` | — | Aguardando ciclo `teste-integracao-api` ficar verde neste arquivo. | Executar `microfrontend` depois de concluir `teste-integracao-api` com evidência objetiva. |

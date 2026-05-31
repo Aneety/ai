@@ -1,65 +1,68 @@
-# Aneety cloud-safe source controller prompt
+# Aneety cloud-safe controller prompt template
 
-Executar o próximo ciclo operacional da Aneety Platform dentro do repositório `Aneety/ai` no Codex Cloud, produzindo código fonte versionável, PR no GitHub e merge automático quando os checks obrigatórios ficarem verdes. O controlador não deve depender de painel externo.
+Executar exatamente o ciclo alvo abaixo dentro do repositório `Aneety/ai` no Codex Cloud. Produza código fonte versionável, documentação operacional coerente e PR no GitHub quando houver mudança. Não dependa de painel externo. Não aplique diff no checkout local do executor. Não faça merge dentro desta task; o scheduler reconciliará checks e merge depois.
 
-## Fontes canônicas
+## Contexto alvo resolvido pelo scheduler
 
-- Documentação e contratos: `docs/`.
-- Backlog operacional: `docs/project/index.md` e `docs/project/<responsabilidade>.md`.
-- Implementação: `aneety-platform/apps/<responsabilidade>/...`.
-- Assets reutilizáveis: `assets/`.
+- Ciclo alvo: `__TARGET_CYCLE__`
+- Responsabilidade alvo: `__TARGET_RESPONSIBILITY__`
+- Prefixo obrigatório de branch/PR: `__TARGET_BRANCH_PREFIX__`
+- Arquivo operacional da responsabilidade: `__TARGET_PROJECT_FILE__`
+- Status atual no painel: `__TARGET_STATUS__`
+- Gate atual: `__TARGET_GATE__`
+- Evidência atual: __TARGET_EVIDENCE__
+- Bloqueio atual: __TARGET_BLOCKER__
+- Próxima ação atual: __TARGET_NEXT_ACTION__
+- Assinatura do alvo antes da execução: `__TARGET_SIGNATURE__`
+- Prioridade no painel executivo: `__TARGET_SUMMARY_PRIORITY__`
 
-## Objetivo corrente
+## Progresso global esperado
 
-Avançar o ciclo `repositorio` da próxima responsabilidade bloqueada por ausência de raiz física, seguindo a ordem e prioridades em `docs/project/index.md` e `docs/08-planejamento-ciclos-implementacao-repositorios.md`.
+__BACKLOG_METRICS__
 
-A próxima responsabilidade padrão é a primeira linha de prioridade alta em `docs/project/index.md` com `Ciclo ativo = repositorio`, `Status = bloqueado` e bloqueio de raiz ausente. No estado atual, se ainda estiver bloqueada, use `tenant-white-label`.
+## Matriz normativa da responsabilidade
 
-## Regras obrigatórias
+__TARGET_MATRIX__
+
+## Fontes canônicas obrigatórias
+
+1. `docs/01-arquitetura.md`
+2. `docs/02-requisitos.md`
+3. `docs/03-processos.md`
+4. `docs/05-estrutura-repositorios.md`
+5. `docs/06-ciclos-cobertura.md`
+6. `docs/07-governanca-github.md`
+7. `docs/08-planejamento-ciclos-implementacao-repositorios.md`
+8. `docs/project/index.md`
+9. `__TARGET_PROJECT_FILE__`
+
+## Regras mandatórias
 
 1. Comece com `git status --short`, branch, SHA, remoto e `git fetch --all --prune`.
 2. Se o checkout inicial não estiver limpo, registre blocker objetivo e pare; não misture mudanças concorrentes.
-3. Leia `docs/01-arquitetura.md`, `docs/05-estrutura-repositorios.md`, `docs/06-ciclos-cobertura.md`, `docs/08-planejamento-ciclos-implementacao-repositorios.md`, `docs/project/index.md` e o arquivo da responsabilidade escolhida.
-4. Não consulte nem dependa de painel fora deste repositório.
-5. Não use paths absolutos da máquina local nem paths de cache de plugins.
-6. Não execute runtime local, container, servidor local, Wrangler local como aceite, Python de runtime MVP ou fallback fora de Cloudflare Workers.
-7. Depois de abrir a PR, acompanhar checks obrigatórios e concluir squash merge automático quando o gate estiver verde.
-8. Não use `codex cloud apply` nem qualquer comando que aplique diff de task no checkout local do executor; a saída deve ser branch/commit/PR no GitHub ou blocker.
+3. Avance somente o ciclo alvo e a responsabilidade alvo. Não adiante ciclos posteriores.
+4. Respeite `concluido` e `na` como estados verdes. Não reabra ciclo já verde sem evidência de drift real.
+5. Quando o ciclo alvo não puder avançar por dependência externa, gate remoto ausente, permissão, segredo, ambiente ou decisão em aberto, registre blocker objetivo no arquivo da responsabilidade e em `docs/project/index.md` quando o impacto for global.
+6. Se o ciclo alvo for aplicável, faça progresso real no próprio ciclo: código, configuração, contrato, teste, evidência ou atualização documental coerente com as normas. Não gere PR repetida de `repositorio` quando o alvo já estiver em outro ciclo.
+7. Não use paths absolutos da máquina local nem paths de cache de plugins.
+8. Não use runtime local, container, servidor local, Python de runtime MVP, Podman, Docker, Wrangler local como aceite, nem fallback fora de Cloudflare Workers.
 9. Se criar Markdown com Mermaid, manter `.mmd`, renderizar `.svg` e `.jpg`, linkar os três artefatos e mostrar o código em bloco `mmd`.
+10. Não exponha segredos, tokens, ids sensíveis ou valores de variáveis de ambiente no diff, log ou relatório final.
 
-## Implementação esperada para ciclo `repositorio`
+## Fluxo esperado para este ciclo
 
-Para a responsabilidade escolhida:
-
-1. Criar a raiz física em `aneety-platform/apps/<responsabilidade>/`.
-2. Criar somente scaffolds mínimos e compatíveis com Cloudflare Workers, sem runtime pesado:
-   - `README.md` da responsabilidade, com owner, escopo, ciclos, contratos e próximos módulos.
-   - Um ou mais diretórios folha previstos em `docs/08-planejamento-ciclos-implementacao-repositorios.md` para essa responsabilidade, por exemplo `db-*`, `worker-*`, `mfe-*`, `pkg-*` ou outros listados na matriz.
-   - `README.md` mínimo em cada diretório folha criado, descrevendo objetivo, runtime permitido, dados/contratos e próximo gate.
-3. O diff do ciclo `repositorio` deve conter arquivos sob `aneety-platform/apps/<responsabilidade>/...`; não entregue uma task somente com Markdown de acompanhamento quando a raiz física ainda estiver ausente.
-4. Não implementar lógica de produto além do scaffold contratual do ciclo `repositorio`, salvo se a matriz exigir arquivo de contrato textual mínimo.
-5. Atualizar `docs/project/<responsabilidade>.md` para marcar `repositorio` como concluído somente se a raiz física e os arquivos mínimos existirem no mesmo diff.
-6. Atualizar `docs/project/index.md` para refletir a conclusão do ciclo `repositorio` da responsabilidade. Antes do PR existir, use a branch/commit como evidência temporária; depois que o PR existir, atualize a evidência para a URL do PR e faça novo commit/push se necessário.
-7. Se a raiz já existir e o ciclo já estiver concluído, escolher a próxima responsabilidade bloqueada por raiz ausente.
-
-## Fluxo GitHub obrigatório
-
-1. Confirmar `gh auth status --hostname github.com`; se autenticado, executar `gh auth setup-git --hostname github.com` antes do push.
-2. Criar branch com padrão `codex/repositorio-<responsabilidade>-<YYYY-MM-DD>`.
-3. Fazer commit Conventional Commits, por exemplo `feat(<responsabilidade>): add repository scaffold`.
-4. Fazer push para `origin`.
-5. Criar PR no GitHub contra `main`, preferencialmente draft se ainda faltarem checks.
-6. Se a evidência em `docs/project` ainda não tiver a URL do PR, atualizar os documentos com a URL, fazer segundo commit e push.
-7. Acompanhar `gh pr checks` e `gh run` quando disponíveis.
-8. Se os checks ficarem verdes, concluir squash merge automático, apagar a branch remota e registrar PR, merge commit e SHA final de `main`.
-9. Se `gh` não estiver autenticado ou o push/PR falhar por permissão, registrar blocker objetivo com causa, impacto e próxima ação. Nesse caso, deixe o diff preparado na task, mas não tente credenciais alternativas.
+1. Ler as normas acima e extrair o aceite mínimo do ciclo `__TARGET_CYCLE__` para `__TARGET_RESPONSIBILITY__`.
+2. Implementar somente o necessário para deixar este ciclo mais próximo de `concluido`, respeitando gates anteriores e sem inventar runtime fora do contrato.
+3. Atualizar primeiro `__TARGET_PROJECT_FILE__`, depois `docs/project/index.md`, sempre com evidência curta, blocker objetivo e próxima ação coerentes.
+4. Se houver mudança rastreável, criar branch com prefixo `__TARGET_BRANCH_PREFIX__`, fazer commit, push e abrir PR contra `main`.
+5. Se a task não conseguir criar PR por limitação de credencial/superfície cloud, deixe o diff pronto e reporte blocker objetivo; o scheduler poderá publicar o diff por fallback local no worktree isolado.
+6. Não espere checks nem faça merge nesta task. Apenas entregue branch/commit/PR ou blocker objetivo verificável.
 
 ## Evidência obrigatória no relatório final
 
-- Responsabilidade escolhida e motivo da escolha.
-- Arquivos fonte criados em `aneety-platform/apps/<responsabilidade>/...`.
-- Arquivos Markdown atualizados em `docs/project`.
-- Comandos executados e resultados.
-- Branch, commit e URL do PR, quando criados.
-- Checks de PR ou blocker de permissão/autenticação.
-- Declaração explícita do merge automático concluído ou do blocker objetivo que impediu concluir o merge.
+- Ciclo alvo e responsabilidade alvo.
+- Motivo pelo qual este era o próximo item acionável.
+- Arquivos alterados e relação deles com o aceite do ciclo.
+- Estado final do alvo no painel (`concluido`, `na`, `bloqueado`, `validacao` ou outro estado realmente usado).
+- Branch, commit e URL do PR quando existirem.
+- Blocker objetivo, impacto e próxima ação quando o ciclo não puder ser concluído nesta execução.

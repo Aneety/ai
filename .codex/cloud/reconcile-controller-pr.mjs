@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 import { setTimeout as delay } from 'node:timers/promises';
+import { isControllerBranch } from './controller-constants.mjs';
 
 const repo = process.env.CODEX_CLOUD_GITHUB_REPO ?? 'Aneety/ai';
 const autoMerge = process.env.CODEX_CLOUD_AUTO_MERGE !== '0';
@@ -76,7 +77,7 @@ async function findOpenControllerPr() {
   if (result.code !== 0) throw new Error('open_controller_pr_list_failed');
 
   const prs = JSON.parse(result.stdout || '[]');
-  const controllerPrs = prs.filter((pr) => String(pr.headRefName ?? '').startsWith('codex/repositorio-'));
+  const controllerPrs = prs.filter((pr) => isControllerBranch(pr.headRefName));
   log(`open_controller_pr_count=${controllerPrs.length}`);
 
   if (controllerPrs.length === 0) return null;

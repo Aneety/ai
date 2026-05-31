@@ -83,6 +83,24 @@ A ordem executável é:
 
 Observação normativa: `06-ciclos-cobertura.md`, `07-governanca-github.md` e este planejamento usam o mesmo ciclo `teste-integracao-api`. Em labels e filtros técnicos, usar `ciclo:teste-integracao-api`; em texto de negócio, usar **Testes de integração de API**.
 
+## Estado canônico para ciclo não aplicável
+
+Quando um ciclo não fizer parte do contrato atual da responsabilidade, o arquivo `docs/project/<responsabilidade>.md` deve marcar explicitamente `Status = na` na linha daquele ciclo. Nesse caso:
+
+- `Bloqueio` fica `—`;
+- `Próxima ação` registra apenas reavaliação sob mudança contratual aprovada;
+- o controlador deve tratar `na` como estado verde, sem reabrir a etapa enquanto o contrato não mudar.
+
+## Controlador Codex Cloud e progresso determinístico
+
+O controlador versionado em `.codex/cloud/` deve resolver o próximo item acionável diretamente a partir de `docs/project/index.md` + `docs/project/<responsabilidade>.md` + desta matriz. O contrato operacional é:
+
+- ordenar responsabilidades por `Prioridade` e pela ordem do `index.md`;
+- dentro de cada responsabilidade, escolher o primeiro ciclo da ordem fixa que não esteja em `concluido` nem `na`;
+- usar branch/PR no padrão `codex/<ciclo>-<responsabilidade>-<YYYY-MM-DD>`;
+- registrar saúde e progresso em `runtime-state.json`, incluindo pelo menos `lastScheduledSlotAt`, `lastCycleStartedAt`, `lastCycleState`, `lastTaskId`, `lastTaskCompletedAt`, `lastPrNumber`, `lastPrUrl`, `lastMergedPrNumber`, `lastMergedSha`, `lastMergedAt`, `lastError`, `lastActionableResponsibility` e `lastActionableCycle`;
+- parar de submeter novas execuções apenas quando toda a matriz estiver em `concluido|na` ou quando houver blocker objetivo verificável para o item atual.
+
 ## Padrão de issue
 
 Toda issue derivada deste documento deve usar o corpo mínimo abaixo, preenchido com os dados da matriz de responsabilidade:
