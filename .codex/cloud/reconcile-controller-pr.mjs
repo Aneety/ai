@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 import { setTimeout as delay } from 'node:timers/promises';
+import { pathToFileURL } from 'node:url';
 import { isControllerBranch } from './controller-constants.mjs';
 
 const repo = process.env.CODEX_CLOUD_GITHUB_REPO ?? 'Aneety/ai';
@@ -95,10 +96,20 @@ async function loadPrDetails(prNumber) {
   return JSON.parse(result.stdout || '{}');
 }
 
+export function shouldFallbackToAllChecks(stderr) {
+  return /no required checks reported/i.test(String(stderr ?? ''));
+}
+
 async function loadRequiredChecks(prNumber) {
-  const result = await runGh(
+  let result = await runGh(
     `pr checks ${shellQuote(String(prNumber))} --repo ${shellQuote(repo)} --required --json name,state,workflow,link`,
   );
+  if (result.code !== 0 && shouldFallbackToAllChecks(result.stderr)) {
+    log('open_controller_pr_checks_scope=all');
+    result = await runGh(
+      `pr checks ${shellQuote(String(prNumber))} --repo ${shellQuote(repo)} --json name,state,workflow,link`,
+    );
+  }
   if (result.code !== 0) throw new Error('open_controller_pr_checks_failed');
   return JSON.parse(result.stdout || '[]');
 }
@@ -300,4 +311,7 @@ async function main() {
   await runOnce();
 }
 
-main().catch((error) => fail(error.message));
+const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
+if (invokedPath === import.meta.url) {
+  main().catch((error) => fail(error.message));
+}
