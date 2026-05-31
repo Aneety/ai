@@ -23,6 +23,23 @@ run_git_write() {
   fi
 }
 
+extract_pr_number() {
+  local url="$1"
+  printf '%s' "$url" | sed -E 's#.*/pull/([0-9]+).*#\1#'
+}
+
+infer_responsibility_from_patch() {
+  local patch_file="$1"
+  local from_apps from_project
+  from_apps="$(sed -nE 's#^diff --git a/aneety-platform/apps/([^/]+)/.*#\1#p' "$patch_file" | head -1)"
+  if [ -n "$from_apps" ]; then
+    printf '%s' "$from_apps"
+    return
+  fi
+  from_project="$(sed -nE 's#^diff --git a/docs/project/([^./]+)\.md.*#\1#p' "$patch_file" | head -1)"
+  printf '%s' "$from_project"
+}
+
 [ "$#" -eq 1 ] || fail "usage: $0 <task_id>"
 
 task_id="$1"
@@ -67,6 +84,8 @@ fi
 base_branch="${CODEX_CLOUD_BRANCH:-main}"
 base_ref="origin/${base_branch}"
 repo="${CODEX_CLOUD_GITHUB_REPO:-Aneety/ai}"
+target_cycle="${CODEX_CLOUD_TARGET_CYCLE:-}"
+target_responsibility="${CODEX_CLOUD_TARGET_RESPONSIBILITY:-}"
 
 git fetch origin "$base_branch" --prune >/dev/null
 git checkout --detach "$base_ref" >/dev/null
@@ -79,29 +98,56 @@ trap 'rm -f "$patch_file" "$pr_body"' EXIT
 (cd /tmp && run_codex cloud diff "$task_id") >"$patch_file"
 
 if ! grep -q '^diff --git ' "$patch_file"; then
-  fail "cloud task produced no git diff"
-fi
-
-responsibility="$(sed -nE 's#^diff --git a/aneety-platform/apps/([^/]+)/.*#\1#p' "$patch_file" | head -1)"
-if [ -n "$responsibility" ]; then
-  branch="codex/repositorio-${responsibility}-$(date +%F)"
-  title="feat(${responsibility}): add repository scaffold"
-else
-  suffix="$(printf '%s' "$task_id" | sed -E 's/^task_//' | cut -c1-12)"
-  branch="codex/cloud-task-${suffix}"
-  title="docs(project): publish cloud task diff"
-fi
-
-existing_exact="$(run_gh pr list --repo "$repo" --state open --head "$branch" --json url --jq '.[0].url // empty')"
-if [ -n "$existing_exact" ]; then
-  log "open_pr_exists branch=${branch} url=${existing_exact}"
+  log "task_diff_state=no_diff task=${task_id}"
+  log "pr_state=no_diff"
   exit 0
 fi
 
-if [ -n "$responsibility" ]; then
-  existing_responsibility="$(run_gh pr list --repo "$repo" --state open --limit 100 --json headRefName,url --jq '.[] | select(.headRefName | startswith("codex/repositorio-'"$responsibility"'")) | .url' | head -1)"
-  if [ -n "$existing_responsibility" ]; then
-    log "open_pr_exists responsibility=${responsibility} url=${existing_responsibility}"
+if [ -z "$target_responsibility" ]; then
+  target_responsibility="$(infer_responsibility_from_patch "$patch_file")"
+fi
+
+if [ -n "$target_cycle" ] && [ -n "$target_responsibility" ]; then
+  branch="codex/${target_cycle}-${target_responsibility}-$(date +%F)"
+else
+  suffix="$(printf '%s' "$task_id" | sed -E 's/^task_//' | cut -c1-12)"
+  branch="codex/cloud-task-${suffix}"
+fi
+
+if [ -n "$target_cycle" ] && [ -n "$target_responsibility" ]; then
+  if [ "$target_cycle" = "repositorio" ]; then
+    title="feat(${target_responsibility}): add repository scaffold"
+  else
+    title="chore(${target_responsibility}): advance ${target_cycle} cycle"
+  fi
+else
+  title="docs(project): publish cloud task diff"
+fi
+
+existing_exact="$(run_gh pr list --repo "$repo" --state open --head "$branch" --json number,url --jq '.[0] | select(.) | (.number|tostring) + " " + .url' || true)"
+if [ -n "$existing_exact" ]; then
+  pr_number="${existing_exact%% *}"
+  pr_url="${existing_exact#* }"
+  log "open_pr_exists branch=${branch} url=${pr_url}"
+  log "pr_state=existing"
+  log "pr_branch=${branch}"
+  log "pr_number=${pr_number}"
+  log "pr_url=${pr_url}"
+  exit 0
+fi
+
+if [ -n "$target_cycle" ] && [ -n "$target_responsibility" ]; then
+  existing_prefix_url="$(run_gh pr list --repo "$repo" --state open --limit 100 --json number,headRefName,url --jq '.[] | select(.headRefName | startswith("codex/'"$target_cycle"'-'"$target_responsibility"'")) | (.number|tostring) + " " + .headRefName + " " + .url' | head -1' || true)"
+  if [ -n "$existing_prefix_url" ]; then
+    pr_number="${existing_prefix_url%% *}"
+    rest="${existing_prefix_url#* }"
+    pr_branch="${rest%% *}"
+    pr_url="${rest#* }"
+    log "open_pr_exists branch=${pr_branch} url=${pr_url}"
+    log "pr_state=existing"
+    log "pr_branch=${pr_branch}"
+    log "pr_number=${pr_number}"
+    log "pr_url=${pr_url}"
     exit 0
   fi
 fi
@@ -122,7 +168,9 @@ fi
 git apply "$patch_file"
 
 if [ -z "$(git status --short)" ]; then
-  fail "cloud diff applied but produced no worktree changes"
+  log "task_diff_state=no_diff task=${task_id}"
+  log "pr_state=no_diff"
+  exit 0
 fi
 
 git switch -c "$branch" >/dev/null
@@ -138,23 +186,23 @@ cat >"$pr_body" <<BODY
 
 - Publishes Codex Cloud task \`$task_id\` as a GitHub branch and PR.
 - Keeps the canonical local checkout untouched; the diff was applied only in the scheduler's isolated worktree.
-- Hands the PR back to the scheduler for required-check reconciliation and automatic merge after the gate is green.
+- Leaves merge to the scheduler reconciliation gate.
 
 ## Validation
 
 - Source task: \`$task_id\`.
 - Branch: \`$branch\`.
 - Commit: \`$commit_sha\`.
-- Merge strategy after green checks: scheduler-driven.
+- Merge: not performed in this step.
 BODY
 
 pr_url="$(run_gh pr create --repo "$repo" --base "$base_branch" --head "$branch" --title "$title" --body-file "$pr_body" --draft)"
-pr_number="${pr_url##*/}"
-log "pr_created url=${pr_url} branch=${branch} commit=${commit_sha} number=#${pr_number}"
-log "pr_url=${pr_url}"
-log "pr_number=${pr_number}"
+pr_number="$(extract_pr_number "$pr_url")"
+log "pr_created url=${pr_url} branch=${branch} commit=${commit_sha}"
+log "pr_state=created"
 log "pr_branch=${branch}"
-log "pr_commit=${commit_sha}"
+log "pr_number=${pr_number}"
+log "pr_url=${pr_url}"
 
 if [ -n "$pr_url" ]; then
   changed_docs=0
@@ -167,8 +215,8 @@ if [ -n "$pr_url" ]; then
     PR_URL="$pr_url" perl -0pi -e "$evidence_rewrite" docs/project/index.md
     changed_docs=1
   fi
-  if [ -n "$responsibility" ] && [ -f "docs/project/${responsibility}.md" ]; then
-    PR_URL="$pr_url" perl -0pi -e "$evidence_rewrite" "docs/project/${responsibility}.md"
+  if [ -n "$target_responsibility" ] && [ -f "docs/project/${target_responsibility}.md" ]; then
+    PR_URL="$pr_url" perl -0pi -e "$evidence_rewrite" "docs/project/${target_responsibility}.md"
     changed_docs=1
   fi
   if [ "$changed_docs" -eq 1 ] && [ -n "$(git status --short)" ]; then
