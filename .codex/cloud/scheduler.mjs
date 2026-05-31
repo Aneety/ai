@@ -27,6 +27,7 @@ const isolatedWorktree =
     'scheduler-worktree',
     'ai',
   );
+const autoPublishDiff = process.env.CODEX_CLOUD_AUTO_PUBLISH_DIFF !== '0';
 const mode = process.argv.includes('--once')
   ? 'once'
   : process.argv.includes('--dry-run')
@@ -175,6 +176,43 @@ async function preflight() {
     const result = await runBash(withEnvFile(command), { quiet: true });
     if (result.code !== 0) throw new Error(`preflight failed: ${name}`);
   }
+
+  if (autoPublishDiff) {
+    const result = await runBash('test -x .codex/cloud/publish-task-diff.sh', { quiet: true });
+    if (result.code !== 0) throw new Error('preflight failed: publish-task-diff.sh executable');
+  }
+}
+
+async function findOpenControllerPr() {
+  if (!autoPublishDiff) return null;
+
+  const result = await runBash(
+    'env -u GH_TOKEN gh pr list --repo Aneety/ai --state open --limit 100 --json number,headRefName,title,url',
+    { quiet: true },
+  );
+  if (result.code !== 0) {
+    log('open_controller_pr_check=unavailable');
+    return null;
+  }
+
+  try {
+    const prs = JSON.parse(result.output);
+    return prs.find((pr) => String(pr.headRefName ?? '').startsWith('codex/repositorio-')) ?? null;
+  } catch {
+    log('open_controller_pr_check=json_parse_failed');
+    return null;
+  }
+}
+
+async function publishTaskDiff(taskId) {
+  if (!autoPublishDiff) {
+    log(`publish=disabled task=${taskId}`);
+    return;
+  }
+
+  log(`publishing task diff task=${taskId}`);
+  const publish = await runBash(withEnvFile(`.codex/cloud/publish-task-diff.sh ${shellQuote(taskId)}`));
+  if (publish.code !== 0) throw new Error(`publish failed with exit ${publish.code}`);
 }
 
 function extractTaskId(output) {
@@ -186,6 +224,14 @@ async function runCycle(reason) {
   await preflight();
 
   try {
+    const openControllerPr = await findOpenControllerPr();
+    if (openControllerPr) {
+      log(
+        `cycle skipped open_controller_pr=#${openControllerPr.number} branch=${openControllerPr.headRefName} url=${openControllerPr.url}`,
+      );
+      return;
+    }
+
     const submit = await runBash(withEnvFile('.codex/cloud/submit-controller-task.sh'));
     if (submit.code !== 0) throw new Error(`submit failed with exit ${submit.code}`);
 
@@ -195,6 +241,8 @@ async function runCycle(reason) {
     log(`watching task=${taskId}`);
     const watch = await runBash(withEnvFile(`.codex/cloud/watch-task.sh ${shellQuote(taskId)}`));
     if (watch.code !== 0) throw new Error(`watch failed with exit ${watch.code}`);
+
+    await publishTaskDiff(taskId);
 
     log(`cycle finished task=${taskId}`);
   } finally {

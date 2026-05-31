@@ -7,13 +7,14 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - O modo Codex Cloud foi aceito em `docs/project/codex-cloud-validation-2026-05-30.md`.
 - A automação local do Codex App fica ativa somente como monitor do agendamento; ela não submete task, não inicia scheduler, não cria PR e não faz merge.
 - O agendamento Node.js externo deve chamar `codex cloud exec` contra o ambiente Codex Cloud já validado.
-- A task remota deve gerar branch/commit/PR quando houver mudança e credencial suficiente; se não houver permissão, deve registrar blocker e deixar diff na task. Nunca deve fazer merge automático.
+- A task remota deve gerar diff auditável e tentar branch/commit/PR quando houver credencial suficiente; se o PR não for criado dentro do Codex Cloud, o scheduler publica o diff via worktree isolado e `gh`, sem tocar no checkout canônico.
 - O wrapper foi validado com tasks `READY`; o scheduler roda em worktree isolado para evitar aplicar diffs no checkout canônico.
 
 ## Scripts versionados
 
 - `.codex/cloud/submit-controller-task.sh` — submete uma task usando `.codex/cloud/controller-prompt.md`.
 - `.codex/cloud/watch-task.sh` — acompanha uma task até `READY` ou falha.
+- `.codex/cloud/publish-task-diff.sh` — publica o diff de uma task `READY` em branch/commit/PR usando somente worktree isolado; recusa execução no checkout canônico por padrão.
 - `.codex/cloud/scheduler.mjs` — agendador Node.js com `node-cron`, executando submit/watch a cada 30 minutos por padrão em worktree isolado fora do checkout canônico.
 - `.codex/cloud/monitor-scheduler.mjs` — monitor local do agendamento, do arquivo de ambiente, do processo scheduler, do worktree isolado e das tasks Codex Cloud recentes.
 
@@ -35,6 +36,9 @@ Opcionais:
 - `CODEX_CLOUD_WORKTREE_DIR`: worktree isolado usado pelo agendador para submit/watch; padrão `$HOME/.codex/automations/aneety-project-hourly-controller/scheduler-worktree/ai`.
 - `CODEX_CLOUD_SCHEDULE`: expressão cron do agendador Node.js; padrão `*/30 * * * *`.
 - `CODEX_CLOUD_SCHEDULE_TZ`: timezone do agendador Node.js; padrão `America/Asuncion`.
+- `CODEX_CLOUD_AUTO_PUBLISH_DIFF`: publica o diff `READY` como PR pelo worktree isolado; padrão ligado. Use `0` para desativar.
+- `CODEX_CLOUD_GITHUB_REPO`: repositório usado pelo publicador de PR; padrão `Aneety/ai`.
+- `CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN`: usar `GH_TOKEN` do ambiente para criar PR; padrão desligado para preferir a sessão `gh` do keychain local, evitando tokens de ambiente com permissão incompleta para pull requests.
 
 ## Pré-requisito do executor
 
@@ -120,15 +124,17 @@ Interpretação do monitor:
 - `cloud_task_list_failed`: o CLI não conseguiu consultar tasks do Codex Cloud.
 - `cloud_task_list_empty`: nenhuma task recente foi encontrada.
 - `scheduler_dry_run=ok`: a pré-checagem local passou, mas isso ainda não comprova task real.
+- `open_controller_pr_exists`: há PR operacional aberto para ciclo `repositorio`; o scheduler não deve criar duplicatas até o PR ser revisado/mergeado/fechado.
 
 Regras:
 
-1. Não usar a automação local como executor/submissor; ela é somente monitor.
+1. Não usar a automação local do Codex App como executor/submissor; ela é somente monitor.
 2. Não armazenar tokens no repositório.
 3. Não expor `GH_TOKEN` em logs.
 4. Conferir task, branch, commit, PR e checks antes de aceitar a mudança.
 5. Manter o aceite de código em GitHub Actions e Cloudflare gate.
-6. Nunca executar submit/watch diretamente no checkout canônico; o scheduler deve usar worktree isolado e limpá-lo após cada ciclo.
+6. Nunca executar submit/watch/publish diretamente no checkout canônico; o scheduler deve usar worktree isolado e limpá-lo após cada ciclo.
+7. Se já existir PR aberto `codex/repositorio-*`, o scheduler pula o ciclo para evitar PRs duplicados para a mesma frente.
 
 ## Critério de aceite do agendamento
 
@@ -137,6 +143,6 @@ O agendamento só está operacional quando uma execução recorrente conseguir:
 1. submeter a task;
 2. terminar em `READY`;
 3. deixar evidência de URL/id da task;
-4. abrir PR no GitHub ou registrar blocker objetivo de permissão/autenticação;
+4. abrir PR no GitHub a partir do diff `READY` ou registrar blocker objetivo de permissão/autenticação;
 5. não fazer merge automático;
 6. ser visível pelo monitor local sem blockers críticos.

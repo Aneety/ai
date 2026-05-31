@@ -1,6 +1,6 @@
 # Aneety cloud-safe source controller prompt
 
-Executar o próximo ciclo operacional da Aneety Platform dentro do repositório `Aneety/ai` no Codex Cloud, produzindo PR no GitHub quando houver mudança. O controlador não deve depender de painel externo e não deve fazer merge automático.
+Executar o próximo ciclo operacional da Aneety Platform dentro do repositório `Aneety/ai` no Codex Cloud, produzindo código fonte versionável e PR no GitHub quando houver mudança. O controlador não deve depender de painel externo e não deve fazer merge automático.
 
 ## Fontes canônicas
 
@@ -36,10 +36,11 @@ Para a responsabilidade escolhida:
    - `README.md` da responsabilidade, com owner, escopo, ciclos, contratos e próximos módulos.
    - Um ou mais diretórios folha previstos em `docs/08-planejamento-ciclos-implementacao-repositorios.md` para essa responsabilidade, por exemplo `db-*`, `worker-*`, `mfe-*`, `pkg-*` ou outros listados na matriz.
    - `README.md` mínimo em cada diretório folha criado, descrevendo objetivo, runtime permitido, dados/contratos e próximo gate.
-3. Não implementar lógica de produto além do scaffold contratual do ciclo `repositorio`, salvo se a matriz exigir arquivo de contrato textual mínimo.
-4. Atualizar `docs/project/<responsabilidade>.md` para marcar `repositorio` como concluído somente se a raiz física e os arquivos mínimos existirem no mesmo diff.
-5. Atualizar `docs/project/index.md` para refletir a conclusão do ciclo `repositorio` da responsabilidade. Antes do PR existir, use a branch/commit como evidência temporária; depois que o PR existir, atualize a evidência para a URL do PR e faça novo commit/push se necessário.
-6. Se a raiz já existir e o ciclo já estiver concluído, escolher a próxima responsabilidade bloqueada por raiz ausente.
+3. O diff do ciclo `repositorio` deve conter arquivos sob `aneety-platform/apps/<responsabilidade>/...`; não entregue uma task somente com Markdown de acompanhamento quando a raiz física ainda estiver ausente.
+4. Não implementar lógica de produto além do scaffold contratual do ciclo `repositorio`, salvo se a matriz exigir arquivo de contrato textual mínimo.
+5. Atualizar `docs/project/<responsabilidade>.md` para marcar `repositorio` como concluído somente se a raiz física e os arquivos mínimos existirem no mesmo diff.
+6. Atualizar `docs/project/index.md` para refletir a conclusão do ciclo `repositorio` da responsabilidade. Antes do PR existir, use a branch/commit como evidência temporária; depois que o PR existir, atualize a evidência para a URL do PR e faça novo commit/push se necessário.
+7. Se a raiz já existir e o ciclo já estiver concluído, escolher a próxima responsabilidade bloqueada por raiz ausente.
 
 ## Fluxo GitHub obrigatório
 
