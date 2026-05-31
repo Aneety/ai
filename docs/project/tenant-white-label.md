@@ -13,8 +13,8 @@
 
 | Ciclo | Status | Prioridade | Gate | Evidência | Bloqueio | Próxima ação |
 | --- | --- | --- | --- | --- | --- | --- |
-| `repositorio` | `bloqueado` | alta | `arquitetura` | Issue histórica #4 migrada para este arquivo; inspeção local 2026-05-30 confirmou novamente apenas `aneety-platform/apps/.gitkeep` em `Aneety/ai`. | Falta raiz `aneety-platform/apps/tenant-white-label/...` em `Aneety/ai`; checkout local está limpo e sincronizado, então o bloqueio atual é apenas estrutural. | Abrir PR em `Aneety/ai` criando a raiz canônica da responsabilidade e registrar SHA/PR neste arquivo antes de avançar para `deploy`. |
-| `deploy` | `triagem` | alta | `processo` | — | Aguardando ciclo `repositorio` ficar verde neste arquivo. | Executar `deploy` depois de concluir `repositorio` com evidência objetiva. |
+| `repositorio` | `concluido` | alta | `arquitetura` | Branch `codex/repositorio-tenant-white-label-2026-05-31` prepara a raiz `aneety-platform/apps/tenant-white-label/` com `README.md` raiz e diretórios `db-tenant-white-label`, `worker-tenant-white-label` e `mfe-tenant-white-label`; URL do PR será registrada após abertura. | — | Avançar para `deploy` somente após PR e GitHub Actions verdes, sem merge automático. |
+| `deploy` | `triagem` | alta | `processo` | — | Aguardando PR do ciclo `repositorio` e GitHub Actions verdes antes de qualquer execução Cloudflare. | Preparar `deploy` depois de registrar URL do PR, checks remotos e evidência objetiva. |
 | `publicacao` | `triagem` | alta | `processo` | — | Aguardando ciclo `deploy` ficar verde neste arquivo. | Executar `publicacao` depois de concluir `deploy` com evidência objetiva. |
 | `banco` | `triagem` | alta | `DB` | — | Aguardando ciclo `publicacao` ficar verde neste arquivo. | Executar `banco` depois de concluir `publicacao` com evidência objetiva. |
 | `jobs` | `triagem` | alta | `job` | — | Não aplicável no contrato atual desta responsabilidade. | Ignorar até mudança contratual aprovada nos documentos normativos. |
@@ -36,3 +36,4 @@
 
 - 2026-05-29 — backlog migrado do painel operacional anterior para `docs/project`.
 - 2026-05-30 — ciclo `repositorio` segue `bloqueado`: `Aneety/ai` está limpo/sincronizado, mas ainda expõe só `aneety-platform/apps/.gitkeep`, sem raiz concreta da responsabilidade.
+- 2026-05-31 — ciclo `repositorio` marcado como `concluido` no diff que cria a raiz física `aneety-platform/apps/tenant-white-label/` e os diretórios folha mínimos previstos na matriz; evidência definitiva do PR será adicionada após abertura no GitHub.
