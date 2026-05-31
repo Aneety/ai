@@ -5,13 +5,16 @@ import {
   CONTRACT_VERSION,
   CONTRACT_VERSION_HEADER,
   PUBLIC_ROUTES,
+  SERVICE_BINDINGS,
   publicError,
 } from '../index.js';
 
 test('public contract exposes gateway version header and route catalog', () => {
   assert.equal(CONTRACT_VERSION_HEADER, 'x-aneety-contract-version');
   assert.match(CONTRACT_VERSION, /^2026-05-31\.gateway-borda\.v1$/);
-  assert.equal(PUBLIC_ROUTES.identitySession.binding, 'IDENTIDADE_ACESSO');
+  assert.equal(PUBLIC_ROUTES.identitySession.binding, SERVICE_BINDINGS.identidadeAcesso.binding);
+  assert.equal(PUBLIC_ROUTES.tenantBranding.binding, SERVICE_BINDINGS.tenantWhiteLabel.binding);
+  assert.equal(PUBLIC_ROUTES.onboardingInvitations.binding, SERVICE_BINDINGS.onboardingAcesso.binding);
   assert.equal(PUBLIC_ROUTES.tenantBranding.requiresSession, true);
 });
 

@@ -15,6 +15,21 @@ export const DEFAULT_ALLOWED_HEADERS = [
   REQUEST_ID_HEADER,
 ];
 
+export const SERVICE_BINDINGS = Object.freeze({
+  identidadeAcesso: {
+    binding: 'IDENTIDADE_ACESSO',
+    service: 'worker-identidade-acesso',
+  },
+  tenantWhiteLabel: {
+    binding: 'TENANT_WHITE_LABEL',
+    service: 'worker-tenant-white-label',
+  },
+  onboardingAcesso: {
+    binding: 'ONBOARDING_ACESSO',
+    service: 'worker-onboarding-acesso',
+  },
+});
+
 export const PUBLIC_ROUTES = Object.freeze({
   health: {
     id: 'health',
@@ -32,7 +47,7 @@ export const PUBLIC_ROUTES = Object.freeze({
     id: 'identity.session',
     method: 'POST',
     path: '/bff/identidade-acesso/session',
-    binding: 'IDENTIDADE_ACESSO',
+    binding: SERVICE_BINDINGS.identidadeAcesso.binding,
     upstreamPath: '/session',
     requiresSession: false,
   },
@@ -40,7 +55,7 @@ export const PUBLIC_ROUTES = Object.freeze({
     id: 'tenant.branding',
     method: 'GET',
     path: '/bff/tenant-white-label/branding',
-    binding: 'TENANT_WHITE_LABEL',
+    binding: SERVICE_BINDINGS.tenantWhiteLabel.binding,
     upstreamPath: '/branding',
     requiresSession: true,
   },
@@ -48,7 +63,7 @@ export const PUBLIC_ROUTES = Object.freeze({
     id: 'onboarding.invitations',
     method: 'POST',
     path: '/bff/onboarding-acesso/invitations',
-    binding: 'ONBOARDING_ACESSO',
+    binding: SERVICE_BINDINGS.onboardingAcesso.binding,
     upstreamPath: '/invitations',
     requiresSession: true,
   },
