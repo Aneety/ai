@@ -15,6 +15,13 @@ run_gh() {
     env -u GH_TOKEN gh "$@"
   fi
 }
+run_git_write() {
+  if [ "${CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN:-0}" = "1" ]; then
+    git "$@"
+  else
+    env -u GH_TOKEN git "$@"
+  fi
+}
 
 [ "$#" -eq 1 ] || fail "usage: $0 <task_id>"
 
@@ -48,6 +55,9 @@ if ! run_gh auth status --hostname github.com >/tmp/gh-auth-status 2>&1; then
   fail "gh auth is missing or insufficient"
 fi
 run_gh auth setup-git --hostname github.com >/tmp/gh-auth-setup-git 2>&1 || fail "gh could not configure git credentials"
+
+git reset --hard HEAD >/dev/null
+git clean -fd >/dev/null
 
 if [ -n "$(git status --short)" ]; then
   git status --short >&2
@@ -100,6 +110,10 @@ if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>
   suffix="$(printf '%s' "$task_id" | sed -E 's/^task_//' | cut -c1-8)"
   branch="${branch}-${suffix}"
 fi
+if git show-ref --verify --quiet "refs/heads/${branch}"; then
+  suffix="$(printf '%s' "$task_id" | sed -E 's/^task_//' | cut -c1-8)"
+  branch="${branch}-${suffix}"
+fi
 
 if ! git apply --check "$patch_file"; then
   fail "cloud diff does not apply cleanly to ${base_ref}"
@@ -117,7 +131,7 @@ git add -A
 git commit -m "$title" >/dev/null
 commit_sha="$(git rev-parse --short HEAD)"
 
-git push -u origin "$branch" >/dev/null
+run_git_write push -u origin "$branch" >/dev/null
 
 cat >"$pr_body" <<BODY
 ## Summary
@@ -139,18 +153,23 @@ log "pr_created url=${pr_url} branch=${branch} commit=${commit_sha}"
 
 if [ -n "$pr_url" ]; then
   changed_docs=0
+  evidence_rewrite='
+    s/URL do PR será registrada após abertura/[PR pendente]($ENV{PR_URL})/g;
+    s/evidência temporária até criação do PR/[PR pendente]($ENV{PR_URL})/g;
+    s/PR ainda pendente nesta evidência temporária/[PR pendente]($ENV{PR_URL})/g;
+  '
   if [ -f docs/project/index.md ]; then
-    PR_URL="$pr_url" perl -0pi -e 's/URL do PR será registrada após abertura/[PR pendente]($ENV{PR_URL})/g' docs/project/index.md
+    PR_URL="$pr_url" perl -0pi -e "$evidence_rewrite" docs/project/index.md
     changed_docs=1
   fi
   if [ -n "$responsibility" ] && [ -f "docs/project/${responsibility}.md" ]; then
-    PR_URL="$pr_url" perl -0pi -e 's/URL do PR será registrada após abertura/[PR pendente]($ENV{PR_URL})/g' "docs/project/${responsibility}.md"
+    PR_URL="$pr_url" perl -0pi -e "$evidence_rewrite" "docs/project/${responsibility}.md"
     changed_docs=1
   fi
   if [ "$changed_docs" -eq 1 ] && [ -n "$(git status --short)" ]; then
     git add docs/project
     git commit -m "docs(project): link cloud task PR evidence" >/dev/null
-    git push >/dev/null
+    run_git_write push >/dev/null
     log "pr_evidence_updated url=${pr_url}"
   fi
 fi
