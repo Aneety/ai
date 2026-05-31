@@ -13,7 +13,7 @@
 
 | Ciclo | Status | Prioridade | Gate | Evidência | Bloqueio | Próxima ação |
 | --- | --- | --- | --- | --- | --- | --- |
-| `repositorio` | `concluido` | alta | `arquitetura` | Branch `codex/repositorio-tenant-white-label-2026-05-31` prepara a raiz `aneety-platform/apps/tenant-white-label/` com `README.md` raiz e diretórios `db-tenant-white-label`, `worker-tenant-white-label` e `mfe-tenant-white-label`; URL do PR será registrada após abertura. | — | Avançar para `deploy` somente após PR e GitHub Actions verdes, sem merge automático. |
+| `repositorio` | `concluido` | alta | `arquitetura` | Branch `codex/repositorio-tenant-white-label-2026-05-31` prepara a raiz `aneety-platform/apps/tenant-white-label/` com `README.md` raiz e diretórios `db-tenant-white-label`, `worker-tenant-white-label` e `mfe-tenant-white-label`; [PR #19](https://github.com/Aneety/ai/pull/19). | — | Avançar para `deploy` somente após PR e GitHub Actions verdes, sem merge automático. |
 | `deploy` | `triagem` | alta | `processo` | — | Aguardando PR do ciclo `repositorio` e GitHub Actions verdes antes de qualquer execução Cloudflare. | Preparar `deploy` depois de registrar URL do PR, checks remotos e evidência objetiva. |
 | `publicacao` | `triagem` | alta | `processo` | — | Aguardando ciclo `deploy` ficar verde neste arquivo. | Executar `publicacao` depois de concluir `deploy` com evidência objetiva. |
 | `banco` | `triagem` | alta | `DB` | — | Aguardando ciclo `publicacao` ficar verde neste arquivo. | Executar `banco` depois de concluir `publicacao` com evidência objetiva. |
