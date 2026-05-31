@@ -12,6 +12,13 @@ Contrato inicial do gateway HTTP do MVP.
 - rotear chamadas para BFFs `worker-*` por service binding ou contrato equivalente;
 - padronizar erros de borda sem expor detalhe técnico para usuários finais.
 
-## Fora do ciclo atual
+## Ciclo `deploy`
 
-Este diretório não implementa worker, rotas, bindings ou deploy. O ciclo atual é somente `repositorio`.
+Este diretório agora contém uma implementação mínima versionável para Cloudflare Workers:
+
+- `src/index.js` exporta o handler `fetch` do Worker;
+- `wrangler.toml` declara o Worker público sem segredos;
+- `package.json` expõe checks leves de sintaxe e testes de módulo para o gate remoto;
+- `tests/gateway.test.js` valida CORS, versão de contrato, sessão pública Aneety e roteamento para service binding simulado.
+
+O aceite operacional continua remoto: GitHub Actions da PR devem ficar verdes antes de acionar Cloudflare dry-run/deploy/smoke.

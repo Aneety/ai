@@ -1,0 +1,11 @@
+name = "aneety-worker-gateway-borda"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[vars]
+ANEETY_ALLOWED_ORIGINS = "https://app.aneety.com.br,https://lia.aneety.com.br"
+ANEETY_CONTRACT_VERSION = "2026-05-31.gateway-borda.v1"

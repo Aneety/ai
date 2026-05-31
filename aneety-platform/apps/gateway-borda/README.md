@@ -11,11 +11,11 @@ Responsabilidade transversal da borda HTTP do MVP Aneety Platform.
 
 ## Limites
 
-- Não contém implementação executável neste ciclo `repositorio`.
-- Não contém segredo, token, binding real ou configuração de ambiente.
-- Não fecha `deploy`, `publicacao`, `backend`, `teste-integracao-api`, `smoke` ou `teste`.
-- Qualquer aceite posterior deve passar por PR, GitHub Actions verdes e Cloudflare gate antes de evidência publicada.
+- O ciclo `deploy` adiciona implementação versionável do `worker-gateway`, pacote local de contratos públicos e configuração Wrangler para dry-run/deploy remoto no Cloudflare gate.
+- Não contém segredo, token, binding real sensível ou configuração de ambiente privada.
+- Não fecha `publicacao`, `backend`, `teste-integracao-api`, `smoke` ou `teste`.
+- O aceite de deploy exige PR, GitHub Actions verdes e Cloudflare gate remoto antes de evidência publicada.
 
 ## Evidência do ciclo
 
-A criação desta raiz canônica desbloqueia apenas o ciclo `repositorio` da responsabilidade `gateway-borda` em `docs/project/gateway-borda.md`.
+A criação desta raiz canônica desbloqueou o ciclo `repositorio` da responsabilidade `gateway-borda` em `docs/project/gateway-borda.md`. O ciclo `deploy` passa a ter artefato deployable em `worker-gateway/wrangler.toml`, mas permanece dependente do gate remoto da PR antes de marcar conclusão operacional.
