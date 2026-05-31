@@ -39,6 +39,7 @@ Opcionais:
 - `CODEX_CLOUD_AUTO_PUBLISH_DIFF`: publica o diff `READY` como PR pelo worktree isolado; padrão ligado. Use `0` para desativar.
 - `CODEX_CLOUD_GITHUB_REPO`: repositório usado pelo publicador de PR; padrão `Aneety/ai`.
 - `CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN`: usar `GH_TOKEN` do ambiente para criar PR; padrão desligado para preferir a sessão `gh` do keychain local, evitando tokens de ambiente com permissão incompleta para pull requests.
+- `CODEX_CLOUD_PUBLISH_WORKTREE_DIR`: worktree autorizado para aplicar diff antes do push; por padrão acompanha `CODEX_CLOUD_WORKTREE_DIR`.
 
 ## Pré-requisito do executor
 

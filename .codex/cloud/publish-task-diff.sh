@@ -22,11 +22,12 @@ task_id="$1"
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || fail "not inside a git repository"
 cd "$repo_root"
 
-canonical_root="${CODEX_CLOUD_CANONICAL_REPO_ROOT:-/Users/mal/GitHub/Aneety/ai}"
 repo_real="$(cd "$repo_root" && pwd -P)"
-canonical_real="$(cd "$canonical_root" 2>/dev/null && pwd -P || true)"
-if [ -n "$canonical_real" ] && [ "$repo_real" = "$canonical_real" ] && [ "${CODEX_CLOUD_ALLOW_CANONICAL_PUBLISH:-0}" != "1" ]; then
-  fail "refusing to apply cloud diff in canonical checkout: $repo_root"
+default_publish_worktree="$HOME/.codex/automations/aneety-project-hourly-controller/scheduler-worktree/ai"
+publish_worktree="${CODEX_CLOUD_PUBLISH_WORKTREE_DIR:-${CODEX_CLOUD_WORKTREE_DIR:-$default_publish_worktree}}"
+publish_worktree_real="$(cd "$publish_worktree" 2>/dev/null && pwd -P || true)"
+if [ "${CODEX_CLOUD_ALLOW_CANONICAL_PUBLISH:-0}" != "1" ] && [ "$repo_real" != "$publish_worktree_real" ]; then
+  fail "refusing to apply cloud diff outside configured isolated worktree: $repo_root"
 fi
 
 if [ -n "${CODEX_CLOUD_CLI:-}" ]; then
