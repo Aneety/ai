@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { shouldFallbackToAllChecks } from '../reconcile-controller-pr.mjs';
+import { parseChecksPayload, shouldFallbackToAllChecks } from '../reconcile-controller-pr.mjs';
 
 test('fallback quando gh informa ausencia de required checks', () => {
   assert.equal(
@@ -11,4 +11,14 @@ test('fallback quando gh informa ausencia de required checks', () => {
 
 test('nao faz fallback para stderr generico', () => {
   assert.equal(shouldFallbackToAllChecks('authentication failed'), false);
+});
+
+test('aproveita json de checks mesmo com exit nao-zero', () => {
+  assert.deepEqual(parseChecksPayload('[{"name":"CodeQL analysis","state":"IN_PROGRESS"}]'), [
+    { name: 'CodeQL analysis', state: 'IN_PROGRESS' },
+  ]);
+});
+
+test('rejeita payload invalido de checks', () => {
+  assert.equal(parseChecksPayload('authentication failed'), null);
 });
