@@ -207,7 +207,7 @@ cat >"$pr_body" <<BODY
 - Merge: not performed in this step.
 BODY
 
-pr_url="$(run_gh pr create --repo "$repo" --base "$base_branch" --head "$branch" --title "$title" --body-file "$pr_body" --draft)"
+pr_url="$(run_gh pr create --repo "$repo" --base "$base_branch" --head "$branch" --title "$title" --body-file "$pr_body")"
 pr_number="$(extract_pr_number "$pr_url")"
 log "pr_created url=${pr_url} branch=${branch} commit=${commit_sha}"
 log "pr_state=created"
