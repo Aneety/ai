@@ -317,6 +317,7 @@ async function main() {
     mainSha,
     openControllerPrState: prState.state,
     cloudTaskCount: cloudTasks.count ?? 0,
+    latestCloudTaskStatus: cloudTasks.latest?.status ?? cloudTasks.latest?.state ?? null,
     healthState: health.status,
   });
 
@@ -343,6 +344,12 @@ async function main() {
   }
   if (runtimeState?.lastActionableCycle) {
     log(`last_actionable_cycle=${runtimeState.lastActionableCycle}`);
+  }
+  if (runtimeState?.lastTaskId) {
+    log(`last_task_id=${runtimeState.lastTaskId}`);
+  }
+  if (runtimeState?.lastTaskState) {
+    log(`last_task_state=${runtimeState.lastTaskState}`);
   }
   if (runtimeState?.lastRemoteAction) {
     log(`last_remote_action=${runtimeState.lastRemoteAction}`);

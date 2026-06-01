@@ -250,6 +250,26 @@ test('dependencia em andamento mostra dependency_cycle_running', () => {
   assert.equal(derived.controllerProgressState, 'dependency_cycle_running');
 });
 
+test('task cloud ativa mostra running_cloud_task fora da cadeia de dependencia', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: actionableTarget(),
+    runtimeState: {
+      nextScheduledRunAt: '2026-05-31T20:00:00Z',
+      schedulerStartedAt: '2026-05-31T17:00:00Z',
+      lastCycleStartedAt: '2026-05-31T19:00:00Z',
+      lastTaskState: 'pending',
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 1,
+    latestCloudTaskStatus: 'pending',
+    nowMs: now,
+  });
+
+  assert.equal(derived.controllerProgressState, 'running_cloud_task');
+  assert.equal(derived.shouldWarnCloudTaskListEmpty, false);
+});
+
 test('cadeia de dependencias em progresso mostra dependency_chain_in_progress', () => {
   const derived = deriveMonitorState({
     resolvedTarget: dependencyTarget(),

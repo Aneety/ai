@@ -62,6 +62,18 @@ test('health degradado bloqueia submissao mesmo com target acionavel', () => {
   );
 });
 
+test('task ativa em pending bloqueia re-submissao duplicada', () => {
+  assert.equal(
+    shouldSubmitControllerTask({
+      resolvedTarget: actionableTarget(),
+      healthState: 'ready',
+      openControllerPrState: 'none',
+      activeTaskState: 'pending',
+    }),
+    false,
+  );
+});
+
 test('merge que mantem mesmo par pausado termina como paused', () => {
   const result = determineFinalCycleState({
     targetBefore: actionableTarget({
