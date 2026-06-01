@@ -14,7 +14,7 @@
 | Ciclo | Status | Prioridade | Gate | Evidência | Bloqueio | Próxima ação |
 | --- | --- | --- | --- | --- | --- | --- |
 | `repositorio` | `concluido` | alta | `arquitetura` | [PR #22](https://github.com/Aneety/ai/pull/22) cria a raiz `aneety-platform/apps/identidade-acesso/` com scaffolds mínimos `db-identidade-acesso`, `worker-identidade-acesso` e `mfe-identidade-acesso`, já mergeada em `main`. | — | Avançar para `deploy` com runtime 100% Workers e evidência remota. |
-| `deploy` | `pronto` | alta | `processo` | — | — | Executar `deploy` com runtime 100% Workers e evidência remota antes de avançar para `publicacao`. |
+| `deploy` | `validacao` | alta | `processo` | Worker deployable preparado em `aneety-platform/apps/identidade-acesso/worker-identidade-acesso` com `wrangler.toml` sem segredos, contrato mínimo `/health`/`/contract`, validação `deploy:validate` e testes negativos de rotas fechadas; falta PR/checks remotos e `Cloudflare deploy gate` dry-run. | Gate remoto ainda não executado para este diff; não há run Cloudflare nem SHA de PR verde para aceitar `deploy` como concluído. | Publicar PR `codex/deploy-identidade-acesso-*`, aguardar GitHub Actions verdes e acionar `Cloudflare deploy gate` em modo `dry-run` para este módulo antes de avançar para `publicacao`. |
 | `publicacao` | `triagem` | alta | `processo` | — | Aguardando ciclo `deploy` ficar verde neste arquivo. | Executar `publicacao` depois de concluir `deploy` com evidência objetiva. |
 | `banco` | `triagem` | alta | `DB` | — | Aguardando ciclo `publicacao` ficar verde neste arquivo. | Executar `banco` depois de concluir `publicacao` com evidência objetiva. |
 | `jobs` | `na` | alta | `job` | — | — | Reavaliar somente se houver mudança contratual aprovada nos documentos normativos. |
@@ -37,6 +37,7 @@
 - 2026-05-29 — backlog migrado do painel operacional anterior para `docs/project`.
 - 2026-05-30 — ciclo `repositorio` seguia `bloqueado`: `Aneety/ai` estava limpo/sincronizado, mas ainda expunha só `aneety-platform/apps/.gitkeep`, sem raiz concreta da responsabilidade.
 - 2026-05-31 — ciclo `repositorio` concluído pela [PR #22](https://github.com/Aneety/ai/pull/22), mergeada em `main`, criando a raiz canônica `aneety-platform/apps/identidade-acesso/` e os scaffolds mínimos do ciclo.
+- 2026-06-01 — ciclo `deploy` avançado para `validacao`: `worker-identidade-acesso` agora tem Worker Cloudflare versionável, `wrangler.toml` sem segredos, contrato mínimo `/health`/`/contract`, testes e validação de deploy; falta PR/checks remotos e `Cloudflare deploy gate` dry-run para concluir o ciclo.
 
 
 ## Triagem Google Stitch
