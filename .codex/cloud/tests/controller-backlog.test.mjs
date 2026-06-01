@@ -110,13 +110,13 @@ test('pausa quando encontra ciclo em validacao', async () => {
   }
 });
 
-test('preempta gateway-borda/publicacao para primeira dependencia com deploy pronto', async () => {
+test('preempta gateway-borda/publicacao para primeira dependencia com publicacao pronta', async () => {
   const root = await createFixture({
     indexRows: [
       '| `gateway-borda` | Ricardo | alta | `publicacao` | `bloqueado` | [gateway-borda](./gateway-borda.md) | — | Falta URL remota |',
-      '| `tenant-white-label` | Ricardo | alta | `deploy` | `pronto` | [tenant-white-label](./tenant-white-label.md) | — | — |',
-      '| `identidade-acesso` | Ricardo | alta | `deploy` | `pronto` | [identidade-acesso](./identidade-acesso.md) | — | — |',
-      '| `onboarding-acesso` | Ricardo | alta | `deploy` | `pronto` | [onboarding-acesso](./onboarding-acesso.md) | — | — |',
+      '| `tenant-white-label` | Ricardo | alta | `publicacao` | `pronto` | [tenant-white-label](./tenant-white-label.md) | — | — |',
+      '| `identidade-acesso` | Ricardo | alta | `publicacao` | `pronto` | [identidade-acesso](./identidade-acesso.md) | — | — |',
+      '| `onboarding-acesso` | Ricardo | alta | `publicacao` | `pronto` | [onboarding-acesso](./onboarding-acesso.md) | — | — |',
     ],
     responsibilityRows: {
       'gateway-borda': {
@@ -126,19 +126,22 @@ test('preempta gateway-borda/publicacao para primeira dependencia com deploy pro
       },
       'tenant-white-label': {
         repositorio: { status: 'concluido' },
-        deploy: { status: 'pronto' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'pronto' },
       },
       'identidade-acesso': {
         repositorio: { status: 'concluido' },
-        deploy: { status: 'pronto' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'pronto' },
       },
       'onboarding-acesso': {
         repositorio: { status: 'concluido' },
-        deploy: { status: 'pronto' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'pronto' },
       },
     },
     dependencyRows: [
-      '| `gateway-borda` | `publicacao` | `tenant-white-label/deploy`, `identidade-acesso/deploy`, `onboarding-acesso/deploy` | Preemptar dependências antes do remote gate. |',
+      '| `gateway-borda` | `publicacao` | `tenant-white-label/publicacao`, `identidade-acesso/publicacao`, `onboarding-acesso/publicacao` | Preemptar dependências antes do remote gate. |',
     ],
   });
 
@@ -147,7 +150,7 @@ test('preempta gateway-borda/publicacao para primeira dependencia com deploy pro
     const target = resolveNextBacklogTarget(backlog);
     assert.equal(target.state, 'actionable');
     assert.equal(target.responsibility, 'tenant-white-label');
-    assert.equal(target.cycle, 'deploy');
+    assert.equal(target.cycle, 'publicacao');
     assert.equal(target.dependencyParentResponsibility, 'gateway-borda');
     assert.equal(target.dependencyParentCycle, 'publicacao');
   } finally {
@@ -155,13 +158,13 @@ test('preempta gateway-borda/publicacao para primeira dependencia com deploy pro
   }
 });
 
-test('avanca para proxima dependencia depois do primeiro deploy concluido', async () => {
+test('avanca para proxima dependencia depois da primeira publicacao concluida', async () => {
   const root = await createFixture({
     indexRows: [
       '| `gateway-borda` | Ricardo | alta | `publicacao` | `bloqueado` | [gateway-borda](./gateway-borda.md) | — | Falta URL remota |',
-      '| `tenant-white-label` | Ricardo | alta | `deploy` | `concluido` | [tenant-white-label](./tenant-white-label.md) | — | — |',
-      '| `identidade-acesso` | Ricardo | alta | `deploy` | `pronto` | [identidade-acesso](./identidade-acesso.md) | — | — |',
-      '| `onboarding-acesso` | Ricardo | alta | `deploy` | `pronto` | [onboarding-acesso](./onboarding-acesso.md) | — | — |',
+      '| `tenant-white-label` | Ricardo | alta | `publicacao` | `concluido` | [tenant-white-label](./tenant-white-label.md) | — | — |',
+      '| `identidade-acesso` | Ricardo | alta | `publicacao` | `pronto` | [identidade-acesso](./identidade-acesso.md) | — | — |',
+      '| `onboarding-acesso` | Ricardo | alta | `publicacao` | `pronto` | [onboarding-acesso](./onboarding-acesso.md) | — | — |',
     ],
     responsibilityRows: {
       'gateway-borda': {
@@ -172,18 +175,21 @@ test('avanca para proxima dependencia depois do primeiro deploy concluido', asyn
       'tenant-white-label': {
         repositorio: { status: 'concluido' },
         deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
       },
       'identidade-acesso': {
         repositorio: { status: 'concluido' },
-        deploy: { status: 'pronto' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'pronto' },
       },
       'onboarding-acesso': {
         repositorio: { status: 'concluido' },
-        deploy: { status: 'pronto' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'pronto' },
       },
     },
     dependencyRows: [
-      '| `gateway-borda` | `publicacao` | `tenant-white-label/deploy`, `identidade-acesso/deploy`, `onboarding-acesso/deploy` | Preemptar dependências antes do remote gate. |',
+      '| `gateway-borda` | `publicacao` | `tenant-white-label/publicacao`, `identidade-acesso/publicacao`, `onboarding-acesso/publicacao` | Preemptar dependências antes do remote gate. |',
     ],
   });
 
@@ -192,19 +198,19 @@ test('avanca para proxima dependencia depois do primeiro deploy concluido', asyn
     const target = resolveNextBacklogTarget(backlog);
     assert.equal(target.state, 'actionable');
     assert.equal(target.responsibility, 'identidade-acesso');
-    assert.equal(target.cycle, 'deploy');
+    assert.equal(target.cycle, 'publicacao');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test('retorna ao gateway/publicacao quando os tres deploys dependentes estao concluidos', async () => {
+test('retorna ao gateway/publicacao quando as tres publicacoes dependentes estao concluidas', async () => {
   const root = await createFixture({
     indexRows: [
       '| `gateway-borda` | Ricardo | alta | `publicacao` | `bloqueado` | [gateway-borda](./gateway-borda.md) | — | Falta URL remota |',
-      '| `tenant-white-label` | Ricardo | alta | `deploy` | `concluido` | [tenant-white-label](./tenant-white-label.md) | — | — |',
-      '| `identidade-acesso` | Ricardo | alta | `deploy` | `concluido` | [identidade-acesso](./identidade-acesso.md) | — | — |',
-      '| `onboarding-acesso` | Ricardo | alta | `deploy` | `concluido` | [onboarding-acesso](./onboarding-acesso.md) | — | — |',
+      '| `tenant-white-label` | Ricardo | alta | `publicacao` | `concluido` | [tenant-white-label](./tenant-white-label.md) | — | — |',
+      '| `identidade-acesso` | Ricardo | alta | `publicacao` | `concluido` | [identidade-acesso](./identidade-acesso.md) | — | — |',
+      '| `onboarding-acesso` | Ricardo | alta | `publicacao` | `concluido` | [onboarding-acesso](./onboarding-acesso.md) | — | — |',
     ],
     responsibilityRows: {
       'gateway-borda': {
@@ -215,18 +221,21 @@ test('retorna ao gateway/publicacao quando os tres deploys dependentes estao con
       'tenant-white-label': {
         repositorio: { status: 'concluido' },
         deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
       },
       'identidade-acesso': {
         repositorio: { status: 'concluido' },
         deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
       },
       'onboarding-acesso': {
         repositorio: { status: 'concluido' },
         deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
       },
     },
     dependencyRows: [
-      '| `gateway-borda` | `publicacao` | `tenant-white-label/deploy`, `identidade-acesso/deploy`, `onboarding-acesso/deploy` | Preemptar dependências antes do remote gate. |',
+      '| `gateway-borda` | `publicacao` | `tenant-white-label/publicacao`, `identidade-acesso/publicacao`, `onboarding-acesso/publicacao` | Preemptar dependências antes do remote gate. |',
     ],
   });
 
@@ -339,15 +348,17 @@ test('janela paralela retorna alvos independentes e deduplica dependencia ja sel
       },
       'identidade-acesso': {
         repositorio: { status: 'concluido' },
-        deploy: { status: 'pronto' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'pronto' },
       },
       'onboarding-acesso': {
         repositorio: { status: 'concluido' },
-        deploy: { status: 'pronto' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'pronto' },
       },
     },
     dependencyRows: [
-      '| `gateway-borda` | `publicacao` | `tenant-white-label/deploy`, `identidade-acesso/deploy`, `onboarding-acesso/deploy` | Preemptar dependências antes do remote gate. |',
+      '| `gateway-borda` | `publicacao` | `tenant-white-label/publicacao`, `identidade-acesso/publicacao`, `onboarding-acesso/publicacao` | Preemptar dependências antes do remote gate. |',
     ],
   });
 
@@ -356,7 +367,7 @@ test('janela paralela retorna alvos independentes e deduplica dependencia ja sel
     const window = resolveParallelBacklogTargets(backlog, { limit: 4 });
     assert.deepEqual(
       window.targets.map((target) => `${target.responsibility}/${target.cycle}`).sort(),
-      ['identidade-acesso/deploy', 'onboarding-acesso/deploy', 'tenant-white-label/publicacao'].sort(),
+      ['identidade-acesso/publicacao', 'onboarding-acesso/publicacao', 'tenant-white-label/publicacao'].sort(),
     );
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -378,11 +389,13 @@ test('janela paralela respeita targets ocupados e marca exclusao por mesma respo
       },
       'identidade-acesso': {
         repositorio: { status: 'concluido' },
-        deploy: { status: 'pronto' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'pronto' },
       },
       'onboarding-acesso': {
         repositorio: { status: 'concluido' },
-        deploy: { status: 'pronto' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'pronto' },
       },
     },
   });
@@ -392,7 +405,7 @@ test('janela paralela respeita targets ocupados e marca exclusao por mesma respo
     const occupiedTarget = {
       state: 'actionable',
       responsibility: 'identidade-acesso',
-      cycle: 'deploy',
+      cycle: 'publicacao',
       cycleRow: { status: 'pronto', gate: 'processo' },
     };
     const window = resolveParallelBacklogTargets(backlog, {
@@ -401,7 +414,7 @@ test('janela paralela respeita targets ocupados e marca exclusao por mesma respo
     });
     assert.deepEqual(
       window.targets.map((target) => `${target.responsibility}/${target.cycle}`),
-      ['tenant-white-label/publicacao', 'onboarding-acesso/deploy'],
+      ['tenant-white-label/publicacao', 'onboarding-acesso/publicacao'],
     );
     assert.match(
       window.excluded.map((item) => `${item.responsibility}/${item.reason}`).join(','),
