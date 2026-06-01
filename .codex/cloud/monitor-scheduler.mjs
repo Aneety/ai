@@ -3,8 +3,10 @@ import { spawn } from 'node:child_process';
 import { access, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 import { loadControllerBacklog, resolveNextBacklogTarget } from './controller-backlog.mjs';
 import { deriveMonitorState } from './controller-progress.mjs';
+import { runControllerHealthCheck } from './health-check.mjs';
 
 const repoRoot = process.cwd();
 const stateFile =
@@ -134,15 +136,20 @@ async function readMainSha(runtimeState) {
   return runtimeState?.lastNoProgressMainSha ?? runtimeState?.lastMergedSha ?? null;
 }
 
-async function resolveBacklogTarget() {
+async function resolveBacklogTarget(targetRepoRoot) {
   try {
-    const backlog = await loadControllerBacklog(repoRoot);
+    const backlog = await loadControllerBacklog(targetRepoRoot);
     return resolveNextBacklogTarget(backlog);
   } catch (error) {
     warn('controller_backlog_parse_failed');
     log(`controller_backlog_error=${String(error.message ?? error)}`);
     return { state: 'blocked', reason: error.message ?? 'controller_backlog_parse_failed' };
   }
+}
+
+async function resolveEvaluationRoot() {
+  const exists = await run(`git -C ${shellQuote(isolatedWorktree)} rev-parse --is-inside-work-tree`, { quiet: true });
+  return exists.code === 0 ? isolatedWorktree : repoRoot;
 }
 
 async function checkDryRun(hasEnvFile) {
@@ -293,9 +300,16 @@ async function main() {
   await checkIsolatedWorktree();
 
   const runtimeState = await readRuntimeState();
+  const evaluationRoot = await resolveEvaluationRoot();
+  const health = await runControllerHealthCheck({
+    repoRoot: evaluationRoot,
+    envFile,
+    isolatedWorktree,
+    repo: process.env.CODEX_CLOUD_GITHUB_REPO ?? 'Aneety/ai',
+  });
   const cloudTasks = await checkCloudTasks(hasEnvFile);
   const prState = await checkOpenControllerPr(hasEnvFile, runtimeState);
-  const resolvedTarget = await resolveBacklogTarget();
+  const resolvedTarget = await resolveBacklogTarget(evaluationRoot);
   const mainSha = await readMainSha(runtimeState);
   const derived = deriveMonitorState({
     resolvedTarget,
@@ -303,11 +317,26 @@ async function main() {
     mainSha,
     openControllerPrState: prState.state,
     cloudTaskCount: cloudTasks.count ?? 0,
+    healthState: health.status,
   });
+
+  log(`health_state=${health.status}`);
+  log(`scheduler_functional_state=${derived.schedulerFunctionalState}`);
+  log(`evaluated_ref_source=${health.evaluatedRefSource ?? (evaluationRoot === isolatedWorktree ? 'isolated_worktree' : 'repo_root')}`);
+  if (health.evaluatedSha ?? mainSha) {
+    log(`evaluated_sha=${health.evaluatedSha ?? mainSha}`);
+  }
+  if (health.status !== 'ready') {
+    warn('degraded_health');
+  }
 
   if (resolvedTarget.state === 'actionable') {
     log(`next_actionable_responsibility=${resolvedTarget.responsibility}`);
     log(`next_actionable_cycle=${resolvedTarget.cycle}`);
+  } else if (resolvedTarget.state === 'blocked' && resolvedTarget.blockKind === 'pause') {
+    log(`paused_responsibility=${resolvedTarget.responsibility}`);
+    log(`paused_cycle=${resolvedTarget.cycle}`);
+    log(`paused_status=${resolvedTarget.pauseStatus ?? 'unknown'}`);
   }
   if (runtimeState?.lastActionableResponsibility) {
     log(`last_actionable_responsibility=${runtimeState.lastActionableResponsibility}`);
@@ -329,7 +358,9 @@ async function main() {
   log('monitor_complete');
 }
 
-main().catch((error) => {
-  warn(error.message);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    warn(error.message);
+    process.exit(1);
+  });
+}

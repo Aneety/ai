@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
+  classifyStatus,
   CYCLE_ORDER,
   PRIORITY_RANK,
   controllerBranchPrefix,
-  isDoneStatus,
   normalizeCycle,
   normalizeStatus,
 } from './controller-constants.mjs';
@@ -147,9 +147,6 @@ export function buildActionableSignature(target) {
     cycle: target.cycle,
     status: cycleRow.status,
     gate: cycleRow.gate,
-    evidence: cycleRow.evidence,
-    blocker: cycleRow.blocker,
-    nextAction: cycleRow.nextAction,
   });
 }
 
@@ -215,15 +212,60 @@ export function resolveNextBacklogTarget(backlog) {
     const knownCycles = new Map(detail.cycles.map((cycleRow) => [cycleRow.cycle, cycleRow]));
     for (const cycle of CYCLE_ORDER) {
       const cycleRow = knownCycles.get(cycle);
+      const matrix = backlog.planningMatrix.get(summaryRow.responsibility) ?? null;
       if (!cycleRow) {
         return {
           state: 'blocked',
           reason: `missing cycle row ${cycle} for ${summaryRow.responsibility}`,
+          blockKind: 'config',
+          responsibility: summaryRow.responsibility,
+          cycle,
+          branchPrefix: controllerBranchPrefix(cycle, summaryRow.responsibility),
+          summaryRow,
+          detail,
+          matrix,
+          backlogMetrics: backlog.metrics,
         };
       }
-      if (isDoneStatus(cycleRow.status)) continue;
+      const statusKind = classifyStatus(cycleRow.status);
+      if (statusKind === 'done') continue;
 
-      const matrix = backlog.planningMatrix.get(summaryRow.responsibility) ?? null;
+      if (statusKind === 'pause') {
+        return {
+          state: 'blocked',
+          reason: `pause_status=${summaryRow.responsibility}/${cycle}/${cycleRow.status}`,
+          blockKind: 'pause',
+          pauseStatus: cycleRow.status,
+          pauseReason: cycleRow.blocker || cycleRow.nextAction || `pause_status=${cycleRow.status}`,
+          responsibility: summaryRow.responsibility,
+          cycle,
+          branchPrefix: controllerBranchPrefix(cycle, summaryRow.responsibility),
+          summaryRow,
+          detail,
+          cycleRow,
+          matrix,
+          backlogMetrics: backlog.metrics,
+        };
+      }
+
+      if (statusKind !== 'actionable') {
+        return {
+          state: 'blocked',
+          reason: `unknown_status=${summaryRow.responsibility}/${cycle}/${cycleRow.status}`,
+          blockKind: 'unknown_status',
+          pauseStatus: 'unknown_status',
+          pauseReason: `unknown status '${cycleRow.rawStatus}'`,
+          responsibility: summaryRow.responsibility,
+          cycle,
+          branchPrefix: controllerBranchPrefix(cycle, summaryRow.responsibility),
+          summaryRow,
+          detail,
+          cycleRow,
+          matrix,
+          backlogMetrics: backlog.metrics,
+        };
+      }
+
       return {
         state: 'actionable',
         responsibility: summaryRow.responsibility,

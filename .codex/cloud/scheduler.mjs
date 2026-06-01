@@ -4,12 +4,14 @@ import { spawn } from 'node:child_process';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 import {
   buildActionableSignature,
   loadControllerBacklog,
   resolveNextBacklogTarget,
 } from './controller-backlog.mjs';
 import { compareTargets, isStableBlockedTarget } from './controller-progress.mjs';
+import { runControllerHealthCheck } from './health-check.mjs';
 
 const canonicalRepoRoot = process.cwd();
 const schedule = process.env.CODEX_CLOUD_SCHEDULE ?? '*/30 * * * *';
@@ -110,6 +112,7 @@ function mergeDefined(current, patch) {
   for (const [key, value] of Object.entries(patch)) {
     if (value !== undefined) next[key] = value;
   }
+  next.lastMutationSurface ??= 'scheduler';
   return next;
 }
 
@@ -125,8 +128,68 @@ function controllerEnv(target) {
 function cycleStateFromResolvedTarget(resolved) {
   if (!resolved) return null;
   if (resolved.state === 'complete') return 'complete';
-  if (resolved.state === 'blocked') return 'blocked';
+  if (resolved.state === 'blocked') return resolved.blockKind === 'pause' ? 'paused' : 'blocked';
   return 'actionable';
+}
+
+export function describeResolvedTargetState(resolved) {
+  if (!resolved) {
+    return {
+      cycleState: null,
+      functionalState: null,
+      pauseStatus: null,
+      pauseReason: null,
+      error: null,
+    };
+  }
+
+  if (resolved.state === 'complete') {
+    return {
+      cycleState: 'complete',
+      functionalState: 'ready',
+      pauseStatus: null,
+      pauseReason: null,
+      error: null,
+    };
+  }
+
+  if (resolved.state === 'blocked') {
+    if (resolved.blockKind === 'pause') {
+      return {
+        cycleState: 'paused',
+        functionalState: 'paused',
+        pauseStatus: resolved.pauseStatus ?? null,
+        pauseReason: resolved.pauseReason ?? resolved.reason ?? null,
+        error: null,
+      };
+    }
+
+    return {
+      cycleState: 'blocked',
+      functionalState: 'degraded',
+      pauseStatus: resolved.pauseStatus ?? null,
+      pauseReason: resolved.pauseReason ?? resolved.reason ?? null,
+      error: resolved.reason ?? 'controller_backlog_blocked',
+    };
+  }
+
+  return {
+    cycleState: 'actionable',
+    functionalState: 'ready',
+    pauseStatus: null,
+    pauseReason: null,
+    error: null,
+  };
+}
+
+export function shouldSubmitControllerTask({
+  resolvedTarget,
+  healthState = 'ready',
+  openControllerPrState = 'none',
+} = {}) {
+  if (healthState !== 'ready') return false;
+  if (openControllerPrState !== 'none') return false;
+  return resolvedTarget?.state === 'actionable';
 }
 
 async function runBash(command, options = {}) {
@@ -275,6 +338,7 @@ async function resolveCurrentBacklog() {
 
 async function persistResolvedTarget(resolved, patch = {}) {
   const actionable = resolved?.state === 'actionable';
+  const resolvedState = describeResolvedTargetState(resolved);
   await writeRuntimeState({
     backlogResolutionState: resolved?.state ?? null,
     backlogResolutionReason: resolved?.reason ?? null,
@@ -285,6 +349,10 @@ async function persistResolvedTarget(resolved, patch = {}) {
     lastActionableResponsibility: actionable ? resolved.responsibility : null,
     lastActionableCycle: actionable ? resolved.cycle : null,
     lastActionableSignature: actionable ? buildActionableSignature(resolved) : null,
+    lastPauseStatus: resolvedState.pauseStatus,
+    lastPauseReason: resolvedState.pauseReason,
+    lastPauseResponsibility: resolved?.state === 'blocked' ? resolved.responsibility ?? null : null,
+    lastPauseCycle: resolved?.state === 'blocked' ? resolved.cycle ?? null : null,
     ...patch,
   });
 }
@@ -295,7 +363,8 @@ async function preflight() {
   const checks = [
     ['CODEX_CLOUD_ENV_ID', 'test -n "${CODEX_CLOUD_ENV_ID:-}"'],
     ['codex cloud exec', '${CODEX_CLOUD_CLI:-codex} cloud exec --help >/tmp/codex-cloud-exec-help 2>&1'],
-    ['codex cloud status', '${CODEX_CLOUD_CLI:-codex} cloud status --help >/tmp/codex-cloud-status-help 2>&1'],
+    ['codex cloud diff', '${CODEX_CLOUD_CLI:-codex} cloud diff --help >/tmp/codex-cloud-diff-help 2>&1'],
+    ['codex cloud list', '${CODEX_CLOUD_CLI:-codex} cloud list --help >/tmp/codex-cloud-list-help 2>&1'],
   ];
 
   for (const [name, command] of checks) {
@@ -331,6 +400,7 @@ async function reconcileOpenControllerPr({ wait = false } = {}) {
 
   await writeRuntimeState({
     openControllerPrState: state,
+    lastFunctionalState: ['failed', 'timeout'].includes(state) ? 'degraded' : undefined,
     lastPrNumber: prNumber ?? null,
     lastPrUrl: prUrl ?? null,
     lastPrBranch: prBranch ?? null,
@@ -352,6 +422,15 @@ async function reconcileOpenControllerPr({ wait = false } = {}) {
     pendingChecks,
     mergeError,
   };
+}
+
+async function evaluateHealth() {
+  return runControllerHealthCheck({
+    repoRoot: executionRoot,
+    envFile,
+    isolatedWorktree,
+    repo: process.env.CODEX_CLOUD_GITHUB_REPO ?? 'Aneety/ai',
+  });
 }
 
 async function publishTaskDiff(taskId, target) {
@@ -391,6 +470,65 @@ function extractTaskId(output) {
   return output.match(/task_[A-Za-z0-9_-]+/)?.[0] ?? null;
 }
 
+export function determineFinalCycleState({
+  targetBefore,
+  targetAfter,
+  openControllerPrState,
+  mergedSha = null,
+}) {
+  const comparison = compareTargets(targetBefore, targetAfter);
+  const noProgress = targetBefore?.state === 'actionable' && comparison.unchanged;
+  const blockedPr = ['failed', 'timeout'].includes(openControllerPrState);
+  const resolvedState = describeResolvedTargetState(targetAfter);
+
+  let finalState = 'blocked';
+  let functionalState = resolvedState.functionalState ?? 'degraded';
+  let lastError = resolvedState.error;
+
+  if (targetAfter?.state === 'complete') {
+    finalState = 'complete';
+    functionalState = 'ready';
+    lastError = null;
+  } else if (blockedPr) {
+    finalState = 'blocked';
+    functionalState = 'degraded';
+    lastError = `open_controller_pr_state=${openControllerPrState}`;
+  } else if (resolvedState.cycleState === 'paused') {
+    finalState = 'paused';
+    functionalState = 'paused';
+    lastError = null;
+  } else if (resolvedState.cycleState === 'blocked') {
+    finalState = 'blocked';
+    functionalState = 'degraded';
+    lastError = resolvedState.error;
+  } else if (mergedSha && comparison.progressed) {
+    finalState = 'merged';
+    functionalState = 'ready';
+    lastError = null;
+  } else if (comparison.progressed) {
+    finalState = 'progressed';
+    functionalState = 'ready';
+    lastError = null;
+  } else if (noProgress) {
+    finalState = 'blocked';
+    functionalState = 'degraded';
+    lastError =
+      targetBefore?.state === 'actionable'
+        ? `target_unchanged=${targetBefore.responsibility}/${targetBefore.cycle}`
+        : resolvedState.error;
+  }
+
+  return {
+    comparison,
+    noProgress,
+    blockedPr,
+    resolvedState,
+    finalState,
+    functionalState,
+    lastError,
+  };
+}
+
 async function finalizeProgress({
   targetBefore,
   targetAfter,
@@ -400,19 +538,13 @@ async function finalizeProgress({
   mergedSha = null,
   mergedPrNumber = null,
 }) {
-  const comparison = compareTargets(targetBefore, targetAfter);
-  const noProgress = targetBefore?.state === 'actionable' && comparison.unchanged;
-  const blockedPr = ['failed', 'timeout'].includes(openControllerPrState);
-  const finalState =
-    targetAfter?.state === 'complete'
-      ? 'complete'
-      : mergedSha
-        ? 'merged'
-        : blockedPr || noProgress || targetAfter?.state === 'blocked'
-          ? 'blocked'
-          : comparison.progressed
-            ? 'progressed'
-            : 'blocked';
+  const { comparison, noProgress, resolvedState, finalState, functionalState, lastError } =
+    determineFinalCycleState({
+      targetBefore,
+      targetAfter,
+      openControllerPrState,
+      mergedSha,
+    });
 
   const actionableSignature =
     targetBefore?.state === 'actionable' ? buildActionableSignature(targetBefore) : null;
@@ -421,6 +553,8 @@ async function finalizeProgress({
     openControllerPrState,
     lastCycleCompletedAt: cycleCompletedAt,
     lastCycleState: finalState,
+    lastFunctionalState: functionalState,
+    healthState: 'ready',
     lastMergedPrNumber: mergedPrNumber ?? undefined,
     lastMergedSha: mergedSha ?? undefined,
     lastMergedAt: mergedSha ? cycleCompletedAt : undefined,
@@ -428,18 +562,10 @@ async function finalizeProgress({
     lastNoProgressCycle: noProgress ? targetBefore.cycle : null,
     lastNoProgressSignature: noProgress ? actionableSignature : null,
     lastNoProgressMainSha: noProgress ? mainSha : null,
-    lastError:
-      blockedPr
-        ? `open_controller_pr_state=${openControllerPrState}`
-        : targetAfter?.state === 'blocked'
-          ? targetAfter.reason ?? 'controller_backlog_blocked'
-          : noProgress && targetBefore?.state === 'actionable'
-            ? `target_unchanged=${targetBefore.responsibility}/${targetBefore.cycle}`
-            : null,
-    lastErrorAt:
-      blockedPr || targetAfter?.state === 'blocked' || noProgress
-        ? cycleCompletedAt
-        : null,
+    lastPauseStatus: resolvedState.pauseStatus,
+    lastPauseReason: resolvedState.pauseReason,
+    lastError,
+    lastErrorAt: lastError ? cycleCompletedAt : null,
   });
 
   return { comparison, noProgress, finalState };
@@ -455,6 +581,12 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
     lastScheduledSlotAt: scheduledSlotAt,
     lastCycleStartedAt: cycleStartedAt,
     lastCycleState: 'running',
+    lastFunctionalState: 'ready',
+    healthState: 'ready',
+    lastPauseStatus: null,
+    lastPauseReason: null,
+    lastPauseResponsibility: null,
+    lastPauseCycle: null,
     lastError: null,
     lastErrorAt: null,
   });
@@ -464,10 +596,18 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
     if (initialReconciliation.state === 'merged') {
       const mergedSha = await syncIsolatedWorktreeToMain();
       const { resolved: resolvedAfterMerge } = await resolveCurrentBacklog();
+      const resolvedState = describeResolvedTargetState(resolvedAfterMerge);
       await persistResolvedTarget(resolvedAfterMerge, {
         openControllerPrState: 'merged',
         lastCycleCompletedAt: new Date().toISOString(),
-        lastCycleState: resolvedAfterMerge.state === 'complete' ? 'complete' : 'merged',
+        lastCycleState:
+          resolvedState.cycleState === 'paused'
+            ? 'paused'
+            : resolvedAfterMerge.state === 'complete'
+              ? 'complete'
+              : 'merged',
+        lastFunctionalState: resolvedState.functionalState ?? 'ready',
+        healthState: 'ready',
         lastMergedPrNumber: initialReconciliation.prNumber ?? null,
         lastMergedSha: mergedSha,
         lastMergedAt: new Date().toISOString(),
@@ -483,14 +623,45 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
     }
 
     if (initialReconciliation.state !== 'none') {
+      const failedPr = ['failed', 'timeout'].includes(initialReconciliation.state);
       await writeRuntimeState({
         openControllerPrState: initialReconciliation.state,
         lastCycleCompletedAt: new Date().toISOString(),
-        lastCycleState: 'blocked',
-        lastError: `open_controller_pr_state=${initialReconciliation.state}`,
-        lastErrorAt: new Date().toISOString(),
+        lastCycleState: failedPr ? 'blocked' : 'running',
+        lastFunctionalState: failedPr ? 'degraded' : 'ready',
+        healthState: 'ready',
+        lastError: failedPr ? `open_controller_pr_state=${initialReconciliation.state}` : null,
+        lastErrorAt: failedPr ? new Date().toISOString() : null,
       });
       log(`cycle blocked open_controller_pr_state=${initialReconciliation.state}`);
+      return;
+    }
+
+    const health = await evaluateHealth();
+    await writeRuntimeState({
+      healthState: health.status,
+      lastHealthEvaluatedAt: new Date().toISOString(),
+      lastHealthErrors: health.errors.length > 0 ? health.errors.join(',') : null,
+      lastHealthEvaluatedRefSource: health.evaluatedRefSource ?? null,
+      lastHealthEvaluatedSha: health.evaluatedSha ?? null,
+    });
+
+    if (health.status !== 'ready') {
+      const degradedAt = new Date().toISOString();
+      await writeRuntimeState({
+        lastCycleCompletedAt: degradedAt,
+        lastCycleState: 'degraded',
+        lastFunctionalState: 'degraded',
+        healthState: 'degraded',
+        openControllerPrState: 'none',
+        lastPauseStatus: null,
+        lastPauseReason: null,
+        lastPauseResponsibility: null,
+        lastPauseCycle: null,
+        lastError: health.errors.join(',') || 'health_state=degraded',
+        lastErrorAt: degradedAt,
+      });
+      log(`cycle degraded health_state=${health.status} errors=${health.errors.join(',') || 'unknown'}`);
       return;
     }
 
@@ -498,12 +669,16 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
     const { resolved: targetBefore } = await resolveCurrentBacklog();
     await persistResolvedTarget(targetBefore, {
       lastCycleState: cycleStateFromResolvedTarget(targetBefore),
+      lastFunctionalState: describeResolvedTargetState(targetBefore).functionalState ?? 'ready',
+      healthState: 'ready',
     });
 
     if (targetBefore.state === 'complete') {
       await persistResolvedTarget(targetBefore, {
         lastCycleCompletedAt: new Date().toISOString(),
         lastCycleState: 'complete',
+        lastFunctionalState: 'ready',
+        healthState: 'ready',
         openControllerPrState: 'none',
         lastError: null,
         lastErrorAt: null,
@@ -513,14 +688,21 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
     }
 
     if (targetBefore.state === 'blocked') {
+      const blockedState = describeResolvedTargetState(targetBefore);
       await persistResolvedTarget(targetBefore, {
         lastCycleCompletedAt: new Date().toISOString(),
-        lastCycleState: 'blocked',
+        lastCycleState: blockedState.cycleState ?? 'blocked',
+        lastFunctionalState: blockedState.functionalState ?? 'degraded',
+        healthState: 'ready',
         openControllerPrState: 'none',
-        lastError: targetBefore.reason ?? 'controller_backlog_blocked',
-        lastErrorAt: new Date().toISOString(),
+        lastError: blockedState.error,
+        lastErrorAt: blockedState.error ? new Date().toISOString() : null,
       });
-      log(`controller_backlog=blocked reason=${targetBefore.reason ?? 'unknown'}`);
+      log(
+        `controller_backlog=${blockedState.cycleState ?? 'blocked'} reason=${targetBefore.reason ?? 'unknown'}${
+          blockedState.pauseStatus ? ` pause_status=${blockedState.pauseStatus}` : ''
+        }`,
+      );
       return;
     }
 
@@ -528,11 +710,27 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
       await persistResolvedTarget(targetBefore, {
         lastCycleCompletedAt: new Date().toISOString(),
         lastCycleState: 'blocked',
+        lastFunctionalState: 'degraded',
+        healthState: 'ready',
         openControllerPrState: 'none',
         lastError: `stable_blocker=${targetBefore.responsibility}/${targetBefore.cycle}`,
         lastErrorAt: new Date().toISOString(),
       });
       log(`stable_blocker target=${targetBefore.responsibility}/${targetBefore.cycle}`);
+      return;
+    }
+
+    if (!shouldSubmitControllerTask({ resolvedTarget: targetBefore, healthState: health.status })) {
+      await persistResolvedTarget(targetBefore, {
+        lastCycleCompletedAt: new Date().toISOString(),
+        lastCycleState: 'blocked',
+        lastFunctionalState: health.status === 'ready' ? 'ready' : 'degraded',
+        healthState: health.status,
+        openControllerPrState: 'none',
+        lastError: health.status === 'ready' ? null : 'health_state=degraded',
+        lastErrorAt: health.status === 'ready' ? null : new Date().toISOString(),
+      });
+      log('submission_skipped');
       return;
     }
 
@@ -597,6 +795,8 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
       lastErrorAt: new Date().toISOString(),
       lastCycleCompletedAt: new Date().toISOString(),
       lastCycleState: 'failed',
+      lastFunctionalState: 'degraded',
+      healthState: 'degraded',
     });
     throw error;
   } finally {
@@ -621,10 +821,19 @@ async function main() {
 
   if (mode === 'dry-run') {
     await preflight();
+    const health = await evaluateHealth();
     await cleanIsolatedWorktree();
     await writeRuntimeState({
       lastDryRunAt: new Date().toISOString(),
+      lastDryRunHealthState: health.status,
+      lastHealthEvaluatedAt: new Date().toISOString(),
+      lastHealthErrors: health.errors.length > 0 ? health.errors.join(',') : null,
+      lastHealthEvaluatedRefSource: health.evaluatedRefSource ?? null,
+      lastHealthEvaluatedSha: health.evaluatedSha ?? null,
     });
+    if (health.status !== 'ready') {
+      throw new Error(`health_state=${health.status} errors=${health.errors.join(',') || 'unknown'}`);
+    }
     log('dry-run ok');
     return;
   }
@@ -663,4 +872,6 @@ async function main() {
   log(`started schedule=${schedule} timezone=${timezone} next=${task.getNextRun()?.toISOString()}`);
 }
 
-main().catch((error) => fail(error.message));
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => fail(error.message));
+}

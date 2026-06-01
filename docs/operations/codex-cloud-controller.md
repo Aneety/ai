@@ -13,7 +13,7 @@ Este documento descreve o modo cloud-safe do controlador de implementação da A
 - `.codex/cloud/setup.sh` — valida ferramentas mínimas, instala `gh` em `${HOME}/.local/bin` quando ele não existir na imagem Linux e valida autenticação GitHub quando `GH_TOKEN` estiver presente.
 - `.codex/cloud/maintenance.sh` — atualiza referências Git, valida YAML dos workflows e lista PRs/runs quando possível.
 - `.codex/cloud/run-controller-check.sh` — gera diagnóstico idempotente do painel, implementação e checks sem editar arquivos.
-- `.codex/cloud/controller-prompt.md` — template durável e parametrizado pelo scheduler para a task executar exatamente um par `{ciclo, responsabilidade}`, atualizar `docs/project`, fazer push e abrir PR no padrão `codex/<ciclo>-<responsabilidade>-<YYYY-MM-DD>` quando houver mudança. A task não faz merge; o scheduler reconcilia checks e merge depois.
+- `.codex/cloud/controller-prompt.md` — template durável e parametrizado pelo scheduler para a task executar exatamente um par `{ciclo, responsabilidade}`, atualizar `docs/project` e produzir apenas diff auditável + relatório de resultado. A task cloud não faz push, não abre PR e não faz merge.
 - `.codex/cloud/submit-controller-task.sh` — wrapper para submeter o prompt do controlador via `codex cloud exec`.
 - `.codex/cloud/watch-task.sh` — wrapper para acompanhar uma task remota até `READY` ou falha.
 - `.codex/cloud/publish-task-diff.sh` — fallback operacional versionado para publicar o diff de uma task `READY` como branch/commit/PR a partir do worktree isolado local, sem aplicar nada no checkout canônico.
@@ -21,7 +21,7 @@ Este documento descreve o modo cloud-safe do controlador de implementação da A
 
 ## Variáveis e segredos
 
-`GH_TOKEN` é necessário somente quando a task precisa usar `gh` para consultar ou criar PRs e ler checks. Configure como environment variable do Codex Cloud, não como secret, se o agente precisar chamar `gh` durante a task. Use token dedicado, curto e revogável, com escopos mínimos `repo` e `workflow`.
+`GH_TOKEN` é necessário para o **scheduler** publicar PRs, ler checks e reconciliar merge. A task cloud não é mais writer oficial do GitHub. Configure como environment variable do executor local do scheduler e, se a task cloud precisar apenas consultar GitHub, limite o uso a leitura.
 
 Não configurar `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` ou `OPENAI_API_KEY` para este controlador. Deploy Cloudflare real permanece em GitHub Actions secrets, e o controlador não usa OpenAI API.
 
@@ -43,8 +43,8 @@ Use allowlist mínima:
 
 ## Limites
 
-- Codex Cloud deve preparar código fonte, documentação operacional e diff auditável; quando houver credencial suficiente, deve também criar branch, commit, push e PR.
-- Se a task `READY` não criar PR por limitação de credencial ou superfície cloud, o scheduler pode publicar o diff com `.codex/cloud/publish-task-diff.sh`, exclusivamente em worktree isolado e sem tocar no checkout canônico.
+- Codex Cloud deve preparar código fonte, documentação operacional e diff auditável; a mutação GitHub oficial é **scheduler-only**.
+- O scheduler publica o diff com `.codex/cloud/publish-task-diff.sh` exclusivamente em worktree isolado e sem tocar no checkout canônico, e reconcilia checks/merge com `.codex/cloud/reconcile-controller-pr.mjs`.
 - Nem Codex Cloud nem scheduler devem aplicar diff no checkout canônico do executor; o merge automático acontece no GitHub e o worktree isolado é apenas reconciliado de volta para `origin/main`.
 - O controlador não fecha aceite do MVP com execução local ou cloud. Aceite de código fonte continua em GitHub Actions, Cloudflare gate e smoke/API/e2e publicado.
 - Para ciclos de dados do MVP, Supabase pode ser usado como provedor operacional padrão quando o contrato da responsabilidade exigir persistência compatível com Workers, sem virar dependência obrigatória do contrato de produto ou texto visível ao usuário final.
@@ -57,5 +57,5 @@ Use allowlist mínima:
 3. Configurar maintenance script como `.codex/cloud/maintenance.sh`.
 4. Configurar `GH_TOKEN` apenas se a task precisar de `gh`. Se a imagem base não trouxer `gh`, deixar `github.com`, `release-assets.githubusercontent.com` e `objects.githubusercontent.com` liberados para o bootstrap do setup.
 5. Executar uma task manual usando `.codex/cloud/controller-prompt.md`.
-6. Aceitar o modo remoto somente se a task conseguir ler repo, criar branch/commit/PR quando houver mudança, ler checks e gerar relatório sem depender de máquina local.
+6. Aceitar o modo remoto somente se a task conseguir ler repo, gerar diff auditável coerente com `docs/project` e devolver relatório sem contradizer o contrato scheduler-only.
 7. Para recorrência, seguir `docs/operations/codex-cloud-scheduling.md` em scheduler externo; não reativar a automação local como fallback.

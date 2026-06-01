@@ -39,7 +39,7 @@ if ! run_codex cloud exec --help >/tmp/codex-cloud-exec-help 2>&1; then
 fi
 
 log "submitting controller task"
-log "env_id=present branch=${branch} attempts=${attempts} prompt=${prompt_file} cli=${codex_cli} target_cycle=${CODEX_CLOUD_TARGET_CYCLE:-auto} target_responsibility=${CODEX_CLOUD_TARGET_RESPONSIBILITY:-auto}"
+log "env_id=present branch=${branch} attempts=${attempts} prompt=${prompt_file} cli=${codex_cli} target_cycle=${CODEX_CLOUD_TARGET_CYCLE:-auto} target_responsibility=${CODEX_CLOUD_TARGET_RESPONSIBILITY:-auto} mutation_surface=scheduler_only"
 
 run_codex cloud exec \
   --env "$CODEX_CLOUD_ENV_ID" \

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveMonitorState, isAwaitingNextTick } from '../controller-progress.mjs';
+import { compareTargets, deriveMonitorState, isAwaitingNextTick } from '../controller-progress.mjs';
 
 const now = Date.parse('2026-05-31T21:33:00Z');
 
@@ -17,6 +17,24 @@ function actionableTarget(overrides = {}) {
       nextAction: 'Executar deploy.',
     },
     ...overrides,
+  };
+}
+
+function pausedTarget(status = 'bloqueado') {
+  return {
+    state: 'blocked',
+    blockKind: 'pause',
+    pauseStatus: status,
+    pauseReason: 'Aguardando gate remoto.',
+    responsibility: 'gateway-borda',
+    cycle: 'deploy',
+    cycleRow: {
+      status,
+      gate: 'processo',
+      evidence: 'Gate remoto ausente.',
+      blocker: 'Aguardando gate remoto.',
+      nextAction: 'Executar gate remoto.',
+    },
   };
 }
 
@@ -71,4 +89,75 @@ test('alerta cloud_task_list_empty sem sucesso recente, sem PR e fora da janela'
   assert.equal(derived.hasRecentSuccess, false);
   assert.equal(derived.shouldWarnCloudTaskListEmpty, true);
   assert.equal(derived.controllerProgressState, 'ready_for_cycle');
+});
+
+test('mudanca apenas narrativa nao conta como progresso', () => {
+  const before = actionableTarget();
+  const after = actionableTarget({
+    cycleRow: {
+      ...before.cycleRow,
+      evidence: 'Texto reescrito sem mudar gate.',
+      blocker: 'Narrativa alterada.',
+      nextAction: 'Narrativa alterada.',
+    },
+  });
+
+  const comparison = compareTargets(before, after);
+  assert.equal(comparison.samePair, true);
+  assert.equal(comparison.sameSignature, true);
+  assert.equal(comparison.progressed, false);
+  assert.equal(comparison.unchanged, true);
+});
+
+test('mudanca de status conta como progresso funcional', () => {
+  const before = actionableTarget();
+  const after = actionableTarget({
+    cycleRow: {
+      ...before.cycleRow,
+      status: 'validacao',
+    },
+  });
+
+  const comparison = compareTargets(before, after);
+  assert.equal(comparison.progressed, true);
+  assert.equal(comparison.unchanged, false);
+});
+
+test('backlog pausado mostra paused_waiting_external_gate e nao alerta task vazia', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: pausedTarget('bloqueado'),
+    runtimeState: {
+      nextScheduledRunAt: '2026-05-31T20:00:00Z',
+      schedulerStartedAt: '2026-05-31T17:00:00Z',
+      lastCycleStartedAt: '2026-05-31T19:00:00Z',
+      lastFunctionalState: 'paused',
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 0,
+    nowMs: now,
+  });
+
+  assert.equal(derived.schedulerFunctionalState, 'paused');
+  assert.equal(derived.controllerProgressState, 'paused_waiting_external_gate');
+  assert.equal(derived.shouldWarnCloudTaskListEmpty, false);
+});
+
+test('health degradado mostra degraded_health', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: actionableTarget(),
+    runtimeState: {
+      nextScheduledRunAt: '2026-05-31T20:00:00Z',
+      schedulerStartedAt: '2026-05-31T17:00:00Z',
+      lastCycleStartedAt: '2026-05-31T19:00:00Z',
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 0,
+    healthState: 'degraded',
+    nowMs: now,
+  });
+
+  assert.equal(derived.schedulerFunctionalState, 'degraded');
+  assert.equal(derived.controllerProgressState, 'degraded_health');
 });
