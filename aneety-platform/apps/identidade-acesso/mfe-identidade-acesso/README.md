@@ -19,3 +19,12 @@ Reservar o microfrontend operacional de administração de usuários, perfis e p
 ## Próximo gate
 
 O próximo gate deste diretório é o ciclo `microfrontend`, após backend e teste de integração de API verdes em GitHub Actions/Cloudflare.
+
+
+## Design Google Stitch
+
+- Stitch não entregou login próprio completo; esta responsabilidade deve cobrir entrada, convite, recuperação, sessão expirada e permissão insuficiente.
+- Google SSO permanece opcional e desligável por tenant; a sessão final e as permissões são Aneety.
+- UI nunca exibe token, hash, segredo, provider, runtime ou detalhe de autenticação.
+
+Referência de triagem: `docs/design/google-stitch-mvp-triage.md`. Template técnico: `aneety-platform/templates/mfe-react-shadcn/`.

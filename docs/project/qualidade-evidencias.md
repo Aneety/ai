@@ -13,7 +13,7 @@
 
 | Ciclo | Status | Prioridade | Gate | Evidência | Bloqueio | Próxima ação |
 | --- | --- | --- | --- | --- | --- | --- |
-| `repositorio` | `bloqueado` | media | `arquitetura` | Issue histórica #12 migrada para este arquivo; inspeção local 2026-05-30 confirmou novamente apenas `aneety-platform/apps/.gitkeep` em `Aneety/ai`. | Falta raiz `aneety-platform/apps/qualidade-evidencias/...` em `Aneety/ai`; checkout local está limpo e sincronizado, então o bloqueio atual é apenas estrutural. | Abrir PR em `Aneety/ai` criando a raiz canônica da responsabilidade e registrar SHA/PR neste arquivo antes de avançar para `deploy`. |
+| `repositorio` | `validacao` | media | `arquitetura` | Branch `codex/stitch-mvp-design` cria a raiz `aneety-platform/apps/qualidade-evidencias/` com `README.md` raiz e diretórios `db-qualidade-evidencias`, `worker-qualidade-evidencias` e `mfe-qualidade-evidencias`. | Aguardando PR, GitHub Actions e merge em `main` antes de marcar `concluido`. | Abrir PR, aguardar checks remotos e registrar SHA/PR neste arquivo antes de avançar para `deploy`. |
 | `deploy` | `triagem` | media | `processo` | — | Aguardando ciclo `repositorio` ficar verde neste arquivo. | Executar `deploy` depois de concluir `repositorio` com evidência objetiva. |
 | `publicacao` | `triagem` | media | `processo` | — | Aguardando ciclo `deploy` ficar verde neste arquivo. | Executar `publicacao` depois de concluir `deploy` com evidência objetiva. |
 | `banco` | `triagem` | media | `DB` | — | Aguardando ciclo `publicacao` ficar verde neste arquivo. | Executar `banco` depois de concluir `publicacao` com evidência objetiva. |
@@ -33,6 +33,8 @@
 - [Planejamento de ciclos](../08-planejamento-ciclos-implementacao-repositorios.md)
 
 ## Histórico curto
+
+- 2026-05-31 — branch `codex/stitch-mvp-design` prepara scaffold de `repositorio` com raiz física e diretórios `db-*`, `worker-*` e `mfe-*`; permanece em `validacao` até PR/checks/merge.
 
 - 2026-05-29 — backlog migrado do painel operacional anterior para `docs/project`.
 - 2026-05-30 — ciclo `repositorio` segue `bloqueado`: `Aneety/ai` está limpo/sincronizado, mas ainda expõe só `aneety-platform/apps/.gitkeep`, sem raiz concreta da responsabilidade.

@@ -19,3 +19,12 @@ Reservar o microfrontend operacional de primeiro acesso e recuperação para o c
 ## Próximo gate
 
 O próximo gate deste diretório é o ciclo `microfrontend`, após backend e teste de integração de API verdes em GitHub Actions/Cloudflare.
+
+
+## Design Google Stitch
+
+- Telas Stitch relacionadas: boas-vindas ao fornecedor, identificação do negócio, configuração operacional, cadastro em análise, correção/reenvio e ativação.
+- Implementar fluxo de ator/fornecedor genérico; odontologia fica somente demo/seed Lia.
+- E-mail e notificação externa são opcionais; a UI deve funcionar sem prometer canal obrigatório.
+
+Referência de triagem: `docs/design/google-stitch-mvp-triage.md`. Template técnico: `aneety-platform/templates/mfe-react-shadcn/`.

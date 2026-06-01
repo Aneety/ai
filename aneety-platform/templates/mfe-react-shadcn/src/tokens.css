@@ -1,0 +1,16 @@
+:root {
+  --aneety-background: #fdf7ff;
+  --aneety-surface: #ffffff;
+  --aneety-surface-muted: #f8f2fa;
+  --aneety-border: #cbc4d2;
+  --aneety-text: #1d1b20;
+  --aneety-text-muted: #494551;
+  --aneety-primary: #4f378a;
+  --aneety-primary-contrast: #ffffff;
+  --aneety-primary-soft: #e9ddff;
+  --aneety-warning: #765b00;
+  --aneety-danger: #ba1a1a;
+  --aneety-radius-card: 18px;
+  --aneety-radius-control: 12px;
+  --aneety-shadow-card: 0 10px 30px rgb(79 55 138 / 0.12);
+}

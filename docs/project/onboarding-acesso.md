@@ -37,3 +37,10 @@
 - 2026-05-29 — backlog migrado do painel operacional anterior para `docs/project`.
 - 2026-05-30 — ciclo `repositorio` seguia `bloqueado`: `Aneety/ai` estava limpo/sincronizado, mas ainda expunha só `aneety-platform/apps/.gitkeep`, sem raiz concreta da responsabilidade.
 - 2026-05-31 — ciclo `repositorio` concluído pela [PR #24](https://github.com/Aneety/ai/pull/24), mergeada em `main`, criando a raiz `aneety-platform/apps/onboarding-acesso/` com scaffolds mínimos `db-*`, `worker-*` e `mfe-*`.
+
+
+## Triagem Google Stitch
+
+- Referência detalhada: [`docs/design/google-stitch-mvp-triage.md`](../design/google-stitch-mvp-triage.md).
+- Diretriz para `microfrontend`: Telas Stitch úteis: boas-vindas ao fornecedor, identificação do negócio, configuração operacional, cadastro em análise, aprovação/rejeição, correção e reenvio. E-mail/push não pode ser requisito.
+- Antes de implementar UI, seguir `aneety-platform/templates/mfe-react-shadcn/` e validar que a copy final não expõe stack, banco, runtime, fornecedor técnico, segredo, hash, token ou ferramenta interna.
