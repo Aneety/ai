@@ -43,6 +43,23 @@ gh workflow run cloudflare-gate.yml \
   -f mode=dry-run
 ```
 
+
+## Ciclo `publicacao`
+
+O ciclo `publicacao` depende de URL real publicada em ambiente remoto permitido. O aceite não pode ser fechado por runtime local, `wrangler dev`, container ou URL fictícia. Para tornar a evidência auditável, este módulo inclui:
+
+- `publication-evidence.example.json`, template sem segredos para registrar URL publicada, runs remotos de deploy/smoke, SHA e versão do contrato;
+- `scripts/validate-publication-evidence.mjs`, validador leve que rejeita URL não HTTPS, hosts locais/de exemplo, parâmetros com aparência de segredo e runs que não sejam do repositório `Aneety/ai`;
+- `npm run publication:validate`, comando usado para validar o template ou um arquivo real informado por `ANEETY_PUBLICATION_EVIDENCE_FILE`.
+
+Sequência remota mínima após PR gate verde:
+
+1. Acionar `Cloudflare deploy gate` em modo `deploy` com `module_path=aneety-platform/apps/gateway-borda/worker-gateway`.
+2. Registrar a URL HTTPS publicada pelo Worker, sem expor subconta, token ou variável sensível.
+3. Acionar `Cloudflare deploy gate` em modo `smoke` com `smoke_url` igual à URL publicada.
+4. Criar um arquivo de evidência fora de secrets seguindo `publication-evidence.example.json` e validar com `ANEETY_PUBLICATION_EVIDENCE_FILE=<arquivo> npm run publication:validate`.
+5. Atualizar `docs/project/gateway-borda.md` e `docs/project/index.md` com URL real, runs de GitHub Actions/Cloudflare e SHA final antes de marcar `publicacao` como `concluido`.
+
 ## Ambiente e rollback
 
 - Variáveis versionadas sem segredo: `ANEETY_ALLOWED_ORIGINS` e `ANEETY_CONTRACT_VERSION`.

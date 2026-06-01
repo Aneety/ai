@@ -12,7 +12,7 @@
 
 | Responsabilidade | Owner | Prioridade | Ciclo ativo | Status | Arquivo | Evidência atual | Bloqueio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `gateway-borda` | Ricardo Malnati | alta | `publicacao` | `triagem` | [gateway-borda](./gateway-borda.md) | `deploy` concluído no SHA [`cbee580`](https://github.com/Aneety/ai/commit/cbee580800141f0a9e57c8f83208e4de09babb00) com `Remote CI gate`, `Governance policy gate`, `Security gate` e [`Cloudflare deploy gate` dry-run #26731277372](https://github.com/Aneety/ai/actions/runs/26731277372) verdes para `aneety-platform/apps/gateway-borda/worker-gateway`. | — |
+| `gateway-borda` | Ricardo Malnati | alta | `publicacao` | `bloqueado` | [gateway-borda](./gateway-borda.md) | `deploy` concluído no SHA [`cbee580`](https://github.com/Aneety/ai/commit/cbee580800141f0a9e57c8f83208e4de09babb00) com `Cloudflare deploy gate` dry-run verde; evidência versionável de publicação preparada com `publication-evidence.example.json` e `publication:validate`. | Falta URL HTTPS real publicada por `Cloudflare deploy gate` remoto em modo `deploy` após PR gate verde e segredos/permissões Cloudflare disponíveis. |
 | `tenant-white-label` | Ricardo Malnati | alta | `deploy` | `pronto` | [tenant-white-label](./tenant-white-label.md) | [PR #19](https://github.com/Aneety/ai/pull/19) cria a raiz física e scaffolds mínimos, já mergeada em `main`. | — |
 | `identidade-acesso` | Ricardo Malnati | alta | `deploy` | `pronto` | [identidade-acesso](./identidade-acesso.md) | [PR #22](https://github.com/Aneety/ai/pull/22) cria a raiz física e scaffolds mínimos, já mergeada em `main`. | — |
 | `onboarding-acesso` | Ricardo Malnati | alta | `deploy` | `pronto` | [onboarding-acesso](./onboarding-acesso.md) | [PR #24](https://github.com/Aneety/ai/pull/24) cria a raiz física e scaffolds mínimos, já mergeada em `main`. | — |
@@ -56,6 +56,9 @@
 - 2026-05-31 — `tenant-white-label`, `identidade-acesso` e `onboarding-acesso` concluem `repositorio` pelas PRs [#19](https://github.com/Aneety/ai/pull/19), [#22](https://github.com/Aneety/ai/pull/22) e [#24](https://github.com/Aneety/ai/pull/24), todas mergeadas em `main`, e passam a ter `deploy` como próximo ciclo acionável.
 
 - 2026-05-30 — monitoramento Codex Cloud registrado em [`controller-monitoring-2026-05-30.md`](./controller-monitoring-2026-05-30.md): `gh` autenticado para leitura, nenhum PR aberto no momento da consulta, workflows ativos listados, últimos runs de `main` verdes no SHA `1a039111882ee949722bd3980c4f6550d323fa32`, 22 responsabilidades ainda bloqueadas em `repositorio` por falta de raízes canônicas, e push/PR remoto bloqueado por `403 Permission to Aneety/ai.git denied to Malnati`.
+
+
+- 2026-06-01 — `gateway-borda` avança o preparo do ciclo `publicacao` sem concluir aceite remoto: o Worker agora possui template e validação de evidência para URL publicada, runs `deploy`/`smoke`, SHA e versão de contrato; o status fica `bloqueado` até existir URL HTTPS real publicada pelo `Cloudflare deploy gate` remoto.
 
 ## Governança mínima de atualização
 
