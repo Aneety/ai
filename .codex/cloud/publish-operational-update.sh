@@ -3,15 +3,25 @@ set -euo pipefail
 
 log() { printf '[codex-cloud-operational-publish] %s\n' "$*"; }
 fail() { printf '[codex-cloud-operational-publish] %s\n' "$*" >&2; exit 1; }
+use_env_gh_token() {
+  local mode="${CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN:-auto}"
+  if [ "$mode" = "1" ]; then
+    return 0
+  fi
+  if [ "$mode" = "0" ]; then
+    return 1
+  fi
+  [ -n "${GH_TOKEN:-}" ]
+}
 run_gh() {
-  if [ "${CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN:-0}" = "1" ]; then
+  if use_env_gh_token; then
     gh "$@"
   else
     env -u GH_TOKEN gh "$@"
   fi
 }
 run_git_write() {
-  if [ "${CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN:-0}" = "1" ]; then
+  if use_env_gh_token; then
     git "$@"
   else
     env -u GH_TOKEN git "$@"

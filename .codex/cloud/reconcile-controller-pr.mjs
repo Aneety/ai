@@ -11,7 +11,14 @@ const autoMergeMethod = process.env.CODEX_CLOUD_AUTO_MERGE_METHOD ?? 'squash';
 const prWatchInterval = positiveInteger(process.env.CODEX_CLOUD_PR_WATCH_INTERVAL, 30);
 const prWatchMaxPolls = positiveInteger(process.env.CODEX_CLOUD_PR_WATCH_MAX_POLLS, 60);
 const autoDeleteBranch = process.env.CODEX_CLOUD_AUTO_DELETE_BRANCH !== '0';
-const useEnvGhToken = process.env.CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN === '1';
+export function shouldUseEnvGhToken(env = process.env) {
+  const mode = env.CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN;
+  if (mode === '1') return true;
+  if (mode === '0') return false;
+  return Boolean(env.GH_TOKEN);
+}
+
+const useEnvGhToken = shouldUseEnvGhToken();
 
 const args = new Set(process.argv.slice(2));
 const probeOnly = args.has('--probe-only');
