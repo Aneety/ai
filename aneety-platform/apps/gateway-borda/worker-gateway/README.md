@@ -21,6 +21,26 @@ Este diretório agora contém uma implementação mínima versionável para Clou
 - `package.json` expõe checks leves de sintaxe e testes de módulo para o gate remoto;
 - `tests/gateway.test.js` valida CORS, versão de contrato, sessão pública Aneety e roteamento para service binding simulado.
 
+## Runbook remoto do gate de deploy
+
+O ciclo `deploy` só pode ser aceito pela superfície remota, sem usar `wrangler dev`, servidor local, container ou fallback fora de Cloudflare Workers:
+
+1. Abrir PR a partir de branch `codex/deploy-gateway-borda-*` contra `main`.
+2. Aguardar GitHub Actions verdes na PR para `Remote CI gate`, `Governance policy gate` e `Security gate`.
+3. Após a PR verde, acionar o workflow remoto `Cloudflare deploy gate` em modo `dry-run` com `module_path` igual a `aneety-platform/apps/gateway-borda/worker-gateway`.
+4. Registrar no painel operacional o link do PR, o run do gate Cloudflare e a evidência de que `wrangler.toml` foi validado sem segredos antes de avaliar `deploy` como `concluido`.
+5. Manter `publicacao`, `backend`, `teste-integracao-api`, `smoke` e `teste` bloqueados até o gate remoto do ciclo `deploy` estar comprovado.
+
+Exemplo de acionamento remoto após checks verdes da PR:
+
+```bash
+gh workflow run cloudflare-gate.yml \
+  --repo Aneety/ai \
+  --ref <branch-da-pr> \
+  -f module_path=aneety-platform/apps/gateway-borda/worker-gateway \
+  -f mode=dry-run
+```
+
 ## Ambiente e rollback
 
 - Variáveis versionadas sem segredo: `ANEETY_ALLOWED_ORIGINS` e `ANEETY_CONTRACT_VERSION`.
