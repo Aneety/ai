@@ -162,12 +162,18 @@ export function deriveMonitorState({
       !runningRemoteDeploy &&
       !runningRemoteSmoke &&
       pausedByBacklog &&
+      activeTaskCount === 0 &&
+      publishQueueCount === 0 &&
+      !dependencyCycleRunning &&
       parallelEligibleCount === 0
     ) ||
     (
       !runningRemoteDeploy &&
       !runningRemoteSmoke &&
       resolvedTarget?.state === 'blocked' &&
+      activeTaskCount === 0 &&
+      publishQueueCount === 0 &&
+      !dependencyCycleRunning &&
       runtimeState?.lastFunctionalState === 'paused' &&
       parallelEligibleCount === 0
     )

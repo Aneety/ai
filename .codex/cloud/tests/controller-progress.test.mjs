@@ -304,6 +304,34 @@ test('task cloud ativa mostra parallel_tasks_running fora da cadeia de dependenc
   assert.equal(derived.shouldWarnCloudTaskListEmpty, false);
 });
 
+test('target pausado com tasks paralelas ativas nao rebaixa scheduler para paused', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: pausedTarget('bloqueado'),
+    runtimeState: {
+      nextScheduledRunAt: '2026-05-31T20:00:00Z',
+      schedulerStartedAt: '2026-05-31T17:00:00Z',
+      lastCycleStartedAt: '2026-05-31T19:00:00Z',
+      lastFunctionalState: 'paused',
+      activeTasks: [
+        {
+          taskId: 'task_1',
+          responsibility: 'tenant-white-label',
+          cycle: 'publicacao',
+          state: 'pending',
+        },
+      ],
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 1,
+    latestCloudTaskStatus: 'pending',
+    nowMs: now,
+  });
+
+  assert.equal(derived.schedulerFunctionalState, 'ready');
+  assert.equal(derived.controllerProgressState, 'parallel_tasks_running');
+});
+
 test('cadeia de dependencias em progresso mostra dependency_chain_in_progress', () => {
   const derived = deriveMonitorState({
     resolvedTarget: dependencyTarget(),
