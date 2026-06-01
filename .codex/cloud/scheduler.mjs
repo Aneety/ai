@@ -14,6 +14,7 @@ import {
 import { compareTargets, isStableBlockedTarget } from './controller-progress.mjs';
 import { runControllerHealthCheck } from './health-check.mjs';
 import {
+  executeWorkerDeployRemoteGate,
   executeGatewayBordaPublicationRemoteGate,
   getRemoteAutomationRunbook,
   mapMissingServicesToDependencies,
@@ -638,21 +639,37 @@ async function publishOperationalUpdate(target, remoteResult) {
     process.env.TMPDIR ?? os.tmpdir(),
     `aneety-operational-pr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.md`,
   );
-  const summary = [
-    '## Summary',
-    '',
-    `- Records remote publication evidence for \`${target.responsibility}/${target.cycle}\`.`,
-    `- Published URL: \`${remoteResult.evidence.publishedUrl}\`.`,
-    `- Deploy run: ${remoteResult.deployRun.runUrl}.`,
-    `- Smoke run: ${remoteResult.smokeRun.runUrl}.`,
-    '',
-    '## Validation',
-    '',
-    `- Publication evidence validated locally from \`${remoteResult.runbook.evidenceFile}\`.`,
-    `- Source SHA: \`${remoteResult.evidence.headSha}\`.`,
-    '- Merge: not performed in this step.',
-    '',
-  ].join('\n');
+  const isPublicationEvidence = Boolean(remoteResult.evidence?.publishedUrl && remoteResult.smokeRun);
+  const summary = isPublicationEvidence
+    ? [
+        '## Summary',
+        '',
+        `- Records remote publication evidence for \`${target.responsibility}/${target.cycle}\`.`,
+        `- Published URL: \`${remoteResult.evidence.publishedUrl}\`.`,
+        `- Deploy run: ${remoteResult.deployRun.runUrl}.`,
+        `- Smoke run: ${remoteResult.smokeRun.runUrl}.`,
+        '',
+        '## Validation',
+        '',
+        `- Publication evidence validated locally from \`${remoteResult.runbook.evidenceFile}\`.`,
+        `- Source SHA: \`${remoteResult.evidence.headSha}\`.`,
+        '- Merge: not performed in this step.',
+        '',
+      ].join('\n')
+    : [
+        '## Summary',
+        '',
+        `- Records remote deploy evidence for \`${target.responsibility}/${target.cycle}\`.`,
+        `- Cloudflare dry-run: ${remoteResult.deployRun.runUrl}.`,
+        `- Module path: \`${remoteResult.runbook.modulePath}\`.`,
+        '',
+        '## Validation',
+        '',
+        `- Dry-run remote concluído com sucesso para \`${target.responsibility}\`.`,
+        `- Source SHA: \`${remoteResult.headSha ?? 'unknown'}\`.`,
+        '- Merge: not performed in this step.',
+        '',
+      ].join('\n');
   await writeFile(bodyFile, summary);
 
   try {
@@ -719,7 +736,12 @@ async function executeRemoteGateForTarget(target, mainSha) {
     });
   };
 
-  const result = await executeGatewayBordaPublicationRemoteGate({
+  const remoteRunner =
+    target.responsibility === 'gateway-borda' && target.cycle === 'publicacao'
+      ? executeGatewayBordaPublicationRemoteGate
+      : executeWorkerDeployRemoteGate;
+  const result = await remoteRunner({
+    target,
     repoRoot: executionRoot,
     mainSha,
     run: runBash,
@@ -751,9 +773,9 @@ async function executeRemoteGateForTarget(target, mainSha) {
     lastRemoteActionState: REMOTE_GATE_STATE.SUCCEEDED,
     lastRemoteDeployRunId: result.deployRun.runId,
     lastRemoteDeployUrl: result.deployRun.runUrl,
-    lastPublishedUrl: result.evidence.publishedUrl,
-    lastRemoteSmokeRunId: result.smokeRun.runId,
-    lastRemoteSmokeUrl: result.smokeRun.runUrl,
+    lastPublishedUrl: result.evidence?.publishedUrl ?? '',
+    lastRemoteSmokeRunId: result.smokeRun?.runId ?? null,
+    lastRemoteSmokeUrl: result.smokeRun?.runUrl ?? null,
     lastRemoteConclusion: 'success',
     lastRemoteActionAt: new Date().toISOString(),
   });
