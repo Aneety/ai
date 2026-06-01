@@ -50,6 +50,34 @@ gh workflow run cloudflare-gate.yml \
   -f mode=dry-run
 ```
 
+
+## Ciclo `publicacao`
+
+O ciclo `publicacao` depende de URL HTTPS real publicada pelo gate remoto permitido. O aceite não pode ser fechado por runtime local, `wrangler dev`, container, URL fictícia ou fallback fora de Cloudflare Workers. Para deixar a evidência auditável quando o scheduler publicar o Worker, este módulo inclui:
+
+- `publication-evidence.example.json`, template sem segredos para registrar URL publicada, runs remotos de deploy/smoke, SHA e versão do contrato;
+- `publication-evidence.json`, arquivo canônico versionado pelo scheduler somente quando o deploy/smoke remoto concluir com sucesso;
+- `scripts/validate-publication-evidence.mjs`, validador leve que rejeita URL não HTTPS, hosts locais/de exemplo, parâmetros com aparência de segredo e runs que não sejam do repositório `Aneety/ai`;
+- `npm run publication:validate`, comando usado para validar o template ou um arquivo real informado por `ANEETY_PUBLICATION_EVIDENCE_FILE`.
+
+Sequência remota mínima após PR gate verde:
+
+1. Confirmar que `tenant-white-label/deploy` segue `concluido` no painel operacional, com `Cloudflare deploy gate` em modo `dry-run` já registrado.
+2. Acionar `Cloudflare deploy gate` em modo `deploy` com `module_path=aneety-platform/apps/tenant-white-label/worker-tenant-white-label`.
+3. Registrar a URL HTTPS publicada pelo Worker, sem expor subconta, token ou variável sensível.
+4. Acionar `Cloudflare deploy gate` em modo `smoke` com `smoke_url` igual à URL publicada e validar `/health` e `/contract` com a versão pública do contrato.
+5. Criar um arquivo de evidência fora de secrets seguindo `publication-evidence.example.json` e validar com `ANEETY_PUBLICATION_EVIDENCE_FILE=<arquivo> npm run publication:validate`.
+6. Atualizar `docs/project/tenant-white-label.md` e `docs/project/index.md` com URL real, runs de GitHub Actions/Cloudflare e SHA final antes de marcar `publicacao` como `concluido`.
+
+## Ambiente e rollback de publicação
+
+- Variáveis versionadas sem segredo: `ANEETY_CONTRACT_VERSION` e `ANEETY_SERVICE_NAME`.
+- A publicação inicial não introduz binding, segredo, banco ou rota administrativa antes dos ciclos `banco` e `backend`.
+- Segredos, quando existirem em ciclos posteriores, devem ser configurados somente no painel/API Cloudflare e nunca no repositório.
+- Rollback operacional: reimplantar a última versão verde do Worker pelo gate remoto Cloudflare ou reverter a PR do contrato/roteamento e acionar novo dry-run remoto antes de publicar.
+
+O aceite operacional continua remoto: GitHub Actions da PR devem ficar verdes antes de acionar Cloudflare deploy/smoke.
+
 ## Dados e contratos futuros
 
 - O worker deverá controlar acesso administrativo a tenants e marca por permissão.

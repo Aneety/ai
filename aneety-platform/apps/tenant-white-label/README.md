@@ -35,4 +35,4 @@ Ordem operacional registrada em `docs/project/tenant-white-label.md` e `docs/08-
 
 ## Próximo gate
 
-Após este scaffold do ciclo `repositorio`, o próximo gate é `deploy`: preparar evidência remota em Cloudflare Workers/GitHub Actions antes de qualquer smoke, integração, E2E ou aceite operacional.
+Com `deploy` já validado por gate remoto dry-run, o próximo gate é `publicacao`: obter URL HTTPS real em Cloudflare Workers pelo `Cloudflare deploy gate` remoto, executar smoke remoto e registrar evidência versionável antes de liberar `banco`, `backend` ou UI.
