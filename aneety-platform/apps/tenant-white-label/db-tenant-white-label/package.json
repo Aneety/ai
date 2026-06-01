@@ -1,0 +1,13 @@
+{
+  "name": "@aneety/db-tenant-white-label",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare D1 schema contract for Aneety tenant white-label data isolation.",
+  "scripts": {
+    "lint": "node --check scripts/validate-db-contract.mjs",
+    "typecheck": "node --check scripts/validate-db-contract.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "db:validate": "node scripts/validate-db-contract.mjs"
+  }
+}
