@@ -20,6 +20,22 @@ test('answers health without requiring a public contract header', async () => {
   assert.equal((await response.json()).service, 'worker-gateway');
 });
 
+test('answers CORS preflight with canonical public edge headers', async () => {
+  const response = await handleRequest(
+    request('/bff/tenant-white-label/branding', {
+      method: 'OPTIONS',
+      headers: { origin: 'https://app.aneety.com.br' },
+    }),
+    env,
+  );
+
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get('access-control-allow-origin'), 'https://app.aneety.com.br');
+  assert.match(response.headers.get('access-control-allow-methods'), /OPTIONS/);
+  assert.match(response.headers.get('access-control-allow-headers'), new RegExp(CONTRACT_VERSION_HEADER));
+  assert.match(response.headers.get('access-control-expose-headers'), new RegExp(CONTRACT_VERSION_HEADER));
+});
+
 test('rejects contract routes without the public contract version header', async () => {
   const response = await handleRequest(request('/contract'), env);
   assert.equal(response.status, 428);
@@ -68,4 +84,32 @@ test('forwards validated requests to service binding with edge headers', async (
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('x-aneety-route'), 'tenant.branding');
   assert.deepEqual(await response.json(), { tenant: 'lia' });
+});
+
+test('rejects unsupported public contract versions before routing', async () => {
+  const response = await handleRequest(
+    request('/bff/tenant-white-label/branding', {
+      headers: { [CONTRACT_VERSION_HEADER]: '2026-05-30.gateway-borda.v0' },
+    }),
+    env,
+  );
+
+  assert.equal(response.status, 412);
+  assert.equal((await response.json()).error.code, 'contract_version_unsupported');
+});
+
+test('returns canonical upstream unavailable error when a service binding is absent', async () => {
+  const response = await handleRequest(
+    request('/bff/onboarding-acesso/invitations', {
+      method: 'POST',
+      headers: {
+        [CONTRACT_VERSION_HEADER]: CONTRACT_VERSION,
+        [PUBLIC_SESSION_HEADER]: 'public-session-id',
+      },
+    }),
+    env,
+  );
+
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error.code, 'upstream_unavailable');
 });
