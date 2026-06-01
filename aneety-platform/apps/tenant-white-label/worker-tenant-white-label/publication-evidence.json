@@ -1,0 +1,13 @@
+{
+  "responsibility": "tenant-white-label",
+  "cycle": "publicacao",
+  "modulePath": "aneety-platform/apps/tenant-white-label/worker-tenant-white-label",
+  "deployRunId": "26741516221",
+  "deployRunUrl": "https://github.com/Aneety/ai/actions/runs/26741516221",
+  "smokeRunId": "26741553080",
+  "smokeRunUrl": "https://github.com/Aneety/ai/actions/runs/26741553080",
+  "publishedUrl": "https://worker-tenant-white-label.ricardomalnati.workers.dev",
+  "headSha": "7ea8e3bda805834fa3ec1eb4da867ef4623418fb",
+  "validatedAt": "2026-06-01T07:36:05Z",
+  "result": "success"
+}
