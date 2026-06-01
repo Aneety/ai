@@ -30,6 +30,24 @@ export const gatewayBordaPublicationRunbook = {
   commitTitle: 'chore(gateway-borda): record publicacao evidence',
 };
 
+function buildWorkerDeployRunbook(responsibility) {
+  return Object.freeze({
+    responsibility,
+    cycle: 'deploy',
+    workflowId: 'cloudflare-gate.yml',
+    modulePath: `aneety-platform/apps/${responsibility}/worker-${responsibility}`,
+    artifactName: 'cloudflare-gate-result',
+    responsibilityDoc: `docs/project/${responsibility}.md`,
+    commitTitle: `chore(${responsibility}): record deploy evidence`,
+  });
+}
+
+export const workerDeployRunbooks = Object.freeze({
+  'tenant-white-label': buildWorkerDeployRunbook('tenant-white-label'),
+  'identidade-acesso': buildWorkerDeployRunbook('identidade-acesso'),
+  'onboarding-acesso': buildWorkerDeployRunbook('onboarding-acesso'),
+});
+
 export const MISSING_SERVICE_DEPENDENCY_MAP = Object.freeze({
   'worker-identidade-acesso': Object.freeze({
     responsibility: 'identidade-acesso',
@@ -77,12 +95,19 @@ export function getRemoteAutomationKind(target) {
     return REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE;
   }
 
+  if (target.cycle === 'deploy' && workerDeployRunbooks[target.responsibility]) {
+    return REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE;
+  }
+
   return REMOTE_AUTOMATION_KIND.MANUAL_EXTERNAL;
 }
 
 export function getRemoteAutomationRunbook(target) {
   if (getRemoteAutomationKind(target) !== REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE) {
     return null;
+  }
+  if (target.cycle === 'deploy' && workerDeployRunbooks[target.responsibility]) {
+    return workerDeployRunbooks[target.responsibility];
   }
   return gatewayBordaPublicationRunbook;
 }
@@ -200,6 +225,47 @@ export function updateGatewayPublicationDocs({ gatewayMarkdown, indexMarkdown, p
   };
 }
 
+export function updateWorkerDeployDocs({
+  responsibility,
+  responsibilityMarkdown,
+  indexMarkdown,
+  headSha,
+  dryRunUrl,
+}) {
+  const shortSha = headSha.slice(0, 7);
+  const commitUrl = `https://github.com/${defaultRepo}/commit/${headSha}`;
+  const dryRunId = dryRunUrl.match(/\/runs\/(\d+)$/)?.[1] ?? 'unknown';
+  const deployEvidence =
+    `[\`Cloudflare deploy gate\` dry-run #${dryRunId}](${dryRunUrl}) validou ` +
+    `\`${responsibility}\` no SHA [\`${shortSha}\`](${commitUrl}) sem segredo versionado e com runtime Workers compatível.`;
+  const deployNextAction = 'Executar `publicacao` com evidência remota objetiva do ciclo seguinte.';
+  const publicacaoNextAction = 'Executar `publicacao` agora que `deploy` já ficou verde com gate remoto comprovado.';
+
+  const nextResponsibilityMarkdown = responsibilityMarkdown
+    .replace(
+      /^\| `deploy` \| .*$/m,
+      `| \`deploy\` | \`concluido\` | alta | \`processo\` | ${deployEvidence} | — | ${deployNextAction} |`,
+    )
+    .replace(
+      /^\| `publicacao` \| .*$/m,
+      `| \`publicacao\` | \`triagem\` | alta | \`processo\` | — | — | ${publicacaoNextAction} |`,
+    );
+
+  const rowPattern = new RegExp(`^\\| \`${responsibility}\` \\| ([^|]+) \\| ([^|]+) \\| .*?$`, 'm');
+  const rowMatch = indexMarkdown.match(rowPattern);
+  const owner = rowMatch?.[1]?.trim() ?? 'Ricardo Malnati';
+  const priority = rowMatch?.[2]?.trim() ?? 'alta';
+  const nextIndexMarkdown = indexMarkdown.replace(
+    new RegExp(`^\\| \`${responsibility}\` \\| .*?$`, 'm'),
+    `| \`${responsibility}\` | ${owner} | ${priority} | \`publicacao\` | \`triagem\` | [${responsibility}](./${responsibility}.md) | ${deployEvidence} | — |`,
+  );
+
+  return {
+    responsibilityMarkdown: nextResponsibilityMarkdown,
+    indexMarkdown: nextIndexMarkdown,
+  };
+}
+
 export async function executeGatewayBordaPublicationRemoteGate({
   repoRoot,
   mainSha,
@@ -224,6 +290,7 @@ export async function executeGatewayBordaPublicationRemoteGate({
     run,
     repo,
     workflowId: runbook.workflowId,
+    artifactName: runbook.artifactName,
     ref: 'main',
     headSha: mainSha,
     inputs: {
@@ -269,6 +336,7 @@ export async function executeGatewayBordaPublicationRemoteGate({
     run,
     repo,
     workflowId: runbook.workflowId,
+    artifactName: runbook.artifactName,
     ref: 'main',
     headSha: mainSha,
     inputs: {
@@ -344,10 +412,94 @@ export async function executeGatewayBordaPublicationRemoteGate({
   };
 }
 
+export async function executeWorkerDeployRemoteGate({
+  target,
+  repoRoot,
+  mainSha,
+  run,
+  onStateChange = async () => {},
+  repo = defaultRepo,
+} = {}) {
+  const runbook = workerDeployRunbooks[target?.responsibility ?? ''];
+  if (!runbook) {
+    return { ok: false, state: REMOTE_GATE_STATE.FAILED, blocker: 'remote_gate_unsupported' };
+  }
+
+  const dryRunNonce = buildWorkflowDispatchNonce({
+    responsibility: runbook.responsibility,
+    cycle: runbook.cycle,
+    stage: 'dry-run',
+  });
+
+  await onStateChange({
+    state: REMOTE_GATE_STATE.RUNNING_DEPLOY,
+    stage: 'dry-run',
+    nonce: dryRunNonce,
+  });
+
+  const deployRun = await dispatchAndWaitForWorkflow({
+    run,
+    repo,
+    workflowId: runbook.workflowId,
+    artifactName: runbook.artifactName,
+    ref: 'main',
+    headSha: mainSha,
+    inputs: {
+      module_path: runbook.modulePath,
+      mode: 'dry-run',
+      controller_nonce: dryRunNonce,
+    },
+    nonce: dryRunNonce,
+  });
+
+  if (deployRun.result.conclusion !== 'success') {
+    return {
+      ok: false,
+      state: REMOTE_GATE_STATE.FAILED,
+      stage: 'dry-run',
+      runbook,
+      deployRun,
+      blocker: `remote_deploy_failed run_id=${deployRun.runId} conclusion=${deployRun.result.conclusion || deployRun.runConclusion || 'unknown'}`,
+      failureCode: deployRun.result.failureCode || null,
+      failureReason: deployRun.result.failureReason || null,
+    };
+  }
+
+  const responsibilityPath = path.join(repoRoot, runbook.responsibilityDoc);
+  const indexPath = path.join(repoRoot, 'docs', 'project', 'index.md');
+  const [responsibilityMarkdown, indexMarkdown] = await Promise.all([
+    readFile(responsibilityPath, 'utf8'),
+    readFile(indexPath, 'utf8'),
+  ]);
+
+  const updatedDocs = updateWorkerDeployDocs({
+    responsibility: runbook.responsibility,
+    responsibilityMarkdown,
+    indexMarkdown,
+    headSha: mainSha,
+    dryRunUrl: deployRun.runUrl,
+  });
+
+  await Promise.all([
+    writeFile(responsibilityPath, updatedDocs.responsibilityMarkdown),
+    writeFile(indexPath, updatedDocs.indexMarkdown),
+  ]);
+
+  return {
+    ok: true,
+    state: REMOTE_GATE_STATE.SUCCEEDED,
+    runbook,
+    deployRun,
+    headSha: mainSha,
+    changedFiles: [runbook.responsibilityDoc, 'docs/project/index.md'],
+  };
+}
+
 async function dispatchAndWaitForWorkflow({
   run,
   repo,
   workflowId,
+  artifactName,
   ref,
   headSha,
   inputs,
@@ -381,7 +533,7 @@ async function dispatchAndWaitForWorkflow({
     run,
     repo,
     runId: discoveredRun.id,
-    artifactName: gatewayBordaPublicationRunbook.artifactName,
+    artifactName,
   });
 
   return {

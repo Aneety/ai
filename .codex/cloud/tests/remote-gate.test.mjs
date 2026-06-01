@@ -4,9 +4,11 @@ import {
   buildPublicationEvidence,
   buildWorkflowDispatchNonce,
   getRemoteAutomationKind,
+  getRemoteAutomationRunbook,
   mapMissingServicesToDependencies,
   parseRemoteGateResult,
   REMOTE_AUTOMATION_KIND,
+  updateWorkerDeployDocs,
   updateGatewayPublicationDocs,
 } from '../remote-gate.mjs';
 
@@ -25,6 +27,28 @@ test('classifica gateway-borda/publicacao como remote_automable', () => {
   });
 
   assert.equal(kind, REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE);
+});
+
+test('classifica tenant-white-label/deploy em validacao como remote_automable', () => {
+  const target = {
+    state: 'blocked',
+    blockKind: 'pause',
+    responsibility: 'tenant-white-label',
+    cycle: 'deploy',
+    pauseStatus: 'validacao',
+    cycleRow: {
+      status: 'validacao',
+      gate: 'processo',
+      blocker: 'Aguardando Cloudflare dry-run.',
+      nextAction: 'Executar gate remoto.',
+    },
+  };
+
+  assert.equal(getRemoteAutomationKind(target), REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE);
+  assert.equal(
+    getRemoteAutomationRunbook(target)?.modulePath,
+    'aneety-platform/apps/tenant-white-label/worker-tenant-white-label',
+  );
 });
 
 test('parseRemoteGateResult normaliza payload JSON', () => {
@@ -122,6 +146,26 @@ test('updateGatewayPublicationDocs conclui publicacao e aponta backend como pró
   assert.match(updated.gatewayMarkdown, /\| `publicacao` \| `concluido` \|/);
   assert.match(updated.gatewayMarkdown, /\| `backend` \| `triagem` \|/);
   assert.match(updated.indexMarkdown, /\| `gateway-borda` \| Ricardo Malnati \| alta \| `backend` \| `triagem` \|/);
+});
+
+test('updateWorkerDeployDocs conclui deploy e aponta publicacao como próximo ciclo', () => {
+  const sourceResponsibilityMarkdown =
+    '| `deploy` | `validacao` | alta | `processo` | — | Aguardando dry-run. | Executar dry-run. |\n' +
+    '| `publicacao` | `triagem` | alta | `processo` | — | Aguardando deploy. | Executar publicacao depois. |';
+  const sourceIndexMarkdown =
+    '| `tenant-white-label` | Ricardo Malnati | alta | `deploy` | `validacao` | [tenant-white-label](./tenant-white-label.md) | — | Aguardando dry-run. |';
+
+  const updated = updateWorkerDeployDocs({
+    responsibility: 'tenant-white-label',
+    responsibilityMarkdown: sourceResponsibilityMarkdown,
+    indexMarkdown: sourceIndexMarkdown,
+    headSha: '0123456789abcdef0123456789abcdef01234567',
+    dryRunUrl: 'https://github.com/Aneety/ai/actions/runs/123',
+  });
+
+  assert.match(updated.responsibilityMarkdown, /\| `deploy` \| `concluido` \|/);
+  assert.match(updated.responsibilityMarkdown, /\| `publicacao` \| `triagem` \| alta \| `processo` \| — \| — \| Executar `publicacao`/);
+  assert.match(updated.indexMarkdown, /\| `tenant-white-label` \| Ricardo Malnati \| alta \| `publicacao` \| `triagem` \|/);
 });
 
 test('buildWorkflowDispatchNonce inclui responsabilidade, ciclo e estágio', () => {
