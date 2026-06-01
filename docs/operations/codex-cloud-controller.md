@@ -22,6 +22,8 @@ Este documento descreve o modo cloud-safe do controlador de implementação da A
 - `.codex/cloud/publish-operational-update.sh` — publica mudanças operacionais geradas pelo próprio scheduler, sem depender de diff vindo da task cloud.
 - `.codex/cloud/mirror-actions-secrets.sh` — bootstrap operacional para espelhar segredos Cloudflare do ambiente Codex Cloud para GitHub Actions secrets, sem imprimir valores.
 
+O controlador suporta múltiplas tasks cloud em paralelo quando os targets forem independentes, mas continua com uma única fila serial de publicação/PR/merge. Em outras palavras: o Codex Cloud pode trabalhar em mais de uma responsabilidade ao mesmo tempo; o GitHub continua sendo reconciliado um item por vez.
+
 ## Variáveis e segredos
 
 `GH_TOKEN` é necessário para o **scheduler** publicar PRs, ler checks e reconciliar merge. A task cloud não é mais writer oficial do GitHub. Configure como environment variable do executor local do scheduler e, se a task cloud precisar apenas consultar GitHub, limite o uso a leitura.
@@ -52,7 +54,7 @@ Use allowlist mínima:
 
 - Codex Cloud deve preparar código fonte, documentação operacional e diff auditável; a mutação GitHub oficial é **scheduler-only**.
 - O scheduler publica o diff com `.codex/cloud/publish-task-diff.sh` exclusivamente em worktree isolado e sem tocar no checkout canônico, e reconcilia checks/merge com `.codex/cloud/reconcile-controller-pr.mjs`.
-- Quando um ciclo estiver pausado por blocker `remote_automable`, o scheduler pode resolver o trecho remoto por GitHub Actions, registrar artefato versionado e abrir uma PR operacional própria para concluir o ciclo sem criar task cloud repetida.
+- Quando um ciclo estiver pausado por blocker `remote_automable`, o scheduler só tenta o trecho remoto por GitHub Actions depois que a fila de publicação e a janela paralela de tasks cloud estiverem vazias; assim, o blocker remoto não congela outras responsabilidades independentes.
 - Quando o ciclo pausado também declarar dependências automáveis na matriz, o scheduler deve preemptar o item pai e abrir/avançar tasks dos dependentes até `deploy=concluido` antes de voltar ao gate remoto do pai.
 - Para `gateway-borda/publicacao`, o contrato atual exige primeiro `tenant-white-label/deploy`, `identidade-acesso/deploy` e `onboarding-acesso/deploy` verdes; só depois o scheduler pode insistir em `deploy`/`smoke` do gateway.
 - Nem Codex Cloud nem scheduler devem aplicar diff no checkout canônico do executor; o merge automático acontece no GitHub e o worktree isolado é apenas reconciliado de volta para `origin/main`.

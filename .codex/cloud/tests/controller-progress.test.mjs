@@ -100,7 +100,7 @@ test('alerta cloud_task_list_empty sem sucesso recente, sem PR e fora da janela'
 
   assert.equal(derived.hasRecentSuccess, false);
   assert.equal(derived.shouldWarnCloudTaskListEmpty, true);
-  assert.equal(derived.controllerProgressState, 'ready_for_cycle');
+  assert.equal(derived.controllerProgressState, 'ready_for_more_parallel_work');
 });
 
 test('mudanca apenas narrativa nao conta como progresso', () => {
@@ -153,6 +153,26 @@ test('backlog pausado mostra paused_waiting_external_gate e nao alerta task vazi
   assert.equal(derived.schedulerFunctionalState, 'paused');
   assert.equal(derived.controllerProgressState, 'paused_waiting_manual_external_gate');
   assert.equal(derived.shouldWarnCloudTaskListEmpty, false);
+});
+
+test('backlog pausado com alvos paralelos elegiveis mostra ready_for_more_parallel_work', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: pausedTarget('bloqueado'),
+    runtimeState: {
+      nextScheduledRunAt: '2026-05-31T20:00:00Z',
+      schedulerStartedAt: '2026-05-31T17:00:00Z',
+      lastCycleStartedAt: '2026-05-31T19:00:00Z',
+      lastFunctionalState: 'paused',
+      lastParallelEligibleTargets: ['tenant-white-label/publicacao', 'identidade-acesso/publicacao'],
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 0,
+    nowMs: now,
+  });
+
+  assert.equal(derived.schedulerFunctionalState, 'ready');
+  assert.equal(derived.controllerProgressState, 'ready_for_more_parallel_work');
 });
 
 test('health degradado mostra degraded_health', () => {
@@ -237,9 +257,16 @@ test('dependencia em andamento mostra dependency_cycle_running', () => {
       nextScheduledRunAt: '2026-05-31T20:00:00Z',
       schedulerStartedAt: '2026-05-31T17:00:00Z',
       lastCycleStartedAt: '2026-05-31T19:00:00Z',
-      lastDependencyParentResponsibility: 'gateway-borda',
-      lastDependencyTargetResponsibility: 'tenant-white-label',
-      lastDependencyState: 'watching_task',
+      activeTasks: [
+        {
+          taskId: 'task_1',
+          responsibility: 'tenant-white-label',
+          cycle: 'deploy',
+          state: 'pending',
+          dependencyParentResponsibility: 'gateway-borda',
+          dependencyParentCycle: 'publicacao',
+        },
+      ],
     },
     mainSha: 'abc123',
     openControllerPrState: 'none',
@@ -247,17 +274,24 @@ test('dependencia em andamento mostra dependency_cycle_running', () => {
     nowMs: now,
   });
 
-  assert.equal(derived.controllerProgressState, 'dependency_cycle_running');
+  assert.equal(derived.controllerProgressState, 'dependency_chain_in_progress');
 });
 
-test('task cloud ativa mostra running_cloud_task fora da cadeia de dependencia', () => {
+test('task cloud ativa mostra parallel_tasks_running fora da cadeia de dependencia', () => {
   const derived = deriveMonitorState({
     resolvedTarget: actionableTarget(),
     runtimeState: {
       nextScheduledRunAt: '2026-05-31T20:00:00Z',
       schedulerStartedAt: '2026-05-31T17:00:00Z',
       lastCycleStartedAt: '2026-05-31T19:00:00Z',
-      lastTaskState: 'pending',
+      activeTasks: [
+        {
+          taskId: 'task_1',
+          responsibility: 'tenant-white-label',
+          cycle: 'deploy',
+          state: 'pending',
+        },
+      ],
     },
     mainSha: 'abc123',
     openControllerPrState: 'none',
@@ -266,7 +300,7 @@ test('task cloud ativa mostra running_cloud_task fora da cadeia de dependencia',
     nowMs: now,
   });
 
-  assert.equal(derived.controllerProgressState, 'running_cloud_task');
+  assert.equal(derived.controllerProgressState, 'parallel_tasks_running');
   assert.equal(derived.shouldWarnCloudTaskListEmpty, false);
 });
 
@@ -289,4 +323,38 @@ test('cadeia de dependencias em progresso mostra dependency_chain_in_progress', 
   });
 
   assert.equal(derived.controllerProgressState, 'dependency_chain_in_progress');
+});
+
+test('fila de publicacao pronta tem prioridade sobre task mais recente pendente', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: actionableTarget(),
+    runtimeState: {
+      nextScheduledRunAt: '2026-05-31T20:00:00Z',
+      schedulerStartedAt: '2026-05-31T17:00:00Z',
+      lastCycleStartedAt: '2026-05-31T19:00:00Z',
+      activeTasks: [
+        {
+          taskId: 'task_ready',
+          responsibility: 'tenant-white-label',
+          cycle: 'publicacao',
+          state: 'ready',
+        },
+        {
+          taskId: 'task_pending',
+          responsibility: 'onboarding-acesso',
+          cycle: 'deploy',
+          state: 'pending',
+        },
+      ],
+      publishQueue: ['task_ready'],
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 2,
+    latestCloudTaskStatus: 'pending',
+    nowMs: now,
+  });
+
+  assert.equal(derived.publishQueueCount, 1);
+  assert.equal(derived.controllerProgressState, 'publish_queue_pending');
 });

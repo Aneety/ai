@@ -4,7 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { CYCLE_ORDER } from '../controller-constants.mjs';
-import { loadControllerBacklog, resolveNextBacklogTarget } from '../controller-backlog.mjs';
+import {
+  loadControllerBacklog,
+  resolveNextBacklogTarget,
+  resolveParallelBacklogTargets,
+} from '../controller-backlog.mjs';
 
 function row(cycle, status = 'triagem', priority = 'alta', blocker = '—', nextAction = 'Executar.') {
   return `| \`${cycle}\` | \`${status}\` | ${priority} | \`gate\` | — | ${blocker} | ${nextAction} |`;
@@ -309,6 +313,100 @@ test('retorna complete quando tudo está concluido ou na', async () => {
     const backlog = await loadControllerBacklog(root);
     const target = resolveNextBacklogTarget(backlog);
     assert.equal(target.state, 'complete');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('janela paralela retorna alvos independentes e deduplica dependencia ja selecionada', async () => {
+  const root = await createFixture({
+    indexRows: [
+      '| `gateway-borda` | Ricardo | alta | `publicacao` | `bloqueado` | [gateway-borda](./gateway-borda.md) | — | Dependências pendentes |',
+      '| `tenant-white-label` | Ricardo | alta | `publicacao` | `triagem` | [tenant-white-label](./tenant-white-label.md) | — | — |',
+      '| `identidade-acesso` | Ricardo | alta | `deploy` | `pronto` | [identidade-acesso](./identidade-acesso.md) | — | — |',
+      '| `onboarding-acesso` | Ricardo | alta | `deploy` | `pronto` | [onboarding-acesso](./onboarding-acesso.md) | — | — |',
+    ],
+    responsibilityRows: {
+      'gateway-borda': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'bloqueado', blocker: 'Dependências pendentes.' },
+      },
+      'tenant-white-label': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'triagem' },
+      },
+      'identidade-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'pronto' },
+      },
+      'onboarding-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'pronto' },
+      },
+    },
+    dependencyRows: [
+      '| `gateway-borda` | `publicacao` | `tenant-white-label/deploy`, `identidade-acesso/deploy`, `onboarding-acesso/deploy` | Preemptar dependências antes do remote gate. |',
+    ],
+  });
+
+  try {
+    const backlog = await loadControllerBacklog(root);
+    const window = resolveParallelBacklogTargets(backlog, { limit: 4 });
+    assert.deepEqual(
+      window.targets.map((target) => `${target.responsibility}/${target.cycle}`).sort(),
+      ['identidade-acesso/deploy', 'onboarding-acesso/deploy', 'tenant-white-label/publicacao'].sort(),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('janela paralela respeita targets ocupados e marca exclusao por mesma responsabilidade', async () => {
+  const root = await createFixture({
+    indexRows: [
+      '| `tenant-white-label` | Ricardo | alta | `publicacao` | `triagem` | [tenant-white-label](./tenant-white-label.md) | — | — |',
+      '| `identidade-acesso` | Ricardo | alta | `deploy` | `pronto` | [identidade-acesso](./identidade-acesso.md) | — | — |',
+      '| `onboarding-acesso` | Ricardo | alta | `deploy` | `pronto` | [onboarding-acesso](./onboarding-acesso.md) | — | — |',
+    ],
+    responsibilityRows: {
+      'tenant-white-label': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'triagem' },
+      },
+      'identidade-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'pronto' },
+      },
+      'onboarding-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'pronto' },
+      },
+    },
+  });
+
+  try {
+    const backlog = await loadControllerBacklog(root);
+    const occupiedTarget = {
+      state: 'actionable',
+      responsibility: 'identidade-acesso',
+      cycle: 'deploy',
+      cycleRow: { status: 'pronto', gate: 'processo' },
+    };
+    const window = resolveParallelBacklogTargets(backlog, {
+      limit: 4,
+      excludeTargets: [occupiedTarget],
+    });
+    assert.deepEqual(
+      window.targets.map((target) => `${target.responsibility}/${target.cycle}`),
+      ['tenant-white-label/publicacao', 'onboarding-acesso/deploy'],
+    );
+    assert.match(
+      window.excluded.map((item) => `${item.responsibility}/${item.reason}`).join(','),
+      /identidade-acesso\/same_responsibility|identidade-acesso\/duplicate_active_task/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -9,7 +9,9 @@ import { pathToFileURL } from 'node:url';
 import {
   buildActionableSignature,
   loadControllerBacklog,
+  resolveParallelBacklogTargets,
   resolveNextBacklogTarget,
+  resolveResponsibilityTarget,
 } from './controller-backlog.mjs';
 import { compareTargets, isStableBlockedTarget } from './controller-progress.mjs';
 import { runControllerHealthCheck } from './health-check.mjs';
@@ -53,6 +55,7 @@ const isolatedWorktree =
     'ai',
   );
 const autoPublishDiff = process.env.CODEX_CLOUD_AUTO_PUBLISH_DIFF !== '0';
+const parallelLimit = positiveInteger(process.env.CODEX_CLOUD_MAX_PARALLEL_TASKS, 4);
 const prWatchInterval = positiveInteger(process.env.CODEX_CLOUD_PR_WATCH_INTERVAL, 30);
 const prWatchMaxPolls = positiveInteger(process.env.CODEX_CLOUD_PR_WATCH_MAX_POLLS, 60);
 const mode = process.argv.includes('--once')
@@ -62,6 +65,8 @@ const mode = process.argv.includes('--once')
     : 'schedule';
 
 let executionRoot = canonicalRepoRoot;
+const NON_TERMINAL_TRACKED_STATES = new Set(['pending', 'running', 'ready', 'publishing']);
+const TERMINAL_TRACKED_STATES = new Set(['published', 'superseded', 'failed', 'cancelled']);
 
 function positiveInteger(value, fallback) {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -136,6 +141,222 @@ function mergeDefined(current, patch) {
   }
   next.lastMutationSurface ??= 'scheduler';
   return next;
+}
+
+function normalizeTrackedTaskEntry(task = {}) {
+  if (!task?.taskId) return null;
+  return {
+    taskId: String(task.taskId),
+    taskUrl: task.taskUrl ?? null,
+    responsibility: task.responsibility ?? null,
+    cycle: task.cycle ?? null,
+    signature: task.signature ?? null,
+    baselineMainSha: task.baselineMainSha ?? null,
+    submittedAt: task.submittedAt ?? null,
+    state: String(task.state ?? 'unknown').toLowerCase(),
+    dependencyParentResponsibility: task.dependencyParentResponsibility ?? null,
+    dependencyParentCycle: task.dependencyParentCycle ?? null,
+    dependencyReason: task.dependencyReason ?? null,
+    dependencySource: task.dependencySource ?? null,
+    lastObservedAt: task.lastObservedAt ?? null,
+    publishedAt: task.publishedAt ?? null,
+    supersededAt: task.supersededAt ?? null,
+    supersededReason: task.supersededReason ?? null,
+    prNumber: task.prNumber ?? null,
+    prUrl: task.prUrl ?? null,
+  };
+}
+
+function trackedTaskSelectionKey(task) {
+  return `${task.responsibility ?? 'unknown'}/${task.cycle ?? 'unknown'}/${task.signature ?? 'unknown'}/${
+    task.baselineMainSha ?? 'unknown'
+  }`;
+}
+
+function trackedTaskConflictKey(task) {
+  return `${task.responsibility ?? 'unknown'}/${task.cycle ?? 'unknown'}/${task.signature ?? 'unknown'}`;
+}
+
+function taskMatchesTarget(task, target) {
+  if (!task || !target || target.state !== 'actionable') return false;
+  if (task.responsibility !== target.responsibility) return false;
+  if (task.cycle !== target.cycle) return false;
+  const targetSignature = buildActionableSignature(target);
+  if (task.signature && targetSignature && task.signature !== targetSignature) return false;
+  return true;
+}
+
+function buildTrackedTaskFromTarget(target, {
+  taskId,
+  taskUrl = null,
+  baselineMainSha = null,
+  submittedAt = new Date().toISOString(),
+  state = 'pending',
+} = {}) {
+  return normalizeTrackedTaskEntry({
+    taskId,
+    taskUrl,
+    responsibility: target.responsibility,
+    cycle: target.cycle,
+    signature: buildActionableSignature(target),
+    baselineMainSha,
+    submittedAt,
+    state,
+    dependencyParentResponsibility: target.dependencyParentResponsibility ?? null,
+    dependencyParentCycle: target.dependencyParentCycle ?? null,
+    dependencyReason: target.dependencyReason ?? null,
+    dependencySource: target.dependencySource ?? null,
+  });
+}
+
+function targetFromTrackedTask(backlog, trackedTask) {
+  if (!trackedTask?.responsibility || !trackedTask?.cycle) return null;
+  const detail = backlog.detailsByResponsibility.get(trackedTask.responsibility);
+  const summaryRow = backlog.summaryRows.find((row) => row.responsibility === trackedTask.responsibility);
+  if (!detail || !summaryRow) return null;
+  const cycleRow = detail.cycles.find((row) => row.cycle === trackedTask.cycle);
+  if (!cycleRow) return null;
+  return {
+    state: 'actionable',
+    responsibility: trackedTask.responsibility,
+    cycle: trackedTask.cycle,
+    branchPrefix: `codex/${trackedTask.cycle}-${trackedTask.responsibility}`,
+    summaryRow,
+    detail,
+    cycleRow,
+    matrix: backlog.planningMatrix.get(trackedTask.responsibility) ?? null,
+    backlogMetrics: backlog.metrics,
+    dependencyParentResponsibility: trackedTask.dependencyParentResponsibility ?? null,
+    dependencyParentCycle: trackedTask.dependencyParentCycle ?? null,
+    dependencyReason: trackedTask.dependencyReason ?? undefined,
+    dependencySource: trackedTask.dependencySource ?? undefined,
+  };
+}
+
+function upsertTrackedTask(tasks, entry) {
+  const normalized = normalizeTrackedTaskEntry(entry);
+  if (!normalized) return tasks;
+  const next = [...tasks];
+  const index = next.findIndex((task) => task.taskId === normalized.taskId);
+  if (index === -1) next.push(normalized);
+  else next[index] = { ...next[index], ...normalized };
+  return next;
+}
+
+function migrateLegacyTrackedTasks(state) {
+  const next = { ...state };
+  const normalizedTasks = Array.isArray(next.activeTasks)
+    ? next.activeTasks.map((task) => normalizeTrackedTaskEntry(task)).filter(Boolean)
+    : [];
+  next.activeTasks = normalizedTasks;
+  next.publishQueue = Array.isArray(next.publishQueue)
+    ? [...new Set(next.publishQueue.map((value) => String(value)))]
+    : [];
+
+  const legacyState = String(next.lastTaskState ?? '').toLowerCase();
+  if (
+    next.activeTasks.length === 0 &&
+    next.lastTaskId &&
+    next.lastSubmittedTargetResponsibility &&
+    next.lastSubmittedTargetCycle &&
+    ['pending', 'running', 'ready'].includes(legacyState)
+  ) {
+    const migrated = normalizeTrackedTaskEntry({
+      taskId: next.lastTaskId,
+      taskUrl: next.lastTaskUrl ?? null,
+      responsibility: next.lastSubmittedTargetResponsibility,
+      cycle: next.lastSubmittedTargetCycle,
+      signature: next.lastActionableSignature ?? null,
+      baselineMainSha: next.lastNoProgressMainSha ?? next.lastMergedSha ?? next.lastHealthEvaluatedSha ?? null,
+      submittedAt: next.lastCycleStartedAt ?? next.updatedAt ?? new Date().toISOString(),
+      state: legacyState,
+      dependencyParentResponsibility:
+        next.lastDependencyTargetResponsibility === next.lastSubmittedTargetResponsibility
+          ? next.lastDependencyParentResponsibility ?? null
+          : null,
+      dependencyParentCycle:
+        next.lastDependencyTargetResponsibility === next.lastSubmittedTargetResponsibility
+          ? next.lastDependencyParentCycle ?? null
+          : null,
+      dependencyReason: next.lastDependencyReason ?? null,
+      dependencySource: next.lastDependencySource ?? null,
+    });
+    if (migrated) next.activeTasks.push(migrated);
+    if (migrated?.state === 'ready' && !next.publishQueue.includes(migrated.taskId)) {
+      next.publishQueue.push(migrated.taskId);
+    }
+  }
+
+  return next;
+}
+
+function snapshotLegacyTaskFields(state) {
+  const activeTasks = Array.isArray(state?.activeTasks) ? state.activeTasks : [];
+  const publishQueue = Array.isArray(state?.publishQueue) ? state.publishQueue : [];
+  const prioritized =
+    publishQueue
+      .map((taskId) => activeTasks.find((task) => task.taskId === taskId))
+      .find(Boolean) ??
+    activeTasks.find((task) => NON_TERMINAL_TRACKED_STATES.has(task.state)) ??
+    activeTasks[0] ??
+    null;
+
+  const dependencyTask = activeTasks.find(
+    (task) => NON_TERMINAL_TRACKED_STATES.has(task.state) && task.dependencyParentResponsibility,
+  );
+
+  return {
+    lastTaskId: prioritized?.taskId ?? null,
+    lastTaskState: prioritized?.state ?? null,
+    lastTaskUrl: prioritized?.taskUrl ?? null,
+    lastSubmittedTargetResponsibility: prioritized?.responsibility ?? null,
+    lastSubmittedTargetCycle: prioritized?.cycle ?? null,
+    lastDependencyTargetResponsibility:
+      dependencyTask?.responsibility ??
+      (prioritized?.dependencyParentResponsibility ? prioritized.responsibility : null),
+    lastDependencyTargetCycle:
+      dependencyTask?.cycle ?? (prioritized?.dependencyParentResponsibility ? prioritized.cycle : null),
+  };
+}
+
+export function reconcileTrackedTaskPool(tasks = []) {
+  const normalized = tasks.map((task) => normalizeTrackedTaskEntry(task)).filter(Boolean);
+  const groups = new Map();
+  for (const task of normalized) {
+    const key = trackedTaskConflictKey(task);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(task);
+  }
+
+  const now = new Date().toISOString();
+  const next = [];
+  for (const grouped of groups.values()) {
+    const sorted = [...grouped].sort((left, right) => {
+      const leftTime = Date.parse(left.submittedAt ?? '') || 0;
+      const rightTime = Date.parse(right.submittedAt ?? '') || 0;
+      return rightTime - leftTime;
+    });
+    const winner = sorted[0];
+    next.push(winner);
+    for (const task of sorted.slice(1)) {
+      if (TERMINAL_TRACKED_STATES.has(task.state) || task.state === 'superseded') {
+        next.push(task);
+        continue;
+      }
+      next.push({
+        ...task,
+        state: 'superseded',
+        supersededAt: task.supersededAt ?? now,
+        supersededReason: task.supersededReason ?? `superseded_by=${winner.taskId}`,
+      });
+    }
+  }
+
+  return next.sort((left, right) => {
+    const leftTime = Date.parse(left.submittedAt ?? '') || 0;
+    const rightTime = Date.parse(right.submittedAt ?? '') || 0;
+    return leftTime - rightTime;
+  });
 }
 
 function controllerEnv(target) {
@@ -214,11 +435,30 @@ export function shouldSubmitControllerTask({
   healthState = 'ready',
   openControllerPrState = 'none',
   activeTaskState = null,
+  activeTaskCount = 0,
+  maxParallelTasks = parallelLimit,
 } = {}) {
   if (healthState !== 'ready') return false;
   if (openControllerPrState !== 'none') return false;
   if (['pending', 'running'].includes(String(activeTaskState ?? '').toLowerCase())) return false;
+  if (activeTaskCount >= maxParallelTasks) return false;
   return resolvedTarget?.state === 'actionable';
+}
+
+export function shouldAttemptRemoteGate({
+  resolvedTarget,
+  remoteAutomationAvailable = false,
+  activeTaskCount = 0,
+  publishQueueCount = 0,
+  parallelEligibleCount = 0,
+} = {}) {
+  if (!remoteAutomationAvailable) return false;
+  if (resolvedTarget?.state !== 'blocked') return false;
+  if (resolvedTarget?.blockKind !== 'pause') return false;
+  if (activeTaskCount > 0) return false;
+  if (publishQueueCount > 0) return false;
+  if (parallelEligibleCount > 0) return false;
+  return true;
 }
 
 async function runBash(command, options = {}) {
@@ -261,15 +501,23 @@ async function assertReadable(filePath) {
 async function loadRuntimeState() {
   try {
     const raw = await readFile(stateFile, 'utf8');
-    return JSON.parse(raw);
+    return migrateLegacyTrackedTasks(JSON.parse(raw));
   } catch {
-    return {};
+    return migrateLegacyTrackedTasks({});
   }
 }
 
 async function writeRuntimeState(patch) {
   const current = await loadRuntimeState();
   const next = mergeDefined(current, patch);
+  next.activeTasks = reconcileTrackedTaskPool(
+    Array.isArray(next.activeTasks) ? next.activeTasks : current.activeTasks ?? [],
+  );
+  next.publishQueue = Array.isArray(next.publishQueue)
+    ? [...new Set(next.publishQueue.map((value) => String(value)))]
+    : current.publishQueue ?? [];
+  const legacySnapshot = snapshotLegacyTaskFields(next);
+  Object.assign(next, legacySnapshot);
   next.updatedAt = new Date().toISOString();
   await mkdir(path.dirname(stateFile), { recursive: true, mode: 0o700 });
   await writeFile(stateFile, `${JSON.stringify(next, null, 2)}\n`);
@@ -516,83 +764,114 @@ function isDependencyTarget(target) {
 }
 
 async function executeActionableTarget({ targetBefore, mainSha }) {
+  const trackedTask = await submitTrackedTask(targetBefore, mainSha);
+  const runtimeState = await loadRuntimeState();
+  const activeTasks = upsertTrackedTask(runtimeState.activeTasks ?? [], trackedTask);
   await persistResolvedTarget(targetBefore, {
-    lastCycleState: cycleStateFromResolvedTarget(targetBefore),
-    lastFunctionalState: describeResolvedTargetState(targetBefore).functionalState ?? 'ready',
+    activeTasks,
+    publishQueue: runtimeState.publishQueue ?? [],
+    lastCycleState: 'running',
+    lastFunctionalState: 'ready',
     healthState: 'ready',
-    lastDependencyState: isDependencyTarget(targetBefore) ? 'task_submitted' : null,
+    lastTaskCompletedAt: null,
+    lastDependencyState: isDependencyTarget(targetBefore) ? 'watching_task' : null,
+    lastError: null,
+    lastErrorAt: null,
   });
+  log(`task_submitted task=${trackedTask.taskId} target=${targetBefore.responsibility}/${targetBefore.cycle}`);
+}
 
-  const submit = await runBash(
-    withEnvFile('.codex/cloud/submit-controller-task.sh', controllerEnv(targetBefore)),
+function resolveTrackedTaskForPublish(backlog, trackedTask) {
+  const frontier = resolveResponsibilityTarget(backlog, trackedTask.responsibility);
+  if (frontier.state !== 'actionable') {
+    return { publishable: false, reason: `responsibility_frontier=${frontier.state}` };
+  }
+  const expectedSignature = buildActionableSignature(frontier);
+  if (frontier.cycle !== trackedTask.cycle) {
+    return { publishable: false, reason: `cycle_advanced=${frontier.cycle}` };
+  }
+  if (trackedTask.signature && expectedSignature && trackedTask.signature !== expectedSignature) {
+    return { publishable: false, reason: 'signature_changed' };
+  }
+  return { publishable: true, target: frontier };
+}
+
+async function markTrackedTaskState(taskId, patch = {}) {
+  const { removeFromQueue = false, ...taskPatch } = patch;
+  const runtimeState = await loadRuntimeState();
+  const activeTasks = (runtimeState.activeTasks ?? []).map((task) =>
+    task.taskId === taskId ? { ...task, ...taskPatch } : task,
   );
-  if (submit.code !== 0) throw new Error(`submit failed with exit ${submit.code}`);
-
-  const taskId = extractTaskId(submit.output);
-  if (!taskId) throw new Error('submit did not emit a task id');
-  const taskUrl = extractTaskUrl(submit.output);
-
+  const publishQueue = (runtimeState.publishQueue ?? []).filter(
+    (queuedTaskId) => (removeFromQueue ? queuedTaskId !== taskId : true),
+  );
   await writeRuntimeState({
-    lastTaskId: taskId,
-    lastTaskState: 'pending',
-    lastTaskUrl: taskUrl ?? null,
-    lastSubmittedTargetResponsibility: targetBefore.responsibility,
-    lastSubmittedTargetCycle: targetBefore.cycle,
-    lastDependencyState: isDependencyTarget(targetBefore) ? 'watching_task' : undefined,
+    activeTasks,
+    publishQueue,
+  });
+}
+
+async function processPublishQueue({ backlog, mainSha }) {
+  let runtimeState = await refreshTrackedTasks(await loadRuntimeState());
+  await writeRuntimeState({
+    activeTasks: runtimeState.activeTasks,
+    publishQueue: runtimeState.publishQueue,
   });
 
-  log(`watching task=${taskId}`);
-  const watch = await runBash(withEnvFile(`.codex/cloud/watch-task.sh ${shellQuote(taskId)}`));
-  const watchStatus = normalizeCloudTaskStatus(watch.output);
-  if (watch.code !== 0) {
+  const queuedTasks = normalizePublishQueue(runtimeState);
+  for (const queuedTask of queuedTasks) {
+    const publishResolution = resolveTrackedTaskForPublish(backlog, queuedTask);
+    if (!publishResolution.publishable) {
+      await markTrackedTaskState(queuedTask.taskId, {
+        state: 'superseded',
+        supersededAt: new Date().toISOString(),
+        supersededReason: publishResolution.reason,
+        removeFromQueue: true,
+      });
+      log(`task_superseded task=${queuedTask.taskId} reason=${publishResolution.reason}`);
+      continue;
+    }
+
+    await markTrackedTaskState(queuedTask.taskId, {
+      state: 'publishing',
+      lastObservedAt: new Date().toISOString(),
+    });
+    const publish = await publishTaskDiff(queuedTask.taskId, publishResolution.target);
+    if (publish.prState === 'no_diff') {
+      await markTrackedTaskState(queuedTask.taskId, {
+        state: 'superseded',
+        supersededAt: new Date().toISOString(),
+        supersededReason: 'no_diff',
+        removeFromQueue: true,
+      });
+      log(`task_no_diff task=${queuedTask.taskId}`);
+      continue;
+    }
+
+    await markTrackedTaskState(queuedTask.taskId, {
+      state: 'publishing',
+      prNumber: publish.prNumber ?? null,
+      prUrl: publish.prUrl ?? null,
+      lastObservedAt: new Date().toISOString(),
+      removeFromQueue: true,
+    });
     await writeRuntimeState({
-      lastTaskId: taskId,
-      lastTaskState: watchStatus,
+      lastTaskCompletedAt: new Date().toISOString(),
+      lastCycleState: 'awaiting_pr_merge',
+      lastFunctionalState: 'ready',
+      lastDependencyState: queuedTask.dependencyParentResponsibility ? 'awaiting_pr_merge' : null,
+      lastError: null,
+      lastErrorAt: null,
     });
-    throw new Error(`watch failed with exit ${watch.code}`);
-  }
-  await writeRuntimeState({
-    lastTaskId: taskId,
-    lastTaskState: watchStatus,
-    lastTaskCompletedAt: new Date().toISOString(),
-    lastDependencyState: isDependencyTarget(targetBefore) ? 'publishing_diff' : undefined,
-  });
-
-  await publishTaskDiff(taskId, targetBefore);
-  await writeRuntimeState({
-    lastDependencyState: isDependencyTarget(targetBefore) ? 'awaiting_pr_merge' : undefined,
-  });
-  const publishedReconciliation = await reconcileOpenControllerPr({ wait: true });
-
-  if (publishedReconciliation.state === 'merged') {
-    const mergedSha = await syncIsolatedWorktreeToMain();
-    const { resolved: targetAfterMerge } = await resolveCurrentBacklog();
-    await finalizeProgress({
-      targetBefore,
-      targetAfter: targetAfterMerge,
-      mainSha,
-      openControllerPrState: 'merged',
-      cycleCompletedAt: new Date().toISOString(),
-      mergedSha,
-      mergedPrNumber: publishedReconciliation.prNumber ?? null,
-    });
-    log(`cycle_finished_merged_pr=#${publishedReconciliation.prNumber} sha=${mergedSha}`);
-    return;
+    return {
+      state: 'published',
+      taskId: queuedTask.taskId,
+      target: publishResolution.target,
+      prState: publish.prState,
+    };
   }
 
-  const { resolved: targetAfter } = await resolveCurrentBacklog();
-  const finalized = await finalizeProgress({
-    targetBefore,
-    targetAfter,
-    mainSha,
-    openControllerPrState: publishedReconciliation.state,
-    cycleCompletedAt: new Date().toISOString(),
-  });
-  log(
-    `cycle finished state=${finalized.finalState} target_before=${targetBefore.responsibility}/${targetBefore.cycle} target_after=${
-      targetAfter.state === 'actionable' ? `${targetAfter.responsibility}/${targetAfter.cycle}` : targetAfter.state
-    }`,
-  );
+  return { state: 'empty' };
 }
 
 async function readCloudTaskStatus(taskId) {
@@ -609,15 +888,114 @@ async function readCloudTaskStatus(taskId) {
   };
 }
 
-async function findReusableActiveTask(target, runtimeState) {
+function findTrackedTaskForTarget(target, runtimeState, states = NON_TERMINAL_TRACKED_STATES) {
   if (!target || target.state !== 'actionable') return null;
-  if (!runtimeState?.lastTaskId) return null;
-  if (runtimeState.lastSubmittedTargetResponsibility !== target.responsibility) return null;
-  if (runtimeState.lastSubmittedTargetCycle !== target.cycle) return null;
+  const tasks = Array.isArray(runtimeState?.activeTasks) ? runtimeState.activeTasks : [];
+  return (
+    tasks.find(
+      (task) =>
+        taskMatchesTarget(task, target) &&
+        states.has(task.state) &&
+        (task.signature == null || task.signature === buildActionableSignature(target)),
+    ) ?? null
+  );
+}
 
-  const task = await readCloudTaskStatus(runtimeState.lastTaskId);
-  if (!['pending', 'running'].includes(task.status)) return null;
-  return task;
+function normalizePublishQueue(runtimeState) {
+  const tasks = Array.isArray(runtimeState?.activeTasks) ? runtimeState.activeTasks : [];
+  const queue = Array.isArray(runtimeState?.publishQueue) ? runtimeState.publishQueue : [];
+  return [...new Set(queue)]
+    .map((taskId) => tasks.find((task) => task.taskId === taskId))
+    .filter((task) => task && ['ready', 'publishing'].includes(task.state))
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.submittedAt ?? '') || 0;
+      const rightTime = Date.parse(right.submittedAt ?? '') || 0;
+      return leftTime - rightTime;
+    });
+}
+
+async function refreshTrackedTasks(runtimeState) {
+  const currentTasks = Array.isArray(runtimeState?.activeTasks) ? runtimeState.activeTasks : [];
+  let nextTasks = [...currentTasks];
+  let nextQueue = Array.isArray(runtimeState?.publishQueue) ? [...runtimeState.publishQueue] : [];
+
+  for (const task of currentTasks) {
+    if (!NON_TERMINAL_TRACKED_STATES.has(task.state) || task.state === 'publishing') continue;
+    const status = await readCloudTaskStatus(task.taskId);
+    const normalizedTask = {
+      ...task,
+      state: status.status,
+      taskUrl: task.taskUrl ?? status.taskUrl ?? null,
+      lastObservedAt: new Date().toISOString(),
+    };
+    nextTasks = upsertTrackedTask(nextTasks, normalizedTask);
+  }
+
+  nextTasks = reconcileTrackedTaskPool(nextTasks);
+  for (const task of nextTasks) {
+    if (task.state === 'ready' && !nextQueue.includes(task.taskId)) {
+      nextQueue.push(task.taskId);
+    }
+    if (!['ready', 'publishing'].includes(task.state)) {
+      nextQueue = nextQueue.filter((taskId) => taskId !== task.taskId);
+    }
+  }
+
+  const normalizedQueue = normalizePublishQueue({
+    activeTasks: nextTasks,
+    publishQueue: nextQueue,
+  }).map((task) => task.taskId);
+
+  return {
+    ...runtimeState,
+    activeTasks: nextTasks,
+    publishQueue: normalizedQueue,
+  };
+}
+
+function getOccupiedActionableTargets(runtimeState, backlog) {
+  const occupied = [];
+  for (const task of Array.isArray(runtimeState?.activeTasks) ? runtimeState.activeTasks : []) {
+    if (!NON_TERMINAL_TRACKED_STATES.has(task.state)) continue;
+    const target = targetFromTrackedTask(backlog, task);
+    if (target) occupied.push(target);
+  }
+  return occupied;
+}
+
+function countTrackedTasks(runtimeState, states = []) {
+  const tasks = Array.isArray(runtimeState?.activeTasks) ? runtimeState.activeTasks : [];
+  const allowedStates = new Set(states);
+  return tasks.filter((task) => allowedStates.has(task.state)).length;
+}
+
+function countActiveDependencyChains(runtimeState) {
+  const tasks = Array.isArray(runtimeState?.activeTasks) ? runtimeState.activeTasks : [];
+  const parents = new Set();
+  for (const task of tasks) {
+    if (!NON_TERMINAL_TRACKED_STATES.has(task.state)) continue;
+    if (!task.dependencyParentResponsibility || !task.dependencyParentCycle) continue;
+    parents.add(`${task.dependencyParentResponsibility}/${task.dependencyParentCycle}`);
+  }
+  return parents.size;
+}
+
+async function submitTrackedTask(target, baselineMainSha) {
+  const submit = await runBash(
+    withEnvFile('.codex/cloud/submit-controller-task.sh', controllerEnv(target)),
+  );
+  if (submit.code !== 0) throw new Error(`submit failed with exit ${submit.code}`);
+
+  const taskId = extractTaskId(submit.output);
+  if (!taskId) throw new Error('submit did not emit a task id');
+  const taskUrl = extractTaskUrl(submit.output);
+  return buildTrackedTaskFromTarget(target, {
+    taskId,
+    taskUrl,
+    baselineMainSha,
+    submittedAt: new Date().toISOString(),
+    state: 'pending',
+  });
 }
 
 async function recordRemoteActionState(patch = {}) {
@@ -936,10 +1314,9 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
         lastNoProgressMainSha: null,
       });
       log(`cycle_finished_merged_pr=#${initialReconciliation.prNumber} sha=${mergedSha}`);
-      return;
     }
 
-    if (initialReconciliation.state !== 'none') {
+    if (!['none', 'merged'].includes(initialReconciliation.state)) {
       const failedPr = ['failed', 'timeout'].includes(initialReconciliation.state);
       await writeRuntimeState({
         openControllerPrState: initialReconciliation.state,
@@ -983,11 +1360,21 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
     }
 
     const mainSha = await readOriginMainSha();
-    const { resolved: targetBefore } = await resolveCurrentBacklog();
+    let runtimeState = await refreshTrackedTasks(await loadRuntimeState());
+    await writeRuntimeState({
+      activeTasks: runtimeState.activeTasks,
+      publishQueue: runtimeState.publishQueue,
+      parallelLimit,
+    });
+
+    const { backlog, resolved: targetBefore } = await resolveCurrentBacklog();
     await persistResolvedTarget(targetBefore, {
       lastCycleState: cycleStateFromResolvedTarget(targetBefore),
       lastFunctionalState: describeResolvedTargetState(targetBefore).functionalState ?? 'ready',
       healthState: 'ready',
+      parallelLimit,
+      activeTasks: runtimeState.activeTasks,
+      publishQueue: runtimeState.publishQueue,
     });
 
     if (targetBefore.state === 'complete') {
@@ -1004,8 +1391,108 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
       return;
     }
 
+    const publishQueueResult = await processPublishQueue({ backlog, mainSha });
+    if (publishQueueResult.state === 'published') {
+      const reconciliation = await reconcileOpenControllerPr({ wait: true });
+      if (reconciliation.state === 'merged') {
+        const mergedSha = await syncIsolatedWorktreeToMain();
+        await markTrackedTaskState(publishQueueResult.taskId, {
+          state: 'published',
+          publishedAt: new Date().toISOString(),
+          lastObservedAt: new Date().toISOString(),
+        });
+        const { resolved: targetAfterMerge } = await resolveCurrentBacklog();
+        await finalizeProgress({
+          targetBefore: publishQueueResult.target,
+          targetAfter: targetAfterMerge,
+          mainSha,
+          openControllerPrState: 'merged',
+          cycleCompletedAt: new Date().toISOString(),
+          mergedSha,
+          mergedPrNumber: reconciliation.prNumber ?? null,
+        });
+        log(`cycle_finished_published_task task=${publishQueueResult.taskId} pr=#${reconciliation.prNumber ?? 'unknown'} sha=${mergedSha}`);
+        return;
+      }
+
+      await writeRuntimeState({
+        lastCycleCompletedAt: new Date().toISOString(),
+        lastCycleState: ['failed', 'timeout'].includes(reconciliation.state) ? 'blocked' : 'awaiting_pr_merge',
+        lastFunctionalState: ['failed', 'timeout'].includes(reconciliation.state) ? 'degraded' : 'ready',
+        openControllerPrState: reconciliation.state,
+        healthState: 'ready',
+        lastError:
+          ['failed', 'timeout'].includes(reconciliation.state)
+            ? `open_controller_pr_state=${reconciliation.state}`
+            : null,
+        lastErrorAt:
+          ['failed', 'timeout'].includes(reconciliation.state) ? new Date().toISOString() : null,
+      });
+      log(`publish_queue_pending task=${publishQueueResult.taskId} pr_state=${reconciliation.state}`);
+      return;
+    }
+
+    runtimeState = await refreshTrackedTasks(await loadRuntimeState());
+    await writeRuntimeState({
+      activeTasks: runtimeState.activeTasks,
+      publishQueue: runtimeState.publishQueue,
+    });
+
+    const pendingRunningCount = countTrackedTasks(runtimeState, ['pending', 'running']);
+    const publishQueueCount = normalizePublishQueue(runtimeState).length;
+    const trackedReadyTaskCount = countTrackedTasks(runtimeState, ['ready']);
+    const supersededTaskCount = countTrackedTasks(runtimeState, ['superseded']);
+    const activeDependencyChainCount = countActiveDependencyChains(runtimeState);
+    const occupiedTargets = getOccupiedActionableTargets(runtimeState, backlog);
+    const slotsAvailable = Math.max(parallelLimit - pendingRunningCount, 0);
+    const parallelWindow = resolveParallelBacklogTargets(backlog, {
+      limit: slotsAvailable,
+      excludeTargets: occupiedTargets,
+    });
+
+    await writeRuntimeState({
+      lastParallelLimit: parallelLimit,
+      lastActiveTaskCount: pendingRunningCount,
+      lastPublishQueueCount: publishQueueCount,
+      lastTrackedReadyTaskCount: trackedReadyTaskCount,
+      lastSupersededTaskCount: supersededTaskCount,
+      lastActiveDependencyChainCount: activeDependencyChainCount,
+      lastParallelEligibleTargets: parallelWindow.targets.map((target) => `${target.responsibility}/${target.cycle}`),
+      lastParallelExcludedTargets: parallelWindow.excluded.map((item) => `${item.responsibility}/${item.cycle ?? 'none'}:${item.reason}`),
+    });
+
+    if (slotsAvailable > 0 && parallelWindow.targets.length > 0) {
+      for (const target of parallelWindow.targets) {
+        if (findTrackedTaskForTarget(target, runtimeState)) continue;
+        await executeActionableTarget({ targetBefore: target, mainSha });
+        runtimeState = await loadRuntimeState();
+      }
+
+      await writeRuntimeState({
+        lastCycleCompletedAt: new Date().toISOString(),
+        lastCycleState: 'running',
+        lastFunctionalState: 'ready',
+        healthState: 'ready',
+        openControllerPrState: 'none',
+        lastError: null,
+        lastErrorAt: null,
+      });
+      log(
+        `parallel_submissions_submitted count=${parallelWindow.targets.length} slots=${slotsAvailable} pending_running=${countTrackedTasks(runtimeState, ['pending', 'running'])}`,
+      );
+      return;
+    }
+
     const remoteRunbook = getRemoteAutomationRunbook(targetBefore);
-    if (targetBefore.state === 'blocked' && targetBefore.blockKind === 'pause' && remoteRunbook) {
+    if (
+      shouldAttemptRemoteGate({
+        resolvedTarget: targetBefore,
+        remoteAutomationAvailable: Boolean(remoteRunbook),
+        activeTaskCount: pendingRunningCount,
+        publishQueueCount,
+        parallelEligibleCount: parallelWindow.targets.length,
+      })
+    ) {
       const remoteResult = await executeRemoteGateForTarget(targetBefore, mainSha);
       if (!remoteResult.ok) {
         const fallbackDependencies =
@@ -1038,6 +1525,12 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
               `remote_gate_dependency_preempted parent=${targetBefore.responsibility}/${targetBefore.cycle} target=${dependencyTarget.responsibility}/${dependencyTarget.cycle}`,
             );
             await executeActionableTarget({ targetBefore: dependencyTarget, mainSha });
+            await writeRuntimeState({
+              lastCycleCompletedAt: new Date().toISOString(),
+              lastCycleState: 'running',
+              lastFunctionalState: 'ready',
+              healthState: 'ready',
+            });
             return;
           }
         }
@@ -1096,6 +1589,22 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
       return;
     }
 
+    if (targetBefore.state === 'blocked' && (pendingRunningCount > 0 || publishQueueCount > 0 || parallelWindow.targets.length > 0)) {
+      await persistResolvedTarget(targetBefore, {
+        lastCycleCompletedAt: new Date().toISOString(),
+        lastCycleState: pendingRunningCount > 0 ? 'running' : 'ready',
+        lastFunctionalState: 'ready',
+        healthState: 'ready',
+        openControllerPrState: 'none',
+        lastError: null,
+        lastErrorAt: null,
+      });
+      log(
+        `parallel_window_waiting blocked_target=${targetBefore.responsibility}/${targetBefore.cycle} slots=${slotsAvailable} pending_running=${pendingRunningCount} eligible=${parallelWindow.targets.length} publish_queue=${publishQueueCount}`,
+      );
+      return;
+    }
+
     if (targetBefore.state === 'blocked') {
       const blockedState = describeResolvedTargetState(targetBefore);
       await persistResolvedTarget(targetBefore, {
@@ -1129,40 +1638,21 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
       return;
     }
 
-    const activeTask = await findReusableActiveTask(targetBefore, previousRuntimeState);
-    if (activeTask) {
-      const activeAt = new Date().toISOString();
+    if (slotsAvailable <= 0 || parallelWindow.targets.length === 0) {
       await persistResolvedTarget(targetBefore, {
-        lastCycleCompletedAt: activeAt,
-        lastCycleState: 'running',
+        lastCycleCompletedAt: new Date().toISOString(),
+        lastCycleState: pendingRunningCount > 0 ? 'running' : cycleStateFromResolvedTarget(targetBefore),
         lastFunctionalState: 'ready',
         healthState: 'ready',
         openControllerPrState: 'none',
-        lastTaskId: activeTask.taskId,
-        lastTaskState: activeTask.status,
-        lastTaskUrl: activeTask.taskUrl ?? undefined,
-        lastDependencyState: isDependencyTarget(targetBefore) ? 'watching_task' : undefined,
         lastError: null,
         lastErrorAt: null,
       });
-      log(`cloud_task_in_progress task=${activeTask.taskId} status=${activeTask.status} target=${targetBefore.responsibility}/${targetBefore.cycle}`);
+      log(
+        `parallel_window_idle slots=${slotsAvailable} pending_running=${pendingRunningCount} eligible=${parallelWindow.targets.length}`,
+      );
       return;
     }
-
-    if (!shouldSubmitControllerTask({ resolvedTarget: targetBefore, healthState: health.status })) {
-      await persistResolvedTarget(targetBefore, {
-        lastCycleCompletedAt: new Date().toISOString(),
-        lastCycleState: 'blocked',
-        lastFunctionalState: health.status === 'ready' ? 'ready' : 'degraded',
-        healthState: health.status,
-        openControllerPrState: 'none',
-        lastError: health.status === 'ready' ? null : 'health_state=degraded',
-        lastErrorAt: health.status === 'ready' ? null : new Date().toISOString(),
-      });
-      log('submission_skipped');
-      return;
-    }
-    await executeActionableTarget({ targetBefore, mainSha });
   } catch (error) {
     await writeRuntimeState({
       lastError: error.message,
@@ -1196,6 +1686,12 @@ async function main() {
   if (mode === 'dry-run') {
     await preflight();
     const health = await evaluateHealth();
+    const runtimeState = await refreshTrackedTasks(await loadRuntimeState());
+    const { backlog, resolved } = await resolveCurrentBacklog();
+    const parallelWindow = resolveParallelBacklogTargets(backlog, {
+      limit: Math.max(parallelLimit - countTrackedTasks(runtimeState, ['pending', 'running']), 0),
+      excludeTargets: getOccupiedActionableTargets(runtimeState, backlog),
+    });
     await cleanIsolatedWorktree();
     await writeRuntimeState({
       lastDryRunAt: new Date().toISOString(),
@@ -1204,9 +1700,37 @@ async function main() {
       lastHealthErrors: health.errors.length > 0 ? health.errors.join(',') : null,
       lastHealthEvaluatedRefSource: health.evaluatedRefSource ?? null,
       lastHealthEvaluatedSha: health.evaluatedSha ?? null,
+      activeTasks: runtimeState.activeTasks,
+      publishQueue: runtimeState.publishQueue,
+      lastParallelLimit: parallelLimit,
+      lastActiveTaskCount: countTrackedTasks(runtimeState, ['pending', 'running']),
+      lastPublishQueueCount: normalizePublishQueue(runtimeState).length,
+      lastTrackedReadyTaskCount: countTrackedTasks(runtimeState, ['ready']),
+      lastSupersededTaskCount: countTrackedTasks(runtimeState, ['superseded']),
+      lastActiveDependencyChainCount: countActiveDependencyChains(runtimeState),
+      lastParallelEligibleTargets: parallelWindow.targets.map((target) => `${target.responsibility}/${target.cycle}`),
+      lastParallelExcludedTargets: parallelWindow.excluded.map((item) => `${item.responsibility}/${item.cycle ?? 'none'}:${item.reason}`),
+    });
+    await persistResolvedTarget(resolved, {
+      activeTasks: runtimeState.activeTasks,
+      publishQueue: runtimeState.publishQueue,
+      parallelLimit,
     });
     if (health.status !== 'ready') {
       throw new Error(`health_state=${health.status} errors=${health.errors.join(',') || 'unknown'}`);
+    }
+    log(`dry_run_parallel_limit=${parallelLimit}`);
+    log(`dry_run_active_task_count=${countTrackedTasks(runtimeState, ['pending', 'running'])}`);
+    log(`dry_run_publish_queue_count=${normalizePublishQueue(runtimeState).length}`);
+    log(
+      `dry_run_parallel_targets=${parallelWindow.targets.map((target) => `${target.responsibility}/${target.cycle}`).join(',') || 'none'}`,
+    );
+    if (parallelWindow.excluded.length > 0) {
+      log(
+        `dry_run_parallel_excluded=${parallelWindow.excluded
+          .map((item) => `${item.responsibility}/${item.cycle ?? 'none'}:${item.reason}`)
+          .join(',')}`,
+      );
     }
     log('dry-run ok');
     return;
