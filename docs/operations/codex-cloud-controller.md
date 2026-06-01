@@ -60,6 +60,7 @@ Use allowlist mínima:
 - Para `gateway-borda/publicacao`, o contrato atual exige primeiro `tenant-white-label/publicacao`, `identidade-acesso/publicacao` e `onboarding-acesso/publicacao` verdes; só depois o scheduler pode insistir em `deploy`/`smoke` do gateway.
 - Nem Codex Cloud nem scheduler devem aplicar diff no checkout canônico do executor; o merge automático acontece no GitHub e o worktree isolado é apenas reconciliado de volta para `origin/main`.
 - O controlador não fecha aceite do MVP com execução local ou cloud. Aceite de código fonte continua em GitHub Actions, Cloudflare gate e smoke/API/e2e publicado.
+- Para Workers com contrato público mínimo, o `smoke` remoto precisa validar `GET /health` e `GET /contract`; quando `/contract` exigir `x-aneety-contract-version`, o gate deve enviar a versão canônica lida do `wrangler.toml`.
 - Para ciclos de dados do MVP, Supabase pode ser usado como provedor operacional padrão quando o contrato da responsabilidade exigir persistência compatível com Workers, sem virar dependência obrigatória do contrato de produto ou texto visível ao usuário final.
 - Se credencial, ambiente ou permissão estiverem ausentes, registrar bloqueio objetivo em `docs/project` em vez de criar fallback.
 
