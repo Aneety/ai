@@ -200,13 +200,18 @@ jobs:
         run: |
           set -euo pipefail
           url='${{ inputs.smoke_url }}'
+          module_path='${{ steps.discover.outputs.effective_module_path }}'
           if [ -z "$url" ]; then
             echo "smoke_url is required for smoke mode." >&2
             exit 1
           fi
-          curl --fail --show-error --silent --max-time 20 "$url" >/tmp/aneety-smoke-response
+          if [ -z "$module_path" ]; then
+            echo "effective module path is required for smoke mode." >&2
+            exit 1
+          fi
+          node .codex/cloud/validate-publication-smoke.mjs "$url" "$module_path" >/tmp/aneety-smoke-response
           bytes=$(wc -c </tmp/aneety-smoke-response | tr -d ' ')
-          echo "Smoke OK for $url (${bytes} bytes)."
+          echo "Smoke OK for $url via /health + /contract (${bytes} bytes)."
           echo "SMOKE_STATUS=success" >> "$GITHUB_ENV"
 
       - name: Report no deployable module
