@@ -114,6 +114,20 @@ function extractField(output, key) {
   return matches.length > 0 ? matches.at(-1)[1] : null;
 }
 
+function normalizeCloudTaskStatus(output) {
+  const text = String(output ?? '');
+  if (text.includes('[READY]')) return 'ready';
+  if (text.includes('[FAILED]')) return 'failed';
+  if (text.includes('[CANCELLED]')) return 'cancelled';
+  if (text.includes('[RUNNING]')) return 'running';
+  if (text.includes('[PENDING]')) return 'pending';
+  return 'unknown';
+}
+
+function extractTaskUrl(output) {
+  return output.match(/https:\/\/chatgpt\.com\/codex\/tasks\/task_[A-Za-z0-9_-]+/)?.[0] ?? null;
+}
+
 function mergeDefined(current, patch) {
   const next = { ...current };
   for (const [key, value] of Object.entries(patch)) {
@@ -198,9 +212,11 @@ export function shouldSubmitControllerTask({
   resolvedTarget,
   healthState = 'ready',
   openControllerPrState = 'none',
+  activeTaskState = null,
 } = {}) {
   if (healthState !== 'ready') return false;
   if (openControllerPrState !== 'none') return false;
+  if (['pending', 'running'].includes(String(activeTaskState ?? '').toLowerCase())) return false;
   return resolvedTarget?.state === 'actionable';
 }
 
@@ -513,9 +529,12 @@ async function executeActionableTarget({ targetBefore, mainSha }) {
 
   const taskId = extractTaskId(submit.output);
   if (!taskId) throw new Error('submit did not emit a task id');
+  const taskUrl = extractTaskUrl(submit.output);
 
   await writeRuntimeState({
     lastTaskId: taskId,
+    lastTaskState: 'pending',
+    lastTaskUrl: taskUrl ?? null,
     lastSubmittedTargetResponsibility: targetBefore.responsibility,
     lastSubmittedTargetCycle: targetBefore.cycle,
     lastDependencyState: isDependencyTarget(targetBefore) ? 'watching_task' : undefined,
@@ -523,9 +542,17 @@ async function executeActionableTarget({ targetBefore, mainSha }) {
 
   log(`watching task=${taskId}`);
   const watch = await runBash(withEnvFile(`.codex/cloud/watch-task.sh ${shellQuote(taskId)}`));
-  if (watch.code !== 0) throw new Error(`watch failed with exit ${watch.code}`);
+  const watchStatus = normalizeCloudTaskStatus(watch.output);
+  if (watch.code !== 0) {
+    await writeRuntimeState({
+      lastTaskId: taskId,
+      lastTaskState: watchStatus,
+    });
+    throw new Error(`watch failed with exit ${watch.code}`);
+  }
   await writeRuntimeState({
     lastTaskId: taskId,
+    lastTaskState: watchStatus,
     lastTaskCompletedAt: new Date().toISOString(),
     lastDependencyState: isDependencyTarget(targetBefore) ? 'publishing_diff' : undefined,
   });
@@ -565,6 +592,31 @@ async function executeActionableTarget({ targetBefore, mainSha }) {
       targetAfter.state === 'actionable' ? `${targetAfter.responsibility}/${targetAfter.cycle}` : targetAfter.state
     }`,
   );
+}
+
+async function readCloudTaskStatus(taskId) {
+  const statusResult = await runBash(
+    withEnvFile(`${'${CODEX_CLOUD_CLI:-codex}'} cloud status ${shellQuote(taskId)}`),
+    { quiet: true },
+  );
+  return {
+    taskId,
+    status: normalizeCloudTaskStatus(statusResult.output),
+    output: statusResult.output,
+    code: statusResult.code,
+    taskUrl: extractTaskUrl(statusResult.output),
+  };
+}
+
+async function findReusableActiveTask(target, runtimeState) {
+  if (!target || target.state !== 'actionable') return null;
+  if (!runtimeState?.lastTaskId) return null;
+  if (runtimeState.lastSubmittedTargetResponsibility !== target.responsibility) return null;
+  if (runtimeState.lastSubmittedTargetCycle !== target.cycle) return null;
+
+  const task = await readCloudTaskStatus(runtimeState.lastTaskId);
+  if (!['pending', 'running'].includes(task.status)) return null;
+  return task;
 }
 
 async function recordRemoteActionState(patch = {}) {
@@ -1052,6 +1104,26 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
         lastErrorAt: new Date().toISOString(),
       });
       log(`stable_blocker target=${targetBefore.responsibility}/${targetBefore.cycle}`);
+      return;
+    }
+
+    const activeTask = await findReusableActiveTask(targetBefore, previousRuntimeState);
+    if (activeTask) {
+      const activeAt = new Date().toISOString();
+      await persistResolvedTarget(targetBefore, {
+        lastCycleCompletedAt: activeAt,
+        lastCycleState: 'running',
+        lastFunctionalState: 'ready',
+        healthState: 'ready',
+        openControllerPrState: 'none',
+        lastTaskId: activeTask.taskId,
+        lastTaskState: activeTask.status,
+        lastTaskUrl: activeTask.taskUrl ?? undefined,
+        lastDependencyState: isDependencyTarget(targetBefore) ? 'watching_task' : undefined,
+        lastError: null,
+        lastErrorAt: null,
+      });
+      log(`cloud_task_in_progress task=${activeTask.taskId} status=${activeTask.status} target=${targetBefore.responsibility}/${targetBefore.cycle}`);
       return;
     }
 

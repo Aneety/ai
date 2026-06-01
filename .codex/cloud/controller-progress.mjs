@@ -69,12 +69,20 @@ export function compareTargets(beforeTarget, afterTarget) {
   };
 }
 
+function normalizeCloudTaskStatus(value) {
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  return normalized.length > 0 ? normalized : 'unknown';
+}
+
 export function deriveMonitorState({
   resolvedTarget,
   runtimeState,
   mainSha,
   openControllerPrState = 'none',
   cloudTaskCount = 0,
+  latestCloudTaskStatus = null,
   healthState = 'ready',
   nowMs = Date.now(),
   recentSuccessWindowSeconds = 3600,
@@ -99,6 +107,8 @@ export function deriveMonitorState({
     ['task_submitted', 'watching_task', 'publishing_diff', 'awaiting_pr_merge'].includes(
       runtimeState?.lastDependencyState ?? '',
     );
+  const activeCloudTaskStatus = normalizeCloudTaskStatus(latestCloudTaskStatus ?? runtimeState?.lastTaskState);
+  const runningCloudTask = ['pending', 'running'].includes(activeCloudTaskStatus);
   const degradedByBacklog =
     resolvedTarget?.state === 'blocked' && resolvedTarget?.blockKind != null && resolvedTarget?.blockKind !== 'pause';
   const degradedByPr = ['failed', 'timeout'].includes(openControllerPrState);
@@ -145,6 +155,8 @@ export function deriveMonitorState({
     controllerProgressState = 'running_remote_smoke';
   } else if (dependencyCycleRunning) {
     controllerProgressState = 'dependency_cycle_running';
+  } else if (runningCloudTask) {
+    controllerProgressState = 'running_cloud_task';
   } else if (['pending', 'merge_ready'].includes(openControllerPrState)) {
     controllerProgressState = 'pending_pr_checks';
   } else if (schedulerFunctionalState === 'paused') {
@@ -167,6 +179,7 @@ export function deriveMonitorState({
     !dependencyChainActive &&
     !runningRemoteDeploy &&
     !runningRemoteSmoke &&
+    !runningCloudTask &&
     !awaitingNextTick &&
     !betweenSlots &&
     !hasRecentSuccess;
@@ -186,6 +199,8 @@ export function deriveMonitorState({
     runningRemoteSmoke,
     dependencyChainActive,
     dependencyCycleRunning,
+    runningCloudTask,
+    activeCloudTaskStatus,
     isDegraded,
     shouldWarnCloudTaskListEmpty,
   };
