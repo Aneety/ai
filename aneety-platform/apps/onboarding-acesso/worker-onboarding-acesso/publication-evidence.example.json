@@ -1,0 +1,14 @@
+{
+  "responsibility": "onboarding-acesso",
+  "cycle": "publicacao",
+  "template": true,
+  "modulePath": "aneety-platform/apps/onboarding-acesso/worker-onboarding-acesso",
+  "deployRunId": "00000000000",
+  "deployRunUrl": "https://github.com/Aneety/ai/actions/runs/00000000000",
+  "smokeRunId": "00000000001",
+  "smokeRunUrl": "https://github.com/Aneety/ai/actions/runs/00000000001",
+  "publishedUrl": "https://aneety-worker-onboarding-acesso.placeholder.workers.dev",
+  "headSha": "0000000000000000000000000000000000000000",
+  "validatedAt": "2026-06-01T00:00:00Z",
+  "result": "success"
+}
