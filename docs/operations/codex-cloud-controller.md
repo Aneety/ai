@@ -20,6 +20,7 @@ Este documento descreve o modo cloud-safe do controlador de implementação da A
 - `.codex/cloud/reconcile-controller-pr.mjs` — helper versionado para reconciliar qualquer PR operacional do controlador, classificar `pending|failed|merge_ready|merged|timeout` e concluir squash merge automático quando o gate remoto estiver verde.
 - `.codex/cloud/remote-gate.mjs` — orquestra blockers `remote_automable` depois do merge, disparando `Cloudflare deploy gate`, baixando o artefato JSON do workflow e preparando a evidência versionada do ciclo.
 - `.codex/cloud/publish-operational-update.sh` — publica mudanças operacionais geradas pelo próprio scheduler, sem depender de diff vindo da task cloud.
+- `.codex/cloud/mirror-actions-secrets.sh` — bootstrap operacional para espelhar segredos Cloudflare do ambiente Codex Cloud para GitHub Actions secrets, sem imprimir valores.
 
 ## Variáveis e segredos
 
@@ -28,6 +29,8 @@ Este documento descreve o modo cloud-safe do controlador de implementação da A
 `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` podem existir no ambiente Codex Cloud para tarefas futuras, mas o fluxo oficial de `publicacao` continua **actions-first**: o deploy e o smoke remotos dependem do escopo de **GitHub Actions secrets** usado por `.github/workflows/cloudflare-gate.yml`. O scheduler não passa segredos Cloudflare via diff, input de workflow ou log.
 
 `CLOUDFLARE_EMAIL` não faz parte do contrato atual do workflow remoto e não deve ser exposto em artefatos versionados. O controlador também não usa `OPENAI_API_KEY`.
+
+Quando os valores existirem apenas no ambiente Codex Cloud, use `.codex/cloud/mirror-actions-secrets.sh` dentro desse ambiente para espelhar `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` para GitHub Actions antes de reexecutar `publicacao`.
 
 ## Internet do agente
 
