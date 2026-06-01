@@ -7,7 +7,7 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - O modo Codex Cloud foi aceito em `docs/project/codex-cloud-validation-2026-05-30.md`.
 - A automação local do Codex App fica ativa somente como monitor do agendamento; ela não submete task, não inicia scheduler, não cria PR e não faz merge.
 - O agendamento Node.js externo deve chamar `codex cloud exec` contra o ambiente Codex Cloud já validado.
-- A task remota deve gerar diff auditável e tentar branch/commit/PR quando houver credencial suficiente; se o PR não for criado dentro do Codex Cloud, o scheduler publica o diff via worktree isolado e `gh`, sem tocar no checkout canônico.
+- A task remota deve gerar apenas diff auditável e relatório coerente com `docs/project`; branch/commit/push/PR/merge oficiais são sempre responsabilidade do scheduler via worktree isolado e `gh`, sem tocar no checkout canônico.
 - O wrapper foi validado com tasks `READY`; o scheduler roda em worktree isolado para evitar aplicar diffs no checkout canônico.
 - Quando existir PR operacional do controlador no padrão `codex/<ciclo>-<responsabilidade>-<YYYY-MM-DD>`, o scheduler entra em reconciliação: consulta checks obrigatórios, aguarda o gate remoto, faz squash merge automático, apaga a branch remota e registra o SHA final de `main`.
 
@@ -18,7 +18,7 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - `.codex/cloud/publish-task-diff.sh` — publica o diff de uma task `READY` em branch/commit/PR usando somente worktree isolado; recusa execução no checkout canônico por padrão.
 - `.codex/cloud/reconcile-controller-pr.mjs` — reconcilia PR operacional aberta, classifica `pending|failed|merge_ready|merged|timeout` e executa squash merge automático quando permitido.
 - `.codex/cloud/scheduler.mjs` — agendador Node.js com `node-cron`, resolvendo o próximo item acionável de toda a matriz `docs/project`, executando submit/watch a cada 30 minutos por padrão em worktree isolado fora do checkout canônico e registrando progresso em `runtime-state.json`.
-- `.codex/cloud/monitor-scheduler.mjs` — monitor local do agendamento, do arquivo de ambiente, do processo scheduler, do worktree isolado, das tasks Codex Cloud recentes e do estado derivado do backlog (`controller_progress_state`, `awaiting_next_tick`, `last_success_age_seconds`, `backlog_completion_state`).
+- `.codex/cloud/monitor-scheduler.mjs` — monitor local do agendamento, do arquivo de ambiente, do processo scheduler, do worktree isolado, das tasks Codex Cloud recentes e do estado derivado do backlog (`controller_progress_state`, `scheduler_functional_state`, `awaiting_next_tick`, `last_success_age_seconds`, `backlog_completion_state`).
 
 ## Variáveis do agendador
 
@@ -66,6 +66,11 @@ O arquivo local de estado deve preservar saúde operacional entre ciclos, inclui
 - `lastError`
 - `lastActionableResponsibility`
 - `lastActionableCycle`
+- `lastMutationSurface`
+- `healthState`
+- `lastFunctionalState`
+- `lastPauseStatus`
+- `lastPauseReason`
 
 `npm run codex-cloud:scheduler:dry-run` pode atualizar somente campos próprios de pré-checagem, como `lastDryRunAt`, sem apagar os campos operacionais acima.
 

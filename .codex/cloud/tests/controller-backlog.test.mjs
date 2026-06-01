@@ -45,7 +45,7 @@ async function createFixture({ indexRows, responsibilityRows }) {
   return root;
 }
 
-test('resolve primeira responsabilidade alta elegível em repositorio', async () => {
+test('pausa quando encontra ciclo em bloqueado', async () => {
   const root = await createFixture({
     indexRows: [
       '| `alta-a` | Ricardo | alta | `repositorio` | `bloqueado` | [alta-a](./alta-a.md) | — | Estrutural |',
@@ -64,9 +64,37 @@ test('resolve primeira responsabilidade alta elegível em repositorio', async ()
   try {
     const backlog = await loadControllerBacklog(root);
     const target = resolveNextBacklogTarget(backlog);
-    assert.equal(target.state, 'actionable');
+    assert.equal(target.state, 'blocked');
+    assert.equal(target.blockKind, 'pause');
+    assert.equal(target.pauseStatus, 'bloqueado');
     assert.equal(target.responsibility, 'alta-a');
     assert.equal(target.cycle, 'repositorio');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('pausa quando encontra ciclo em validacao', async () => {
+  const root = await createFixture({
+    indexRows: [
+      '| `alta-a` | Ricardo | alta | `deploy` | `validacao` | [alta-a](./alta-a.md) | — | Aguardando gate |',
+    ],
+    responsibilityRows: {
+      'alta-a': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'validacao', blocker: 'Aguardando gate remoto.' },
+      },
+    },
+  });
+
+  try {
+    const backlog = await loadControllerBacklog(root);
+    const target = resolveNextBacklogTarget(backlog);
+    assert.equal(target.state, 'blocked');
+    assert.equal(target.blockKind, 'pause');
+    assert.equal(target.pauseStatus, 'validacao');
+    assert.equal(target.responsibility, 'alta-a');
+    assert.equal(target.cycle, 'deploy');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -142,6 +170,32 @@ test('retorna complete quando tudo está concluido ou na', async () => {
     const backlog = await loadControllerBacklog(root);
     const target = resolveNextBacklogTarget(backlog);
     assert.equal(target.state, 'complete');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('falha fechado quando encontra status desconhecido', async () => {
+  const root = await createFixture({
+    indexRows: [
+      '| `gateway-borda` | Ricardo | alta | `deploy` | `misterioso` | [gateway-borda](./gateway-borda.md) | — | — |',
+    ],
+    responsibilityRows: {
+      'gateway-borda': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'misterioso', blocker: 'Status inválido.' },
+      },
+    },
+  });
+
+  try {
+    const backlog = await loadControllerBacklog(root);
+    const target = resolveNextBacklogTarget(backlog);
+    assert.equal(target.state, 'blocked');
+    assert.equal(target.blockKind, 'unknown_status');
+    assert.equal(target.pauseStatus, 'unknown_status');
+    assert.equal(target.responsibility, 'gateway-borda');
+    assert.equal(target.cycle, 'deploy');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

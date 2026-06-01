@@ -1,6 +1,13 @@
 # Aneety cloud-safe controller prompt template
 
-Executar exatamente o ciclo alvo abaixo dentro do repositório `Aneety/ai` no Codex Cloud. Produza código fonte versionável, documentação operacional coerente e PR no GitHub quando houver mudança. Não dependa de painel externo. Não aplique diff no checkout local do executor. Não faça merge dentro desta task; o scheduler reconciliará checks e merge depois.
+Executar exatamente o ciclo alvo abaixo dentro do repositório `Aneety/ai` no Codex Cloud. Produza código fonte versionável, documentação operacional coerente e diff auditável. Não dependa de painel externo. Não aplique diff no checkout local do executor.
+
+## Contrato oficial de mutação GitHub
+
+- Modelo oficial: **scheduler-only**.
+- A task cloud **não** é a superfície oficial para branch, commit, push, PR ou merge.
+- Não tente criar branch, fazer commit, fazer push, abrir PR ou fazer merge dentro desta task.
+- O scheduler publicará o diff no GitHub e reconciliará os checks quando o resultado da task for aproveitável.
 
 ## Contexto alvo resolvido pelo scheduler
 
@@ -54,15 +61,15 @@ __TARGET_MATRIX__
 1. Ler as normas acima e extrair o aceite mínimo do ciclo `__TARGET_CYCLE__` para `__TARGET_RESPONSIBILITY__`.
 2. Implementar somente o necessário para deixar este ciclo mais próximo de `concluido`, respeitando gates anteriores e sem inventar runtime fora do contrato.
 3. Atualizar primeiro `__TARGET_PROJECT_FILE__`, depois `docs/project/index.md`, sempre com evidência curta, blocker objetivo e próxima ação coerentes.
-4. Se houver mudança rastreável, criar branch com prefixo `__TARGET_BRANCH_PREFIX__`, fazer commit, push e abrir PR contra `main`.
-5. Se a task não conseguir criar PR por limitação de credencial/superfície cloud, deixe o diff pronto e reporte blocker objetivo; o scheduler poderá publicar o diff por fallback local no worktree isolado.
-6. Não espere checks nem faça merge nesta task. Apenas entregue branch/commit/PR ou blocker objetivo verificável.
+4. Se houver mudança rastreável, deixe o diff pronto para publicação pelo scheduler. Não tente mutar o GitHub a partir da task cloud.
+5. Se o ciclo depender de gate remoto, permissão ou PR ainda inexistente, registre blocker objetivo coerente com o estado real do repositório e do próprio ciclo.
+6. Não espere checks, não faça merge e não reporte sucesso funcional só porque houve diff. Entregue `task_outcome=diff_ready`, `task_outcome=no_diff` ou `task_outcome=blocked`.
 
 ## Evidência obrigatória no relatório final
 
 - Ciclo alvo e responsabilidade alvo.
 - Motivo pelo qual este era o próximo item acionável.
 - Arquivos alterados e relação deles com o aceite do ciclo.
+- `task_outcome=diff_ready|no_diff|blocked`.
 - Estado final do alvo no painel (`concluido`, `na`, `bloqueado`, `validacao` ou outro estado realmente usado).
-- Branch, commit e URL do PR quando existirem.
 - Blocker objetivo, impacto e próxima ação quando o ciclo não puder ser concluído nesta execução.

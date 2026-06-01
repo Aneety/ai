@@ -75,6 +75,7 @@ export function deriveMonitorState({
   mainSha,
   openControllerPrState = 'none',
   cloudTaskCount = 0,
+  healthState = 'ready',
   nowMs = Date.now(),
   recentSuccessWindowSeconds = 3600,
 }) {
@@ -84,25 +85,42 @@ export function deriveMonitorState({
   const stableBlocked = isStableBlockedTarget(resolvedTarget, runtimeState, mainSha);
   const hasRecentSuccess =
     lastSuccessAgeSeconds != null && lastSuccessAgeSeconds <= Math.max(recentSuccessWindowSeconds, 0);
+  const pausedByBacklog = resolvedTarget?.state === 'blocked' && resolvedTarget?.blockKind === 'pause';
+  const degradedByBacklog =
+    resolvedTarget?.state === 'blocked' && resolvedTarget?.blockKind != null && resolvedTarget?.blockKind !== 'pause';
+  const degradedByPr = ['failed', 'timeout'].includes(openControllerPrState);
+  const isDegraded = healthState !== 'ready' || degradedByBacklog || degradedByPr;
 
   let backlogCompletionState = 'in_progress';
   if (resolvedTarget?.state === 'complete') {
     backlogCompletionState = 'complete';
-  } else if (
-    resolvedTarget?.state === 'blocked' ||
-    stableBlocked ||
-    ['failed', 'timeout'].includes(openControllerPrState)
-  ) {
+  } else if (pausedByBacklog) {
+    backlogCompletionState = 'paused';
+  } else if (resolvedTarget?.state === 'blocked' || stableBlocked || degradedByPr) {
     backlogCompletionState = 'blocked';
+  }
+
+  let schedulerFunctionalState = 'ready';
+  if (backlogCompletionState === 'complete') {
+    schedulerFunctionalState = 'ready';
+  } else if (isDegraded || stableBlocked) {
+    schedulerFunctionalState = 'degraded';
+  } else if (
+    pausedByBacklog ||
+    (resolvedTarget?.state === 'blocked' && runtimeState?.lastFunctionalState === 'paused')
+  ) {
+    schedulerFunctionalState = 'paused';
   }
 
   let controllerProgressState = 'ready_for_cycle';
   if (backlogCompletionState === 'complete') {
     controllerProgressState = 'complete';
+  } else if (schedulerFunctionalState === 'degraded') {
+    controllerProgressState = 'degraded_health';
   } else if (['pending', 'merge_ready'].includes(openControllerPrState)) {
-    controllerProgressState = openControllerPrState;
-  } else if (['failed', 'timeout'].includes(openControllerPrState) || stableBlocked) {
-    controllerProgressState = 'blocked';
+    controllerProgressState = 'pending_pr_checks';
+  } else if (schedulerFunctionalState === 'paused') {
+    controllerProgressState = 'paused_waiting_external_gate';
   } else if (awaitingNextTick) {
     controllerProgressState = 'awaiting_next_tick';
   } else if (betweenSlots || hasRecentSuccess) {
@@ -112,6 +130,7 @@ export function deriveMonitorState({
   const shouldWarnCloudTaskListEmpty =
     cloudTaskCount === 0 &&
     openControllerPrState === 'none' &&
+    schedulerFunctionalState === 'ready' &&
     backlogCompletionState !== 'complete' &&
     !awaitingNextTick &&
     !betweenSlots &&
@@ -123,8 +142,11 @@ export function deriveMonitorState({
     stableBlocked,
     backlogCompletionState,
     controllerProgressState,
+    schedulerFunctionalState,
     lastSuccessAgeSeconds,
     hasRecentSuccess,
+    pausedByBacklog,
+    isDegraded,
     shouldWarnCloudTaskListEmpty,
   };
 }

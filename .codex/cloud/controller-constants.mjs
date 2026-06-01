@@ -27,6 +27,10 @@ export const PRIORITY_RANK = {
   baixa: 2,
 };
 
+export const DONE_STATUSES = new Set(['concluido', 'na']);
+export const PAUSE_STATUSES = new Set(['bloqueado', 'validacao']);
+export const ACTIONABLE_STATUSES = new Set(['triagem', 'pronto']);
+
 export function normalizeText(value) {
   return String(value ?? '')
     .trim()
@@ -46,7 +50,25 @@ export function normalizeStatus(value) {
 
 export function isDoneStatus(value) {
   const status = normalizeStatus(value);
-  return status === 'concluido' || status === 'na';
+  return DONE_STATUSES.has(status);
+}
+
+export function isPauseStatus(value) {
+  const status = normalizeStatus(value);
+  return PAUSE_STATUSES.has(status);
+}
+
+export function isActionableStatus(value) {
+  const status = normalizeStatus(value);
+  return ACTIONABLE_STATUSES.has(status);
+}
+
+export function classifyStatus(value) {
+  const status = normalizeStatus(value);
+  if (DONE_STATUSES.has(status)) return 'done';
+  if (PAUSE_STATUSES.has(status)) return 'pause';
+  if (ACTIONABLE_STATUSES.has(status)) return 'actionable';
+  return 'unknown';
 }
 
 export function controllerBranchPrefix(cycle, responsibility) {
