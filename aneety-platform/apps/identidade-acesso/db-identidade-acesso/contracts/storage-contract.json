@@ -1,0 +1,61 @@
+{
+  "responsibility": "identidade-acesso",
+  "cycle": "banco",
+  "runtime": "cloudflare-workers",
+  "storage": {
+    "type": "d1",
+    "binding": "IDENTIDADE_ACESSO_DB",
+    "databaseName": "identidade-acesso-db",
+    "migrationDirectory": "migrations",
+    "rollbackDirectory": "rollbacks",
+    "seedDirectory": "seeds"
+  },
+  "entities": [
+    {
+      "name": "app_identities",
+      "tenantIsolation": "tenant_id required and unique login hashes are tenant-scoped",
+      "crudLevelDeclared": "create/read/update by tenant_id, identity_id or contact hash in D1"
+    },
+    {
+      "name": "auth_credentials",
+      "tenantIsolation": "tenant_id plus identity_id foreign key and active credential index",
+      "crudLevelDeclared": "append/revoke credential hashes by tenant_id and identity_id in D1"
+    },
+    {
+      "name": "auth_sessions",
+      "tenantIsolation": "tenant_id plus identity_id foreign key, token hashes, expiration and revocation indexes",
+      "crudLevelDeclared": "create/read/revoke sessions by tenant_id, hash and expiration in D1"
+    },
+    {
+      "name": "app_users",
+      "tenantIsolation": "tenant_id plus identity_id and access_profile_id boundaries",
+      "crudLevelDeclared": "create/read/update user status by tenant_id and app_user_id in D1"
+    },
+    {
+      "name": "access_profiles",
+      "tenantIsolation": "tenant_id scoped profiles with unique profile_key per tenant",
+      "crudLevelDeclared": "create/read/update profiles by tenant_id and profile_key in D1"
+    },
+    {
+      "name": "permissions",
+      "tenantIsolation": "global catalog only, joined through tenant-scoped profile grants",
+      "crudLevelDeclared": "read permission catalog by permission_key in D1"
+    },
+    {
+      "name": "access_profile_permissions",
+      "tenantIsolation": "tenant_id plus profile and permission foreign keys",
+      "crudLevelDeclared": "grant/revoke permissions by tenant_id and profile_id in D1"
+    },
+    {
+      "name": "identity_audit_events",
+      "tenantIsolation": "tenant_id plus identity_id/app_user_id references for sensitive access events",
+      "crudLevelDeclared": "append/read audit events by tenant_id and occurred_at in D1"
+    }
+  ],
+  "securityContract": {
+    "credentialStorage": "Only strong salted credential hashes are stored; plaintext credentials are outside this schema and must never be persisted.",
+    "sessionStorage": "Only access and refresh token hashes are stored, with explicit expiration, refresh expiration, rotation and revocation fields.",
+    "frontendBoundary": "Microfrontends never access D1 directly; the backend cycle must expose session and permission contracts through Workers only."
+  },
+  "acceptanceEvidenceRequired": "GitHub Actions plus Cloudflare D1-backed migration, rollback and negative fixture run before moving this cycle to concluido."
+}

@@ -1,0 +1,43 @@
+-- Cloudflare D1-backed validation fixture for remote acceptance.
+-- Precondition: apply migrations/0001_identidade_acesso_d1.sql and seeds/0001_lia_demo_identity.sql first.
+-- Expected result: expired/revoked sessions are rejected and cross-tenant reads return zero rows.
+PRAGMA foreign_keys = ON;
+
+INSERT INTO app_identities (identity_id, tenant_id, email_hash, display_name, status)
+VALUES ('identity_other_admin_0001', 'tenant_other_demo_0001', 'sha256:other-demo-email-hash-0001', 'Outra Identidade Demonstração', 'active');
+
+INSERT INTO access_profiles (access_profile_id, tenant_id, profile_key, name, role, status, is_system)
+VALUES ('profile_other_admin_0001', 'tenant_other_demo_0001', 'admin-operacional', 'Administrador operacional', 'admin', 'active', 1);
+
+INSERT INTO auth_sessions (session_id, tenant_id, identity_id, access_token_hash, refresh_token_hash, effective_profile_id, issued_at, expires_at, refresh_expires_at, revoked_at, revoked_reason)
+VALUES (
+  'session_lia_admin_revoked_0001',
+  'tenant_lia_demo_0001',
+  'identity_lia_admin_0001',
+  'sha256:synthetic-revoked-access-token-hash-lia-admin-0001',
+  'sha256:synthetic-revoked-refresh-token-hash-lia-admin-0001',
+  'profile_lia_admin_0001',
+  '2026-06-01T00:00:00.000Z',
+  '2026-06-01T01:00:00.000Z',
+  '2026-06-08T00:00:00.000Z',
+  '2026-06-01T00:30:00.000Z',
+  'fixture-revocation'
+);
+
+SELECT COUNT(*) AS active_session_rows
+FROM auth_sessions
+WHERE tenant_id = 'tenant_lia_demo_0001'
+  AND access_token_hash = 'sha256:synthetic-access-token-hash-lia-admin-0001-not-a-real-token'
+  AND expires_at > '2026-06-01T00:30:00.000Z'
+  AND revoked_at IS NULL;
+
+SELECT COUNT(*) AS revoked_session_rows
+FROM auth_sessions
+WHERE tenant_id = 'tenant_lia_demo_0001'
+  AND access_token_hash = 'sha256:synthetic-revoked-access-token-hash-lia-admin-0001'
+  AND expires_at > '2026-06-01T00:30:00.000Z'
+  AND revoked_at IS NULL;
+
+SELECT COUNT(*) AS cross_tenant_identity_rows
+FROM app_identities
+WHERE tenant_id = 'tenant_lia_demo_0001' AND identity_id = 'identity_other_admin_0001';
