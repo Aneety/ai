@@ -344,6 +344,27 @@ async function main() {
   if (runtimeState?.lastActionableCycle) {
     log(`last_actionable_cycle=${runtimeState.lastActionableCycle}`);
   }
+  if (runtimeState?.lastRemoteAction) {
+    log(`last_remote_action=${runtimeState.lastRemoteAction}`);
+  }
+  if (runtimeState?.lastRemoteActionState) {
+    log(`last_remote_action_state=${runtimeState.lastRemoteActionState}`);
+  }
+  if (runtimeState?.lastRemoteDeployRunId) {
+    log(`last_remote_deploy_run_id=${runtimeState.lastRemoteDeployRunId}`);
+  }
+  if (runtimeState?.lastRemoteDeployUrl) {
+    log(`last_remote_deploy_run_url=${runtimeState.lastRemoteDeployUrl}`);
+  }
+  if (runtimeState?.lastRemoteSmokeRunId) {
+    log(`last_remote_smoke_run_id=${runtimeState.lastRemoteSmokeRunId}`);
+  }
+  if (runtimeState?.lastRemoteSmokeUrl) {
+    log(`last_remote_smoke_run_url=${runtimeState.lastRemoteSmokeUrl}`);
+  }
+  if (runtimeState?.lastPublishedUrl) {
+    log(`last_published_url=${runtimeState.lastPublishedUrl}`);
+  }
   log(`controller_progress_state=${derived.controllerProgressState}`);
   log(`awaiting_next_tick=${derived.awaitingNextTick}`);
   log(`backlog_completion_state=${derived.backlogCompletionState}`);

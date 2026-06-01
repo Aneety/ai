@@ -66,6 +66,7 @@ test('pausa quando encontra ciclo em bloqueado', async () => {
     const target = resolveNextBacklogTarget(backlog);
     assert.equal(target.state, 'blocked');
     assert.equal(target.blockKind, 'pause');
+    assert.equal(target.blockerAutomationKind, 'manual_external');
     assert.equal(target.pauseStatus, 'bloqueado');
     assert.equal(target.responsibility, 'alta-a');
     assert.equal(target.cycle, 'repositorio');
@@ -92,9 +93,37 @@ test('pausa quando encontra ciclo em validacao', async () => {
     const target = resolveNextBacklogTarget(backlog);
     assert.equal(target.state, 'blocked');
     assert.equal(target.blockKind, 'pause');
+    assert.equal(target.blockerAutomationKind, 'manual_external');
     assert.equal(target.pauseStatus, 'validacao');
     assert.equal(target.responsibility, 'alta-a');
     assert.equal(target.cycle, 'deploy');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('classifica gateway-borda/publicacao bloqueado como remote_automable', async () => {
+  const root = await createFixture({
+    indexRows: [
+      '| `gateway-borda` | Ricardo | alta | `publicacao` | `bloqueado` | [gateway-borda](./gateway-borda.md) | — | Falta URL remota |',
+    ],
+    responsibilityRows: {
+      'gateway-borda': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'bloqueado', blocker: 'Aguardando deploy remoto.' },
+      },
+    },
+  });
+
+  try {
+    const backlog = await loadControllerBacklog(root);
+    const target = resolveNextBacklogTarget(backlog);
+    assert.equal(target.state, 'blocked');
+    assert.equal(target.blockKind, 'pause');
+    assert.equal(target.blockerAutomationKind, 'remote_automable');
+    assert.equal(target.responsibility, 'gateway-borda');
+    assert.equal(target.cycle, 'publicacao');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

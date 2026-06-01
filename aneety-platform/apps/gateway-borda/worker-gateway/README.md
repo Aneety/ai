@@ -49,6 +49,7 @@ gh workflow run cloudflare-gate.yml \
 O ciclo `publicacao` depende de URL real publicada em ambiente remoto permitido. O aceite não pode ser fechado por runtime local, `wrangler dev`, container ou URL fictícia. Para tornar a evidência auditável, este módulo inclui:
 
 - `publication-evidence.example.json`, template sem segredos para registrar URL publicada, runs remotos de deploy/smoke, SHA e versão do contrato;
+- `publication-evidence.json`, arquivo canônico versionado pelo scheduler quando o deploy/smoke remoto conclui com sucesso;
 - `scripts/validate-publication-evidence.mjs`, validador leve que rejeita URL não HTTPS, hosts locais/de exemplo, parâmetros com aparência de segredo e runs que não sejam do repositório `Aneety/ai`;
 - `npm run publication:validate`, comando usado para validar o template ou um arquivo real informado por `ANEETY_PUBLICATION_EVIDENCE_FILE`.
 
