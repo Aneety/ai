@@ -14,7 +14,7 @@
 | Ciclo | Status | Prioridade | Gate | Evidência | Bloqueio | Próxima ação |
 | --- | --- | --- | --- | --- | --- | --- |
 | `repositorio` | `concluido` | alta | `arquitetura` | [PR #19](https://github.com/Aneety/ai/pull/19) cria a raiz `aneety-platform/apps/tenant-white-label/` com `README.md` raiz e diretórios `db-tenant-white-label`, `worker-tenant-white-label` e `mfe-tenant-white-label`, já mergeada em `main`. | — | Avançar para `deploy` com runtime 100% Workers e evidência remota. |
-| `deploy` | `pronto` | alta | `processo` | — | — | Executar `deploy` com runtime 100% Workers e evidência remota antes de avançar para `publicacao`. |
+| `deploy` | `validacao` | alta | `processo` | Worker deployable versionado em `aneety-platform/apps/tenant-white-label/worker-tenant-white-label`: `wrangler.toml`, `src/index.js`, testes de módulo e `scripts/validate-deploy-contract.mjs` preparados para PR/GitHub Actions e Cloudflare dry-run remoto. | Aguardando publicação do diff em PR `codex/deploy-tenant-white-label-*`, GitHub Actions verdes e execução remota do `Cloudflare deploy gate` em modo `dry-run`; sem esses runs remotos, o aceite de `deploy` não pode ser concluído. | Publicar PR pelo scheduler, obter checks remotos verdes, acionar `Cloudflare deploy gate` com `module_path=aneety-platform/apps/tenant-white-label/worker-tenant-white-label` e registrar PR/run/SHA antes de avançar para `publicacao`. |
 | `publicacao` | `triagem` | alta | `processo` | — | Aguardando ciclo `deploy` ficar verde neste arquivo. | Executar `publicacao` depois de concluir `deploy` com evidência objetiva. |
 | `banco` | `triagem` | alta | `DB` | — | Aguardando ciclo `publicacao` ficar verde neste arquivo. | Executar `banco` depois de concluir `publicacao` com evidência objetiva. |
 | `jobs` | `na` | alta | `job` | — | — | Reavaliar somente se houver mudança contratual aprovada nos documentos normativos. |
@@ -37,6 +37,7 @@
 - 2026-05-29 — backlog migrado do painel operacional anterior para `docs/project`.
 - 2026-05-30 — ciclo `repositorio` segue `bloqueado`: `Aneety/ai` está limpo/sincronizado, mas ainda expõe só `aneety-platform/apps/.gitkeep`, sem raiz concreta da responsabilidade.
 - 2026-05-31 — ciclo `repositorio` concluído pela [PR #19](https://github.com/Aneety/ai/pull/19), mergeada em `main`, criando a raiz física `aneety-platform/apps/tenant-white-label/` e os diretórios folha mínimos previstos na matriz.
+- 2026-06-01 — ciclo `deploy` avançou para `validacao`: o módulo `worker-tenant-white-label` agora possui Worker Cloudflare versionável, `wrangler.toml` sem segredos, contrato mínimo `/health` e `/contract`, testes de módulo e validação de deploy; conclusão depende de PR/checks remotos e `Cloudflare deploy gate` em modo `dry-run`.
 
 
 ## Triagem Google Stitch
