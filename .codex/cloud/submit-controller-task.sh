@@ -28,7 +28,20 @@ cleanup_prompt_file="0"
 if [ -z "$prompt_file" ]; then
   prompt_file="$(mktemp -t aneety-controller-prompt.XXXXXX.md)"
   cleanup_prompt_file="1"
-  node .codex/cloud/build-controller-prompt.mjs --output "$prompt_file"
+  prompt_args=(--output "$prompt_file")
+  if [ -n "${CODEX_CLOUD_TARGET_RESPONSIBILITY:-}" ]; then
+    prompt_args+=(--responsibility "$CODEX_CLOUD_TARGET_RESPONSIBILITY")
+  fi
+  if [ -n "${CODEX_CLOUD_TARGET_CYCLE:-}" ]; then
+    prompt_args+=(--cycle "$CODEX_CLOUD_TARGET_CYCLE")
+  fi
+  if [ -n "${CODEX_CLOUD_TARGET_PARENT_RESPONSIBILITY:-}" ]; then
+    prompt_args+=(--dependency-parent-responsibility "$CODEX_CLOUD_TARGET_PARENT_RESPONSIBILITY")
+  fi
+  if [ -n "${CODEX_CLOUD_TARGET_PARENT_CYCLE:-}" ]; then
+    prompt_args+=(--dependency-parent-cycle "$CODEX_CLOUD_TARGET_PARENT_CYCLE")
+  fi
+  node .codex/cloud/build-controller-prompt.mjs "${prompt_args[@]}"
 fi
 trap 'if [ "$cleanup_prompt_file" = "1" ]; then rm -f "$prompt_file"; fi' EXIT
 

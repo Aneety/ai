@@ -2,7 +2,12 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { buildActionableSignature, loadControllerBacklog, resolveNextBacklogTarget } from './controller-backlog.mjs';
+import {
+  buildActionableSignature,
+  loadControllerBacklog,
+  resolveNextBacklogTarget,
+} from './controller-backlog.mjs';
+import { classifyStatus, normalizeCycle } from './controller-constants.mjs';
 
 function fail(message) {
   console.error(`[codex-cloud-prompt] ${message}`);
@@ -28,21 +33,79 @@ function formatBacklogMetrics(metrics) {
 }
 
 function parseArgs(argv) {
-  const args = { output: null };
+  const args = {
+    output: null,
+    responsibility: null,
+    cycle: null,
+    dependencyParentResponsibility: null,
+    dependencyParentCycle: null,
+  };
   for (let index = 2; index < argv.length; index += 1) {
     if (argv[index] === '--output') {
       args.output = argv[index + 1] ?? null;
+      index += 1;
+    } else if (argv[index] === '--responsibility') {
+      args.responsibility = argv[index + 1] ?? null;
+      index += 1;
+    } else if (argv[index] === '--cycle') {
+      args.cycle = normalizeCycle(argv[index + 1] ?? '');
+      index += 1;
+    } else if (argv[index] === '--dependency-parent-responsibility') {
+      args.dependencyParentResponsibility = argv[index + 1] ?? null;
+      index += 1;
+    } else if (argv[index] === '--dependency-parent-cycle') {
+      args.dependencyParentCycle = normalizeCycle(argv[index + 1] ?? '');
       index += 1;
     }
   }
   return args;
 }
 
+function resolveExplicitTarget(backlog, args) {
+  if (!args.responsibility || !args.cycle) return null;
+
+  const detail = backlog.detailsByResponsibility.get(args.responsibility);
+  const summaryRow = backlog.summaryRows.find((row) => row.responsibility === args.responsibility);
+  if (!detail || !summaryRow) {
+    fail(`explicit target not found: ${args.responsibility}/${args.cycle}`);
+  }
+
+  const cycleRow = detail.cycles.find((row) => row.cycle === args.cycle);
+  if (!cycleRow) {
+    fail(`explicit target cycle not found: ${args.responsibility}/${args.cycle}`);
+  }
+
+  const statusKind = classifyStatus(cycleRow.status);
+  if (statusKind !== 'actionable') {
+    fail(`explicit target is not actionable: ${args.responsibility}/${args.cycle}/${cycleRow.status}`);
+  }
+
+  return {
+    state: 'actionable',
+    responsibility: args.responsibility,
+    cycle: args.cycle,
+    branchPrefix: `codex/${args.cycle}-${args.responsibility}`,
+    summaryRow,
+    detail,
+    cycleRow,
+    matrix: backlog.planningMatrix.get(args.responsibility) ?? null,
+    backlogMetrics: backlog.metrics,
+    dependencyParentResponsibility: args.dependencyParentResponsibility || null,
+    dependencyParentCycle: args.dependencyParentCycle || null,
+    dependencyReason:
+      args.dependencyParentResponsibility && args.dependencyParentCycle
+        ? `dependency_preemption=${args.dependencyParentResponsibility}/${args.dependencyParentCycle}->${args.responsibility}/${args.cycle}`
+        : undefined,
+    dependencySource:
+      args.dependencyParentResponsibility && args.dependencyParentCycle ? 'planning_matrix' : undefined,
+  };
+}
+
 async function main() {
   const repoRoot = process.cwd();
   const args = parseArgs(process.argv);
   const backlog = await loadControllerBacklog(repoRoot);
-  const resolved = resolveNextBacklogTarget(backlog);
+  const resolved = resolveExplicitTarget(backlog, args) ?? resolveNextBacklogTarget(backlog);
 
   if (resolved.state !== 'actionable') {
     fail(`controller backlog is ${resolved.state}${resolved.reason ? `: ${resolved.reason}` : ''}`);

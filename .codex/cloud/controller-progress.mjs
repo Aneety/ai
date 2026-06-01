@@ -76,6 +76,25 @@ function normalizeCloudTaskStatus(value) {
   return normalized.length > 0 ? normalized : 'unknown';
 }
 
+function trackedTasks(runtimeState) {
+  return Array.isArray(runtimeState?.activeTasks) ? runtimeState.activeTasks : [];
+}
+
+function countTrackedTasks(runtimeState, states = []) {
+  const allowed = new Set(states.map((state) => String(state).toLowerCase()));
+  return trackedTasks(runtimeState).filter((task) => allowed.has(String(task.state ?? '').toLowerCase())).length;
+}
+
+function countDependencyChains(runtimeState) {
+  const parents = new Set();
+  for (const task of trackedTasks(runtimeState)) {
+    if (!task?.dependencyParentResponsibility || !task?.dependencyParentCycle) continue;
+    if (!['pending', 'running', 'ready', 'publishing'].includes(String(task.state ?? '').toLowerCase())) continue;
+    parents.add(`${task.dependencyParentResponsibility}/${task.dependencyParentCycle}`);
+  }
+  return parents.size;
+}
+
 export function deriveMonitorState({
   resolvedTarget,
   runtimeState,
@@ -99,16 +118,26 @@ export function deriveMonitorState({
   const remoteActionState = runtimeState?.lastRemoteActionState ?? 'none';
   const runningRemoteDeploy = remoteActionState === 'running_remote_deploy';
   const runningRemoteSmoke = remoteActionState === 'running_remote_smoke';
+  const activeDependencyChainCount = countDependencyChains(runtimeState);
   const dependencyChainActive =
+    activeDependencyChainCount > 0 ||
     Boolean(resolvedTarget?.dependencyParentResponsibility && resolvedTarget?.dependencyParentCycle) ||
     Boolean(runtimeState?.lastDependencyParentResponsibility && runtimeState?.lastDependencyTargetResponsibility);
   const dependencyCycleRunning =
-    dependencyChainActive &&
-    ['task_submitted', 'watching_task', 'publishing_diff', 'awaiting_pr_merge'].includes(
-      runtimeState?.lastDependencyState ?? '',
-    );
+    activeDependencyChainCount > 0 ||
+    (dependencyChainActive &&
+      ['task_submitted', 'watching_task', 'publishing_diff', 'awaiting_pr_merge', 'ready_for_dependency_cycle'].includes(
+        String(runtimeState?.lastDependencyState ?? ''),
+      ));
+  const activeTaskCount = countTrackedTasks(runtimeState, ['pending', 'running']);
+  const publishQueueCount = Array.isArray(runtimeState?.publishQueue) ? runtimeState.publishQueue.length : 0;
+  const trackedReadyTaskCount = countTrackedTasks(runtimeState, ['ready', 'publishing']);
+  const supersededTaskCount = countTrackedTasks(runtimeState, ['superseded']);
+  const parallelEligibleCount = Array.isArray(runtimeState?.lastParallelEligibleTargets)
+    ? runtimeState.lastParallelEligibleTargets.length
+    : 0;
   const activeCloudTaskStatus = normalizeCloudTaskStatus(latestCloudTaskStatus ?? runtimeState?.lastTaskState);
-  const runningCloudTask = ['pending', 'running'].includes(activeCloudTaskStatus);
+  const runningCloudTask = activeTaskCount > 0;
   const degradedByBacklog =
     resolvedTarget?.state === 'blocked' && resolvedTarget?.blockKind != null && resolvedTarget?.blockKind !== 'pause';
   const degradedByPr = ['failed', 'timeout'].includes(openControllerPrState);
@@ -132,13 +161,15 @@ export function deriveMonitorState({
     (
       !runningRemoteDeploy &&
       !runningRemoteSmoke &&
-      pausedByBacklog
+      pausedByBacklog &&
+      parallelEligibleCount === 0
     ) ||
     (
       !runningRemoteDeploy &&
       !runningRemoteSmoke &&
       resolvedTarget?.state === 'blocked' &&
-      runtimeState?.lastFunctionalState === 'paused'
+      runtimeState?.lastFunctionalState === 'paused' &&
+      parallelEligibleCount === 0
     )
   ) {
     schedulerFunctionalState = 'paused';
@@ -153,22 +184,26 @@ export function deriveMonitorState({
     controllerProgressState = 'running_remote_deploy';
   } else if (runningRemoteSmoke) {
     controllerProgressState = 'running_remote_smoke';
+  } else if (publishQueueCount > 0) {
+    controllerProgressState = 'publish_queue_pending';
   } else if (dependencyCycleRunning) {
-    controllerProgressState = 'dependency_cycle_running';
+    controllerProgressState = 'dependency_chain_in_progress';
   } else if (runningCloudTask) {
-    controllerProgressState = 'running_cloud_task';
+    controllerProgressState = 'parallel_tasks_running';
+  } else if (parallelEligibleCount > 0) {
+    controllerProgressState = 'ready_for_more_parallel_work';
   } else if (['pending', 'merge_ready'].includes(openControllerPrState)) {
     controllerProgressState = 'pending_pr_checks';
   } else if (schedulerFunctionalState === 'paused') {
     controllerProgressState = pausedManualExternal ? 'paused_waiting_manual_external_gate' : 'paused_waiting_external_gate';
-  } else if (dependencyChainActive && (betweenSlots || hasRecentSuccess)) {
-    controllerProgressState = 'dependency_chain_in_progress';
-  } else if (dependencyChainActive) {
-    controllerProgressState = 'ready_for_dependency_cycle';
   } else if (awaitingNextTick) {
     controllerProgressState = 'awaiting_next_tick';
   } else if (betweenSlots || hasRecentSuccess) {
     controllerProgressState = 'idle_between_slots';
+  } else if (dependencyChainActive) {
+    controllerProgressState = 'ready_for_dependency_cycle';
+  } else if (resolvedTarget?.state === 'actionable') {
+    controllerProgressState = 'ready_for_more_parallel_work';
   }
 
   const shouldWarnCloudTaskListEmpty =
@@ -176,10 +211,11 @@ export function deriveMonitorState({
     openControllerPrState === 'none' &&
     schedulerFunctionalState === 'ready' &&
     backlogCompletionState !== 'complete' &&
+    activeTaskCount === 0 &&
+    publishQueueCount === 0 &&
     !dependencyChainActive &&
     !runningRemoteDeploy &&
     !runningRemoteSmoke &&
-    !runningCloudTask &&
     !awaitingNextTick &&
     !betweenSlots &&
     !hasRecentSuccess;
@@ -201,6 +237,11 @@ export function deriveMonitorState({
     dependencyCycleRunning,
     runningCloudTask,
     activeCloudTaskStatus,
+    activeTaskCount,
+    publishQueueCount,
+    trackedReadyTaskCount,
+    supersededTaskCount,
+    activeDependencyChainCount,
     isDegraded,
     shouldWarnCloudTaskListEmpty,
   };

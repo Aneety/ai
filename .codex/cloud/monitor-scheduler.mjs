@@ -323,6 +323,12 @@ async function main() {
 
   log(`health_state=${health.status}`);
   log(`scheduler_functional_state=${derived.schedulerFunctionalState}`);
+  log(`parallel_limit=${runtimeState?.lastParallelLimit ?? process.env.CODEX_CLOUD_MAX_PARALLEL_TASKS ?? 4}`);
+  log(`active_task_count=${derived.activeTaskCount}`);
+  log(`publish_queue_count=${derived.publishQueueCount}`);
+  log(`tracked_ready_task_count=${derived.trackedReadyTaskCount}`);
+  log(`superseded_task_count=${derived.supersededTaskCount}`);
+  log(`active_dependency_chain_count=${derived.activeDependencyChainCount}`);
   log(`evaluated_ref_source=${health.evaluatedRefSource ?? (evaluationRoot === isolatedWorktree ? 'isolated_worktree' : 'repo_root')}`);
   if (health.evaluatedSha ?? mainSha) {
     log(`evaluated_sha=${health.evaluatedSha ?? mainSha}`);
@@ -350,6 +356,12 @@ async function main() {
   }
   if (runtimeState?.lastTaskState) {
     log(`last_task_state=${runtimeState.lastTaskState}`);
+  }
+  if (Array.isArray(runtimeState?.lastParallelEligibleTargets) && runtimeState.lastParallelEligibleTargets.length > 0) {
+    log(`parallel_eligible_targets=${runtimeState.lastParallelEligibleTargets.join(',')}`);
+  }
+  if (Array.isArray(runtimeState?.lastParallelExcludedTargets) && runtimeState.lastParallelExcludedTargets.length > 0) {
+    log(`parallel_excluded_targets=${runtimeState.lastParallelExcludedTargets.join(',')}`);
   }
   if (runtimeState?.lastRemoteAction) {
     log(`last_remote_action=${runtimeState.lastRemoteAction}`);
