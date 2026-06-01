@@ -62,6 +62,19 @@ Sequência remota mínima após PR gate verde:
 5. Criar um arquivo de evidência fora de secrets seguindo `publication-evidence.example.json` e validar com `ANEETY_PUBLICATION_EVIDENCE_FILE=<arquivo> npm run publication:validate`.
 6. Atualizar `docs/project/gateway-borda.md` e `docs/project/index.md` com URL real, runs de GitHub Actions/Cloudflare e SHA final antes de marcar `publicacao` como `concluido`.
 
+
+## Ciclo `backend`
+
+O ciclo `backend` começa depois da publicação real do `worker-gateway`, mas só pode ser concluído quando os BFFs upstream publicados também tiverem contratos HTTP compatíveis com as rotas encaminhadas pela borda. Para tornar esse gate auditável sem executar runtime local:
+
+- `backend-readiness.json` registra a URL publicada do gateway, a versão de contrato, os service bindings e os caminhos upstream exigidos (`/session`, `/branding` e `/invitations`);
+- `scripts/validate-backend-readiness.mjs` valida que o contrato versionado do gateway, as evidências de publicação dos BFFs e os bindings declarados permanecem coerentes;
+- `npm run backend:validate` é uma validação leve de fonte/documento para o PR gate, não um aceite funcional local.
+
+Estado atual: `blocked`. O gateway publicado já possui envelope HTTP, CORS, versão de contrato, sessão pública e roteamento por service binding, mas os BFFs `worker-identidade-acesso`, `worker-tenant-white-label` e `worker-onboarding-acesso` ainda estão com ciclo ativo em `banco`; portanto ainda não existe evidência remota de backend concluído para os caminhos que a borda encaminha.
+
+Próxima ação remota: concluir os ciclos `backend` dos três BFFs dependentes e então executar um gate remoto do `gateway-borda/backend` contra a URL publicada, validando contrato HTTP e roteamento real pelos service bindings Cloudflare.
+
 ## Ambiente e rollback
 
 - Variáveis versionadas sem segredo: `ANEETY_ALLOWED_ORIGINS` e `ANEETY_CONTRACT_VERSION`.

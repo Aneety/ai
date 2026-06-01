@@ -129,7 +129,17 @@ async function handleRequest(request, env = {}) {
   if (request.method === 'GET' && new URL(request.url).pathname === '/contract') {
     return jsonResponse(request, env, 200, {
       contractVersion: env.ANEETY_CONTRACT_VERSION || CONTRACT_VERSION,
-      routes: Object.values(PUBLIC_ROUTES).map(({ id, method, path, requiresSession }) => ({ id, method, path, requiresSession })),
+      runtime: 'cloudflare-workers',
+      backendStatus: 'blocked',
+      backendBlocker: 'BFFs upstream ainda precisam concluir backend para os caminhos exigidos pelo gateway.',
+      routes: Object.values(PUBLIC_ROUTES).map(({ id, method, path, requiresSession, binding, upstreamPath }) => ({
+        id,
+        method,
+        path,
+        requiresSession,
+        binding: binding || null,
+        upstreamPath: upstreamPath || null,
+      })),
     });
   }
 
