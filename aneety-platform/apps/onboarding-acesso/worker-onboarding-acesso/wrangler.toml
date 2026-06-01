@@ -1,0 +1,11 @@
+name = "worker-onboarding-acesso"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[vars]
+ANEETY_CONTRACT_VERSION = "2026-06-01.onboarding-acesso.deploy.v1"
+ANEETY_SERVICE_NAME = "worker-onboarding-acesso"
