@@ -173,7 +173,9 @@ if git show-ref --verify --quiet "refs/heads/${branch}"; then
 fi
 
 if ! git apply --check "$patch_file"; then
-  fail "cloud diff does not apply cleanly to ${base_ref}"
+  log "task_diff_state=stale_conflict task=${task_id}"
+  log "pr_state=stale_conflict"
+  exit 0
 fi
 
 git apply "$patch_file"

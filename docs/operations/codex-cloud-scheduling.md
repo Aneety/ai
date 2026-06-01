@@ -218,6 +218,7 @@ Regras:
 10. `remote gate` de ciclos pausados (`validacao`/`bloqueado`) só roda quando não houver tasks ativas, fila de publicação ou targets paralelos elegíveis; blockers remotos não congelam o restante do pool cloud.
 11. Para ciclos de dados, Supabase pode ser usado como provedor operacional permitido/padrão quando a responsabilidade exigir, sem virar dependência obrigatória do contrato de produto nem copy de usuário final.
 12. `GH_TOKEN` continua no domínio Codex Cloud/scheduler; `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` precisam existir também no escopo de GitHub Actions usado por `.github/workflows/cloudflare-gate.yml` para que `publicacao` seja automável.
+13. Se um diff pronto ficar stale depois de outro merge serial em `main`, o publisher deve marcá-lo como `stale_conflict`/`superseded` e voltar ao backlog para gerar uma task nova, nunca falhar o ciclo inteiro por patch drift esperado.
 
 ## Critério de aceite do agendamento
 

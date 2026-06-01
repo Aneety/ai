@@ -847,6 +847,16 @@ async function processPublishQueue({ backlog, mainSha }) {
       log(`task_no_diff task=${queuedTask.taskId}`);
       continue;
     }
+    if (publish.prState === 'stale_conflict') {
+      await markTrackedTaskState(queuedTask.taskId, {
+        state: 'superseded',
+        supersededAt: new Date().toISOString(),
+        supersededReason: 'patch_conflict_with_main',
+        removeFromQueue: true,
+      });
+      log(`task_superseded task=${queuedTask.taskId} reason=patch_conflict_with_main`);
+      continue;
+    }
 
     await markTrackedTaskState(queuedTask.taskId, {
       state: 'publishing',
