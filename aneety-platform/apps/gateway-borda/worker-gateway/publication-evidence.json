@@ -1,0 +1,13 @@
+{
+  "responsibility": "gateway-borda",
+  "cycle": "publicacao",
+  "modulePath": "aneety-platform/apps/gateway-borda/worker-gateway",
+  "deployRunId": "26752179408",
+  "deployRunUrl": "https://github.com/Aneety/ai/actions/runs/26752179408",
+  "smokeRunId": "26752219345",
+  "smokeRunUrl": "https://github.com/Aneety/ai/actions/runs/26752219345",
+  "publishedUrl": "https://aneety-worker-gateway-borda.ricardomalnati.workers.dev",
+  "headSha": "1244bf4fc33f17c32d89d9ec920b1d1982b22fd7",
+  "validatedAt": "2026-06-01T11:31:30Z",
+  "result": "success"
+}
