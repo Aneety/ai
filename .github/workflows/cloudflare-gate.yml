@@ -183,27 +183,11 @@ jobs:
             fi
           done <<< "${{ steps.discover.outputs.worker_dirs }}"
           if [ "$deploy_status" -ne 0 ]; then
-            python3 - "$deploy_log" "$GITHUB_ENV" <<'PY'
-            import json
-            import re
-            import sys
-            from pathlib import Path
-
-            log_path = Path(sys.argv[1])
-            env_path = Path(sys.argv[2])
-            log = log_path.read_text()
-            missing = []
-            for match in re.finditer(r"Service binding '([^']+)' references Worker '([^']+)' which was not found\.[^\n]*\[code: (\d+)\]", log):
-              service_name = match.group(2).strip()
-              failure_code = match.group(3).strip()
-              if service_name and service_name not in missing:
-                missing.append(service_name)
-            if missing:
-              with env_path.open('a', encoding='utf-8') as handle:
-                handle.write("DEPLOY_FAILURE_CODE=10143\n")
-                handle.write("DEPLOY_FAILURE_REASON=service_binding_missing\n")
-                handle.write(f"DEPLOY_MISSING_SERVICES_JSON={json.dumps(missing, separators=(',', ':'))}\n")
-            PY
+            python3 -c 'import json, re, sys; from pathlib import Path; log = Path(sys.argv[1]).read_text(); env_path = Path(sys.argv[2]); missing = []; pattern = r"Service binding '\''([^'\'']+)'\'' references Worker '\''([^'\'']+)'\'' which was not found\.[^\n]*\[code: (\d+)\]"; \
+for match in re.finditer(pattern, log): \
+    service_name = match.group(2).strip(); \
+    missing.append(service_name) if service_name and service_name not in missing else None; \
+env_path.open("a", encoding="utf-8").write("DEPLOY_FAILURE_CODE=10143\\nDEPLOY_FAILURE_REASON=service_binding_missing\\nDEPLOY_MISSING_SERVICES_JSON=" + json.dumps(missing, separators=(",", ":")) + "\\n") if missing else None' "$deploy_log" "$GITHUB_ENV"
             exit "$deploy_status"
           fi
           published_url="$(grep -Eo 'https://[^[:space:]]+' "$deploy_log" | grep -v 'github.com/' | tail -1 || true)"
