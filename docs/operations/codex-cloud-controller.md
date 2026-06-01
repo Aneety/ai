@@ -18,7 +18,7 @@ Este documento descreve o modo cloud-safe do controlador de implementação da A
 - `.codex/cloud/watch-task.sh` — wrapper para acompanhar uma task remota até `READY` ou falha.
 - `.codex/cloud/publish-task-diff.sh` — fallback operacional versionado para publicar o diff de uma task `READY` como branch/commit/PR a partir do worktree isolado local, sem aplicar nada no checkout canônico.
 - `.codex/cloud/reconcile-controller-pr.mjs` — helper versionado para reconciliar qualquer PR operacional do controlador, classificar `pending|failed|merge_ready|merged|timeout` e concluir squash merge automático quando o gate remoto estiver verde.
-- `.codex/cloud/remote-gate.mjs` — orquestra blockers `remote_automable` depois do merge, disparando `Cloudflare deploy gate`, baixando o artefato JSON do workflow e preparando a evidência versionada do ciclo.
+- `.codex/cloud/remote-gate.mjs` — orquestra blockers `remote_automable` depois do merge, disparando `Cloudflare deploy gate`, baixando o artefato JSON do workflow e preparando a evidência versionada do ciclo. Hoje cobre `deploy` e `publicacao` dos Workers suportados, além de `gateway-borda/publicacao`.
 - `.codex/cloud/publish-operational-update.sh` — publica mudanças operacionais geradas pelo próprio scheduler, sem depender de diff vindo da task cloud.
 - `.codex/cloud/mirror-actions-secrets.sh` — bootstrap operacional para espelhar segredos Cloudflare do ambiente Codex Cloud para GitHub Actions secrets, sem imprimir valores.
 
@@ -54,6 +54,7 @@ Use allowlist mínima:
 
 - Codex Cloud deve preparar código fonte, documentação operacional e diff auditável; a mutação GitHub oficial é **scheduler-only**.
 - O scheduler publica o diff com `.codex/cloud/publish-task-diff.sh` exclusivamente em worktree isolado e sem tocar no checkout canônico, e reconcilia checks/merge com `.codex/cloud/reconcile-controller-pr.mjs`.
+- Cada ciclo real do scheduler usa lock local antes de preparar/limpar o worktree isolado; isso evita corrida entre `scheduler:once`, `scheduler:dry-run` e o processo residente.
 - Quando um ciclo estiver pausado por blocker `remote_automable`, o scheduler só tenta o trecho remoto por GitHub Actions depois que a fila de publicação e a janela paralela de tasks cloud estiverem vazias; assim, o blocker remoto não congela outras responsabilidades independentes.
 - Quando o ciclo pausado também declarar dependências automáveis na matriz, o scheduler deve preemptar o item pai e abrir/avançar tasks dos dependentes até `deploy=concluido` antes de voltar ao gate remoto do pai.
 - Para `gateway-borda/publicacao`, o contrato atual exige primeiro `tenant-white-label/deploy`, `identidade-acesso/deploy` e `onboarding-acesso/deploy` verdes; só depois o scheduler pode insistir em `deploy`/`smoke` do gateway.
