@@ -1,0 +1,53 @@
+{
+  "responsibility": "onboarding-acesso",
+  "cycle": "banco",
+  "runtime": "cloudflare-workers",
+  "storage": {
+    "type": "d1",
+    "binding": "ONBOARDING_ACESSO_DB",
+    "databaseName": "onboarding-acesso-db",
+    "migrationDirectory": "migrations",
+    "rollbackDirectory": "rollbacks",
+    "seedDirectory": "seeds"
+  },
+  "entities": [
+    {
+      "name": "onboarding_invites",
+      "tenantIsolation": "tenant_id required; contact and invitation hashes are tenant-scoped",
+      "crudLevelDeclared": "create/read/accept/revoke invitations by tenant_id and hashed challenge in D1"
+    },
+    {
+      "name": "onboarding_first_access_sessions",
+      "tenantIsolation": "tenant_id plus invite_id foreign key; first access session hashes are tenant-scoped",
+      "crudLevelDeclared": "create/read/update first access lifecycle by tenant_id, session hash, expiration and revocation in D1"
+    },
+    {
+      "name": "onboarding_contact_confirmations",
+      "tenantIsolation": "tenant_id plus invite/session references; confirmation hashes and attempts are tenant-scoped",
+      "crudLevelDeclared": "create/read/confirm contact ownership by tenant_id and hashed challenge in D1"
+    },
+    {
+      "name": "onboarding_recovery_requests",
+      "tenantIsolation": "tenant_id plus contact hash and optional identity_ref; recovery hashes are tenant-scoped",
+      "crudLevelDeclared": "create/read/verify/complete/revoke recovery lifecycle by tenant_id and hashed challenge in D1"
+    },
+    {
+      "name": "onboarding_lifecycle_events",
+      "tenantIsolation": "tenant_id required on every audit row and linked to invite, first access, confirmation or recovery records",
+      "crudLevelDeclared": "append/read audit events by tenant_id and occurred_at in D1"
+    }
+  ],
+  "securityControls": [
+    "Raw invitation, first-access, confirmation and recovery challenges are never persisted; only hash columns are allowed.",
+    "All operational tables require tenant_id and tenant-scoped indexes for acceptance-relevant reads.",
+    "Expirable challenges require expires_at and revocable flows require revoked_at or terminal lifecycle status.",
+    "Audit rows capture actor_ref, reason and occurred_at without storing secrets or raw personal contact values.",
+    "Frontend and microfrontend never access D1 directly; backend/BFF must enforce this contract over Workers bindings."
+  ],
+  "acceptanceEvidenceRequired": [
+    "GitHub Actions PR gate green after scheduler publishes the diff.",
+    "Cloudflare D1-backed migration execution for migrations/0001_onboarding_acesso_d1.sql.",
+    "Cloudflare D1-backed fixture execution proving tenant isolation, expiration, revocation and no cross-tenant recovery lookup.",
+    "Rollback execution or equivalent remote D1 evidence for rollbacks/0001_onboarding_acesso_d1.sql."
+  ]
+}
