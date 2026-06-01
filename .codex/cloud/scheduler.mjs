@@ -17,6 +17,7 @@ import { compareTargets, isStableBlockedTarget } from './controller-progress.mjs
 import { runControllerHealthCheck } from './health-check.mjs';
 import {
   executeWorkerDeployRemoteGate,
+  executeWorkerPublicationRemoteGate,
   executeGatewayBordaPublicationRemoteGate,
   getRemoteAutomationRunbook,
   mapMissingServicesToDependencies,
@@ -63,6 +64,14 @@ const mode = process.argv.includes('--once')
   : process.argv.includes('--dry-run')
     ? 'dry-run'
     : 'schedule';
+const schedulerLockDir =
+  process.env.CODEX_CLOUD_SCHEDULER_LOCK_DIR ??
+  path.join(path.dirname(stateFile), 'scheduler-cycle.lock');
+const schedulerLockOwnerFile = path.join(schedulerLockDir, 'owner.json');
+const lockWaitMs = positiveInteger(
+  process.env.CODEX_CLOUD_LOCK_WAIT_MS,
+  mode === 'schedule' ? 0 : 60,
+) * 1000;
 
 let executionRoot = canonicalRepoRoot;
 const NON_TERMINAL_TRACKED_STATES = new Set(['pending', 'running', 'ready', 'publishing']);
@@ -94,6 +103,71 @@ function childEnv() {
 
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+function lockOwnerLabel(context) {
+  return `${mode}:${context}`;
+}
+
+async function sleep(milliseconds) {
+  await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function readSchedulerLockOwner() {
+  try {
+    return JSON.parse(await readFile(schedulerLockOwnerFile, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function isProcessAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === 'EPERM';
+  }
+}
+
+async function acquireSchedulerLock({ context, waitMilliseconds = lockWaitMs } = {}) {
+  const owner = {
+    pid: process.pid,
+    mode,
+    context,
+    acquiredAt: new Date().toISOString(),
+  };
+  const deadline = Date.now() + Math.max(waitMilliseconds, 0);
+
+  for (;;) {
+    try {
+      await mkdir(schedulerLockDir, { mode: 0o700 });
+      await writeFile(schedulerLockOwnerFile, `${JSON.stringify(owner, null, 2)}\n`);
+      return { acquired: true, owner };
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+
+      const existingOwner = await readSchedulerLockOwner();
+      if (!isProcessAlive(Number(existingOwner?.pid))) {
+        await rm(schedulerLockDir, { recursive: true, force: true });
+        continue;
+      }
+
+      if (Date.now() >= deadline) {
+        return { acquired: false, owner: existingOwner ?? null };
+      }
+
+      await sleep(1000);
+    }
+  }
+}
+
+async function releaseSchedulerLock(owner) {
+  const existingOwner = await readSchedulerLockOwner();
+  if (existingOwner?.pid && Number(existingOwner.pid) !== process.pid) return;
+  if (owner?.pid && Number(owner.pid) !== process.pid) return;
+  await rm(schedulerLockDir, { recursive: true, force: true });
 }
 
 function withEnvFile(command, extraEnv = {}) {
@@ -1127,7 +1201,9 @@ async function executeRemoteGateForTarget(target, mainSha) {
   const remoteRunner =
     target.responsibility === 'gateway-borda' && target.cycle === 'publicacao'
       ? executeGatewayBordaPublicationRemoteGate
-      : executeWorkerDeployRemoteGate;
+      : target.cycle === 'publicacao'
+        ? executeWorkerPublicationRemoteGate
+        : executeWorkerDeployRemoteGate;
   const result = await remoteRunner({
     target,
     repoRoot: executionRoot,
@@ -1277,26 +1353,50 @@ async function finalizeProgress({
 }
 
 async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
+  const lock = await acquireSchedulerLock({
+    context: `cycle:${reason}`,
+    waitMilliseconds: reason === 'scheduled' ? 0 : lockWaitMs,
+  });
+  if (!lock.acquired) {
+    const ownerLabel = lock.owner?.context ?? 'unknown';
+    if (reason === 'scheduled') {
+      log(`cycle skipped reason=${reason} lock_held_by=${ownerLabel}`);
+      await writeRuntimeState({
+        lastCycleReason: reason,
+        lastScheduledSlotAt: scheduledSlotAt,
+        lastCycleCompletedAt: new Date().toISOString(),
+        lastCycleState: 'waiting_lock',
+        lastFunctionalState: 'ready',
+        healthState: 'ready',
+        lastError: null,
+        lastErrorAt: null,
+      });
+      return;
+    }
+    throw new Error(`scheduler_lock_timeout owner=${ownerLabel}`);
+  }
+
   const previousRuntimeState = await loadRuntimeState();
   const cycleStartedAt = new Date().toISOString();
   log(`cycle started reason=${reason}`);
-  await preflight();
-  await writeRuntimeState({
-    lastCycleReason: reason,
-    lastScheduledSlotAt: scheduledSlotAt,
-    lastCycleStartedAt: cycleStartedAt,
-    lastCycleState: 'running',
-    lastFunctionalState: 'ready',
-    healthState: 'ready',
-    lastPauseStatus: null,
-    lastPauseReason: null,
-    lastPauseResponsibility: null,
-    lastPauseCycle: null,
-    lastError: null,
-    lastErrorAt: null,
-  });
 
   try {
+    await preflight();
+    await writeRuntimeState({
+      lastCycleReason: reason,
+      lastScheduledSlotAt: scheduledSlotAt,
+      lastCycleStartedAt: cycleStartedAt,
+      lastCycleState: 'running',
+      lastFunctionalState: 'ready',
+      healthState: 'ready',
+      lastPauseStatus: null,
+      lastPauseReason: null,
+      lastPauseResponsibility: null,
+      lastPauseCycle: null,
+      lastError: null,
+      lastErrorAt: null,
+    });
+
     const initialReconciliation = await reconcileOpenControllerPr({ wait: true });
     if (initialReconciliation.state === 'merged') {
       const mergedSha = await syncIsolatedWorktreeToMain();
@@ -1679,6 +1779,7 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
     } catch (cleanupError) {
       reportScheduledFailure(cleanupError.message);
     }
+    await releaseSchedulerLock(lock.owner);
   }
 }
 
@@ -1694,55 +1795,63 @@ async function main() {
   process.chdir(path.resolve(canonicalRepoRoot));
 
   if (mode === 'dry-run') {
-    await preflight();
-    const health = await evaluateHealth();
-    const runtimeState = await refreshTrackedTasks(await loadRuntimeState());
-    const { backlog, resolved } = await resolveCurrentBacklog();
-    const parallelWindow = resolveParallelBacklogTargets(backlog, {
-      limit: Math.max(parallelLimit - countTrackedTasks(runtimeState, ['pending', 'running']), 0),
-      excludeTargets: getOccupiedActionableTargets(runtimeState, backlog),
-    });
-    await cleanIsolatedWorktree();
-    await writeRuntimeState({
-      lastDryRunAt: new Date().toISOString(),
-      lastDryRunHealthState: health.status,
-      lastHealthEvaluatedAt: new Date().toISOString(),
-      lastHealthErrors: health.errors.length > 0 ? health.errors.join(',') : null,
-      lastHealthEvaluatedRefSource: health.evaluatedRefSource ?? null,
-      lastHealthEvaluatedSha: health.evaluatedSha ?? null,
-      activeTasks: runtimeState.activeTasks,
-      publishQueue: runtimeState.publishQueue,
-      lastParallelLimit: parallelLimit,
-      lastActiveTaskCount: countTrackedTasks(runtimeState, ['pending', 'running']),
-      lastPublishQueueCount: normalizePublishQueue(runtimeState).length,
-      lastTrackedReadyTaskCount: countTrackedTasks(runtimeState, ['ready']),
-      lastSupersededTaskCount: countTrackedTasks(runtimeState, ['superseded']),
-      lastActiveDependencyChainCount: countActiveDependencyChains(runtimeState),
-      lastParallelEligibleTargets: parallelWindow.targets.map((target) => `${target.responsibility}/${target.cycle}`),
-      lastParallelExcludedTargets: parallelWindow.excluded.map((item) => `${item.responsibility}/${item.cycle ?? 'none'}:${item.reason}`),
-    });
-    await persistResolvedTarget(resolved, {
-      activeTasks: runtimeState.activeTasks,
-      publishQueue: runtimeState.publishQueue,
-      parallelLimit,
-    });
-    if (health.status !== 'ready') {
-      throw new Error(`health_state=${health.status} errors=${health.errors.join(',') || 'unknown'}`);
+    const lock = await acquireSchedulerLock({ context: lockOwnerLabel('dry-run') });
+    if (!lock.acquired) {
+      throw new Error(`scheduler_lock_timeout owner=${lock.owner?.context ?? 'unknown'}`);
     }
-    log(`dry_run_parallel_limit=${parallelLimit}`);
-    log(`dry_run_active_task_count=${countTrackedTasks(runtimeState, ['pending', 'running'])}`);
-    log(`dry_run_publish_queue_count=${normalizePublishQueue(runtimeState).length}`);
-    log(
-      `dry_run_parallel_targets=${parallelWindow.targets.map((target) => `${target.responsibility}/${target.cycle}`).join(',') || 'none'}`,
-    );
-    if (parallelWindow.excluded.length > 0) {
+    try {
+      await preflight();
+      const health = await evaluateHealth();
+      const runtimeState = await refreshTrackedTasks(await loadRuntimeState());
+      const { backlog, resolved } = await resolveCurrentBacklog();
+      const parallelWindow = resolveParallelBacklogTargets(backlog, {
+        limit: Math.max(parallelLimit - countTrackedTasks(runtimeState, ['pending', 'running']), 0),
+        excludeTargets: getOccupiedActionableTargets(runtimeState, backlog),
+      });
+      await cleanIsolatedWorktree();
+      await writeRuntimeState({
+        lastDryRunAt: new Date().toISOString(),
+        lastDryRunHealthState: health.status,
+        lastHealthEvaluatedAt: new Date().toISOString(),
+        lastHealthErrors: health.errors.length > 0 ? health.errors.join(',') : null,
+        lastHealthEvaluatedRefSource: health.evaluatedRefSource ?? null,
+        lastHealthEvaluatedSha: health.evaluatedSha ?? null,
+        activeTasks: runtimeState.activeTasks,
+        publishQueue: runtimeState.publishQueue,
+        lastParallelLimit: parallelLimit,
+        lastActiveTaskCount: countTrackedTasks(runtimeState, ['pending', 'running']),
+        lastPublishQueueCount: normalizePublishQueue(runtimeState).length,
+        lastTrackedReadyTaskCount: countTrackedTasks(runtimeState, ['ready']),
+        lastSupersededTaskCount: countTrackedTasks(runtimeState, ['superseded']),
+        lastActiveDependencyChainCount: countActiveDependencyChains(runtimeState),
+        lastParallelEligibleTargets: parallelWindow.targets.map((target) => `${target.responsibility}/${target.cycle}`),
+        lastParallelExcludedTargets: parallelWindow.excluded.map((item) => `${item.responsibility}/${item.cycle ?? 'none'}:${item.reason}`),
+      });
+      await persistResolvedTarget(resolved, {
+        activeTasks: runtimeState.activeTasks,
+        publishQueue: runtimeState.publishQueue,
+        parallelLimit,
+      });
+      if (health.status !== 'ready') {
+        throw new Error(`health_state=${health.status} errors=${health.errors.join(',') || 'unknown'}`);
+      }
+      log(`dry_run_parallel_limit=${parallelLimit}`);
+      log(`dry_run_active_task_count=${countTrackedTasks(runtimeState, ['pending', 'running'])}`);
+      log(`dry_run_publish_queue_count=${normalizePublishQueue(runtimeState).length}`);
       log(
-        `dry_run_parallel_excluded=${parallelWindow.excluded
-          .map((item) => `${item.responsibility}/${item.cycle ?? 'none'}:${item.reason}`)
-          .join(',')}`,
+        `dry_run_parallel_targets=${parallelWindow.targets.map((target) => `${target.responsibility}/${target.cycle}`).join(',') || 'none'}`,
       );
+      if (parallelWindow.excluded.length > 0) {
+        log(
+          `dry_run_parallel_excluded=${parallelWindow.excluded
+            .map((item) => `${item.responsibility}/${item.cycle ?? 'none'}:${item.reason}`)
+            .join(',')}`,
+        );
+      }
+      log('dry-run ok');
+    } finally {
+      await releaseSchedulerLock(lock.owner);
     }
-    log('dry-run ok');
     return;
   }
 
@@ -1751,8 +1860,16 @@ async function main() {
     return;
   }
 
-  await preflight();
-  await cleanIsolatedWorktree();
+  const startupLock = await acquireSchedulerLock({ context: lockOwnerLabel('startup') });
+  if (!startupLock.acquired) {
+    throw new Error(`scheduler_lock_timeout owner=${startupLock.owner?.context ?? 'unknown'}`);
+  }
+  try {
+    await preflight();
+    await cleanIsolatedWorktree();
+  } finally {
+    await releaseSchedulerLock(startupLock.owner);
+  }
 
   const schedulerStartedAt = new Date().toISOString();
   const task = cron.schedule(

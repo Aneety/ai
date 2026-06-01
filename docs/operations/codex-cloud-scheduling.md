@@ -18,7 +18,7 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - `.codex/cloud/watch-task.sh` — acompanha uma task até `READY` ou falha; permanece disponível para inspeção/manual, mas o scheduler paralelo usa polling do pool rastreado em `runtime-state.json`.
 - `.codex/cloud/publish-task-diff.sh` — publica o diff de uma task `READY` em branch/commit/PR usando somente worktree isolado; recusa execução no checkout canônico por padrão.
 - `.codex/cloud/reconcile-controller-pr.mjs` — reconcilia PR operacional aberta, classifica `pending|failed|merge_ready|merged|timeout` e executa squash merge automático quando permitido.
-- `.codex/cloud/remote-gate.mjs` — dispara workflows remotos suportados, aguarda conclusão, baixa o artefato JSON do run e prepara a evidência operacional versionada.
+- `.codex/cloud/remote-gate.mjs` — dispara workflows remotos suportados, aguarda conclusão, baixa o artefato JSON do run e prepara a evidência operacional versionada. Além do `deploy` dos Workers e de `gateway-borda/publicacao`, também fecha `publicacao` dos Workers suportados com `deploy` + URL publicada + `smoke` + `publication-evidence.json`.
 - `.codex/cloud/publish-operational-update.sh` — publica PR operacional criada pelo próprio scheduler após gates remotos concluídos.
 - `.codex/cloud/scheduler.mjs` — agendador Node.js com `node-cron`, resolvendo a janela paralela de targets independentes, submetendo até `CODEX_CLOUD_MAX_PARALLEL_TASKS` tasks cloud por vez, mantendo PR/publicação/merge serializados em worktree isolado fora do checkout canônico e registrando o pool em `runtime-state.json`.
 - `.codex/cloud/monitor-scheduler.mjs` — monitor local do agendamento, do arquivo de ambiente, do processo scheduler, do worktree isolado, das tasks Codex Cloud recentes e do estado derivado do backlog/pool (`controller_progress_state`, `scheduler_functional_state`, `active_task_count`, `publish_queue_count`, `tracked_ready_task_count`, `last_success_age_seconds`, `backlog_completion_state`).
@@ -47,6 +47,7 @@ Opcionais:
 - `CODEX_CLOUD_PR_WATCH_INTERVAL`: intervalo em segundos para reconciliar checks da PR; padrão `30`.
 - `CODEX_CLOUD_PR_WATCH_MAX_POLLS`: máximo de leituras dos checks da PR no mesmo ciclo; padrão `60`.
 - `CODEX_CLOUD_MAX_PARALLEL_TASKS`: limite de tasks cloud simultâneas rastreadas pelo scheduler; padrão `4`.
+- `CODEX_CLOUD_LOCK_WAIT_MS`: tempo máximo em segundos para `scheduler:once`, `scheduler:dry-run` e bootstrap aguardarem o lock do ciclo/worktree; padrão `60` fora do daemon recorrente.
 - `CODEX_CLOUD_AUTO_DELETE_BRANCH`: apaga branch remota depois do merge; padrão ligado.
 - `CODEX_CLOUD_GITHUB_REPO`: repositório usado pelo publicador de PR; padrão `Aneety/ai`.
 - `CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN`: usar `GH_TOKEN` do ambiente para criar PR; padrão desligado para preferir a sessão `gh` do keychain local, evitando tokens de ambiente com permissão incompleta para pull requests.

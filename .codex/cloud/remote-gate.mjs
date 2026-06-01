@@ -42,10 +42,29 @@ function buildWorkerDeployRunbook(responsibility) {
   });
 }
 
+function buildWorkerPublicationRunbook(responsibility) {
+  return Object.freeze({
+    responsibility,
+    cycle: 'publicacao',
+    workflowId: 'cloudflare-gate.yml',
+    modulePath: `aneety-platform/apps/${responsibility}/worker-${responsibility}`,
+    evidenceFile: `aneety-platform/apps/${responsibility}/worker-${responsibility}/publication-evidence.json`,
+    artifactName: 'cloudflare-gate-result',
+    responsibilityDoc: `docs/project/${responsibility}.md`,
+    commitTitle: `chore(${responsibility}): record publicacao evidence`,
+  });
+}
+
 export const workerDeployRunbooks = Object.freeze({
   'tenant-white-label': buildWorkerDeployRunbook('tenant-white-label'),
   'identidade-acesso': buildWorkerDeployRunbook('identidade-acesso'),
   'onboarding-acesso': buildWorkerDeployRunbook('onboarding-acesso'),
+});
+
+export const workerPublicationRunbooks = Object.freeze({
+  'tenant-white-label': buildWorkerPublicationRunbook('tenant-white-label'),
+  'identidade-acesso': buildWorkerPublicationRunbook('identidade-acesso'),
+  'onboarding-acesso': buildWorkerPublicationRunbook('onboarding-acesso'),
 });
 
 export const MISSING_SERVICE_DEPENDENCY_MAP = Object.freeze({
@@ -95,6 +114,10 @@ export function getRemoteAutomationKind(target) {
     return REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE;
   }
 
+  if (target.cycle === 'publicacao' && workerPublicationRunbooks[target.responsibility]) {
+    return REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE;
+  }
+
   if (target.cycle === 'deploy' && workerDeployRunbooks[target.responsibility]) {
     return REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE;
   }
@@ -105,6 +128,9 @@ export function getRemoteAutomationKind(target) {
 export function getRemoteAutomationRunbook(target) {
   if (getRemoteAutomationKind(target) !== REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE) {
     return null;
+  }
+  if (target.cycle === 'publicacao' && workerPublicationRunbooks[target.responsibility]) {
+    return workerPublicationRunbooks[target.responsibility];
   }
   if (target.cycle === 'deploy' && workerDeployRunbooks[target.responsibility]) {
     return workerDeployRunbooks[target.responsibility];
@@ -161,6 +187,8 @@ export function mapMissingServicesToDependencies(missingServices = []) {
 }
 
 export function buildPublicationEvidence({
+  responsibility = 'gateway-borda',
+  modulePath = gatewayBordaPublicationRunbook.modulePath,
   publishedUrl,
   headSha,
   deployRunId,
@@ -170,9 +198,9 @@ export function buildPublicationEvidence({
   validatedAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
 }) {
   return {
-    responsibility: 'gateway-borda',
+    responsibility,
     cycle: 'publicacao',
-    modulePath: gatewayBordaPublicationRunbook.modulePath,
+    modulePath,
     deployRunId: String(deployRunId),
     deployRunUrl,
     smokeRunId: String(smokeRunId),
@@ -258,6 +286,52 @@ export function updateWorkerDeployDocs({
   const nextIndexMarkdown = indexMarkdown.replace(
     new RegExp(`^\\| \`${responsibility}\` \\| .*?$`, 'm'),
     `| \`${responsibility}\` | ${owner} | ${priority} | \`publicacao\` | \`triagem\` | [${responsibility}](./${responsibility}.md) | ${deployEvidence} | — |`,
+  );
+
+  return {
+    responsibilityMarkdown: nextResponsibilityMarkdown,
+    indexMarkdown: nextIndexMarkdown,
+  };
+}
+
+export function updateWorkerPublicationDocs({
+  responsibility,
+  responsibilityMarkdown,
+  indexMarkdown,
+  publishedUrl,
+  headSha,
+  deployRunUrl,
+  smokeRunUrl,
+}) {
+  const shortSha = headSha.slice(0, 7);
+  const commitUrl = `https://github.com/${defaultRepo}/commit/${headSha}`;
+  const deployRunId = deployRunUrl.match(/\/runs\/(\d+)$/)?.[1] ?? 'unknown';
+  const smokeRunId = smokeRunUrl.match(/\/runs\/(\d+)$/)?.[1] ?? 'unknown';
+  const publicationEvidence =
+    `[\`Cloudflare deploy gate\` deploy #${deployRunId}](${deployRunUrl}) publicou a URL real \`${publishedUrl}\`, ` +
+    `[\`Cloudflare deploy gate\` smoke #${smokeRunId}](${smokeRunUrl}) validou o endpoint público e ` +
+    `\`worker-${responsibility}/publication-evidence.json\` registrou o SHA [` +
+    `${shortSha}](${commitUrl}).`;
+  const publicacaoNextAction = 'Executar `banco` com evidência objetiva do primeiro contrato persistido após a URL pública validada.';
+  const bancoNextAction = 'Executar `banco` agora que `publicacao` já ficou verde com URL real publicada.';
+
+  const nextResponsibilityMarkdown = responsibilityMarkdown
+    .replace(
+      /^\| `publicacao` \| .*$/m,
+      `| \`publicacao\` | \`concluido\` | alta | \`processo\` | ${publicationEvidence} | — | ${publicacaoNextAction} |`,
+    )
+    .replace(
+      /^\| `banco` \| .*$/m,
+      `| \`banco\` | \`triagem\` | alta | \`DB\` | — | — | ${bancoNextAction} |`,
+    );
+
+  const rowPattern = new RegExp(`^\\| \`${responsibility}\` \\| ([^|]+) \\| ([^|]+) \\| .*?$`, 'm');
+  const rowMatch = indexMarkdown.match(rowPattern);
+  const owner = rowMatch?.[1]?.trim() ?? 'Ricardo Malnati';
+  const priority = rowMatch?.[2]?.trim() ?? 'alta';
+  const nextIndexMarkdown = indexMarkdown.replace(
+    new RegExp(`^\\| \`${responsibility}\` \\| .*?$`, 'm'),
+    `| \`${responsibility}\` | ${owner} | ${priority} | \`banco\` | \`triagem\` | [${responsibility}](./${responsibility}.md) | ${publicationEvidence} | — |`,
   );
 
   return {
@@ -492,6 +566,157 @@ export async function executeWorkerDeployRemoteGate({
     deployRun,
     headSha: mainSha,
     changedFiles: [runbook.responsibilityDoc, 'docs/project/index.md'],
+  };
+}
+
+export async function executeWorkerPublicationRemoteGate({
+  target,
+  repoRoot,
+  mainSha,
+  run,
+  onStateChange = async () => {},
+  repo = defaultRepo,
+} = {}) {
+  const runbook = workerPublicationRunbooks[target?.responsibility ?? ''];
+  if (!runbook) {
+    return { ok: false, state: REMOTE_GATE_STATE.FAILED, blocker: 'remote_gate_unsupported' };
+  }
+
+  const deployNonce = buildWorkflowDispatchNonce({
+    responsibility: runbook.responsibility,
+    cycle: runbook.cycle,
+    stage: 'deploy',
+  });
+
+  await onStateChange({
+    state: REMOTE_GATE_STATE.RUNNING_DEPLOY,
+    stage: 'deploy',
+    nonce: deployNonce,
+  });
+
+  const deployRun = await dispatchAndWaitForWorkflow({
+    run,
+    repo,
+    workflowId: runbook.workflowId,
+    artifactName: runbook.artifactName,
+    ref: 'main',
+    headSha: mainSha,
+    inputs: {
+      module_path: runbook.modulePath,
+      mode: 'deploy',
+      controller_nonce: deployNonce,
+    },
+    nonce: deployNonce,
+  });
+
+  if (deployRun.result.conclusion !== 'success' || !deployRun.result.publishedUrl) {
+    return {
+      ok: false,
+      state: REMOTE_GATE_STATE.FAILED,
+      stage: 'deploy',
+      runbook,
+      deployRun,
+      blocker: `remote_deploy_failed run_id=${deployRun.runId} conclusion=${deployRun.result.conclusion || deployRun.runConclusion || 'unknown'}`,
+      failureCode: deployRun.result.failureCode || null,
+      failureReason: deployRun.result.failureReason || null,
+    };
+  }
+
+  const smokeNonce = buildWorkflowDispatchNonce({
+    responsibility: runbook.responsibility,
+    cycle: runbook.cycle,
+    stage: 'smoke',
+  });
+
+  await onStateChange({
+    state: REMOTE_GATE_STATE.RUNNING_SMOKE,
+    stage: 'smoke',
+    nonce: smokeNonce,
+    publishedUrl: deployRun.result.publishedUrl,
+    deployRunId: deployRun.runId,
+    deployRunUrl: deployRun.runUrl,
+  });
+
+  const smokeRun = await dispatchAndWaitForWorkflow({
+    run,
+    repo,
+    workflowId: runbook.workflowId,
+    artifactName: runbook.artifactName,
+    ref: 'main',
+    headSha: mainSha,
+    inputs: {
+      module_path: runbook.modulePath,
+      mode: 'smoke',
+      smoke_url: deployRun.result.publishedUrl,
+      controller_nonce: smokeNonce,
+    },
+    nonce: smokeNonce,
+  });
+
+  if (smokeRun.result.conclusion !== 'success') {
+    return {
+      ok: false,
+      state: REMOTE_GATE_STATE.FAILED,
+      stage: 'smoke',
+      runbook,
+      deployRun,
+      smokeRun,
+      blocker: `remote_smoke_failed run_id=${smokeRun.runId} conclusion=${smokeRun.result.conclusion || smokeRun.runConclusion || 'unknown'}`,
+    };
+  }
+
+  const evidence = buildPublicationEvidence({
+    responsibility: runbook.responsibility,
+    modulePath: runbook.modulePath,
+    publishedUrl: deployRun.result.publishedUrl,
+    headSha: mainSha,
+    deployRunId: deployRun.runId,
+    deployRunUrl: deployRun.runUrl,
+    smokeRunId: smokeRun.runId,
+    smokeRunUrl: smokeRun.runUrl,
+  });
+
+  const evidencePath = path.join(repoRoot, runbook.evidenceFile);
+  const responsibilityPath = path.join(repoRoot, runbook.responsibilityDoc);
+  const indexPath = path.join(repoRoot, 'docs', 'project', 'index.md');
+
+  await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+
+  const [responsibilityMarkdown, indexMarkdown] = await Promise.all([
+    readFile(responsibilityPath, 'utf8'),
+    readFile(indexPath, 'utf8'),
+  ]);
+  const updatedDocs = updateWorkerPublicationDocs({
+    responsibility: runbook.responsibility,
+    responsibilityMarkdown,
+    indexMarkdown,
+    publishedUrl: evidence.publishedUrl,
+    headSha: evidence.headSha,
+    deployRunUrl: evidence.deployRunUrl,
+    smokeRunUrl: evidence.smokeRunUrl,
+  });
+  await Promise.all([
+    writeFile(responsibilityPath, updatedDocs.responsibilityMarkdown),
+    writeFile(indexPath, updatedDocs.indexMarkdown),
+  ]);
+
+  const validate = await run(
+    `cd ${shellQuote(path.join(repoRoot, runbook.modulePath))} && ANEETY_PUBLICATION_EVIDENCE_FILE=publication-evidence.json npm run publication:validate`,
+  );
+  assertResultOk(validate, 'publication_evidence_validation_failed');
+
+  return {
+    ok: true,
+    state: REMOTE_GATE_STATE.SUCCEEDED,
+    runbook,
+    deployRun,
+    smokeRun,
+    evidence,
+    changedFiles: [
+      runbook.evidenceFile,
+      runbook.responsibilityDoc,
+      'docs/project/index.md',
+    ],
   };
 }
 
