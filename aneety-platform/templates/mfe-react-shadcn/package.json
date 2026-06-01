@@ -1,0 +1,26 @@
+{
+  "name": "@aneety/template-mfe-react-shadcn",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Template source for Aneety operational microfrontends.",
+  "scripts": {
+    "lint": "vite build --mode check",
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "typescript": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "single-spa-react": "latest",
+    "single-spa": "latest",
+    "lucide-react": "latest"
+  },
+  "devDependencies": {
+    "vitest": "latest"
+  }
+}
