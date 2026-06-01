@@ -23,10 +23,10 @@ function actionableTarget(overrides = {}) {
 function dependencyTarget(overrides = {}) {
   return actionableTarget({
     responsibility: 'tenant-white-label',
-    cycle: 'deploy',
+    cycle: 'publicacao',
     dependencyParentResponsibility: 'gateway-borda',
     dependencyParentCycle: 'publicacao',
-    dependencyReason: 'dependency_preemption=gateway-borda/publicacao->tenant-white-label/deploy',
+    dependencyReason: 'dependency_preemption=gateway-borda/publicacao->tenant-white-label/publicacao',
     dependencySource: 'planning_matrix',
     ...overrides,
   });
