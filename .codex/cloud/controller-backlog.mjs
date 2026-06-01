@@ -16,6 +16,19 @@ function stripCodeFence(value) {
   return match ? match[1] : trimmed;
 }
 
+function dependencyRuleKey(responsibility, cycle) {
+  return `${responsibility}/${cycle}`;
+}
+
+function parseDependencyDescriptor(value) {
+  const raw = stripCodeFence(value);
+  const [responsibility, cycle] = String(raw).split('/').map((item) => item?.trim() ?? '');
+  return {
+    responsibility,
+    cycle: normalizeCycle(cycle),
+  };
+}
+
 function splitMarkdownRow(line) {
   const trimmed = line.trim();
   if (!trimmed.startsWith('|')) return null;
@@ -121,6 +134,7 @@ export async function loadPlanningMatrix(repoRoot) {
   const markdown = await readMarkdown(planningPath);
   const lines = markdown.split('\n');
   const map = new Map();
+  const dependencyRules = new Map();
 
   for (const line of lines) {
     const cells = splitMarkdownRow(line);
@@ -137,7 +151,26 @@ export async function loadPlanningMatrix(repoRoot) {
     });
   }
 
-  return map;
+  const dependencyRows = parseTableAfterHeading(markdown, '## Dependências automáveis do scheduler');
+  for (const row of dependencyRows) {
+    const targetResponsibility = stripCodeFence(row['Responsabilidade alvo'] ?? '');
+    const targetCycle = normalizeCycle(stripCodeFence(row['Ciclo alvo'] ?? ''));
+    if (!targetResponsibility || !targetCycle) continue;
+
+    const dependencies = String(row['Dependências mínimas'] ?? '')
+      .split(',')
+      .map((item) => parseDependencyDescriptor(item))
+      .filter((item) => item.responsibility && item.cycle);
+
+    dependencyRules.set(dependencyRuleKey(targetResponsibility, targetCycle), {
+      responsibility: targetResponsibility,
+      cycle: targetCycle,
+      dependencies,
+      evidenceRule: row['Regra operacional'] ?? '',
+    });
+  }
+
+  return { responsibilities: map, dependencyRules };
 }
 
 export function buildActionableSignature(target) {
@@ -190,9 +223,164 @@ export async function loadControllerBacklog(repoRoot) {
     repoRoot,
     summaryRows,
     detailsByResponsibility,
-    planningMatrix,
+    planningMatrix: planningMatrix.responsibilities,
+    dependencyRules: planningMatrix.dependencyRules,
     metrics: summarizeBacklog(detailsByResponsibility),
   };
+}
+
+function buildDependencyContext(parentResponsibility, parentCycle, dependencyResponsibility, dependencyCycle) {
+  return {
+    dependencyParentResponsibility: parentResponsibility,
+    dependencyParentCycle: parentCycle,
+    dependencyReason: `dependency_preemption=${parentResponsibility}/${parentCycle}->${dependencyResponsibility}/${dependencyCycle}`,
+    dependencySource: 'planning_matrix',
+  };
+}
+
+function sortDependencies(backlog, dependencies) {
+  const summaryByResponsibility = new Map(backlog.summaryRows.map((row) => [row.responsibility, row]));
+  return [...dependencies].sort((left, right) => {
+    const leftSummary = summaryByResponsibility.get(left.responsibility);
+    const rightSummary = summaryByResponsibility.get(right.responsibility);
+    const leftPriority = leftSummary?.priorityRank ?? 99;
+    const rightPriority = rightSummary?.priorityRank ?? 99;
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+    return (leftSummary?.orderIndex ?? 99) - (rightSummary?.orderIndex ?? 99);
+  });
+}
+
+function resolveDependencyPreemption(backlog, parentSummaryRow, parentDetail, parentCycle, parentCycleRow) {
+  const rule = backlog.dependencyRules.get(dependencyRuleKey(parentSummaryRow.responsibility, parentCycle));
+  if (!rule) return null;
+
+  const orderedDependencies = sortDependencies(backlog, rule.dependencies);
+
+  for (const dependency of orderedDependencies) {
+    const dependencySummary = backlog.summaryRows.find((row) => row.responsibility === dependency.responsibility);
+    if (!dependencySummary) {
+      return {
+        state: 'blocked',
+        reason: `missing dependency responsibility ${dependency.responsibility} for ${parentSummaryRow.responsibility}/${parentCycle}`,
+        blockKind: 'config',
+        responsibility: parentSummaryRow.responsibility,
+        cycle: parentCycle,
+        branchPrefix: controllerBranchPrefix(parentCycle, parentSummaryRow.responsibility),
+        summaryRow: parentSummaryRow,
+        detail: parentDetail,
+        cycleRow: parentCycleRow,
+        matrix: backlog.planningMatrix.get(parentSummaryRow.responsibility) ?? null,
+        backlogMetrics: backlog.metrics,
+      };
+    }
+
+    const dependencyDetail = backlog.detailsByResponsibility.get(dependency.responsibility);
+    if (!dependencyDetail) {
+      return {
+        state: 'blocked',
+        reason: `missing dependency detail ${dependency.responsibility} for ${parentSummaryRow.responsibility}/${parentCycle}`,
+        blockKind: 'config',
+        responsibility: parentSummaryRow.responsibility,
+        cycle: parentCycle,
+        branchPrefix: controllerBranchPrefix(parentCycle, parentSummaryRow.responsibility),
+        summaryRow: parentSummaryRow,
+        detail: parentDetail,
+        cycleRow: parentCycleRow,
+        matrix: backlog.planningMatrix.get(parentSummaryRow.responsibility) ?? null,
+        backlogMetrics: backlog.metrics,
+      };
+    }
+
+    const dependencyCycleRow = dependencyDetail.cycles.find((cycleRow) => cycleRow.cycle === dependency.cycle);
+    if (!dependencyCycleRow) {
+      return {
+        state: 'blocked',
+        reason: `missing dependency cycle ${dependency.responsibility}/${dependency.cycle} for ${parentSummaryRow.responsibility}/${parentCycle}`,
+        blockKind: 'config',
+        responsibility: parentSummaryRow.responsibility,
+        cycle: parentCycle,
+        branchPrefix: controllerBranchPrefix(parentCycle, parentSummaryRow.responsibility),
+        summaryRow: parentSummaryRow,
+        detail: parentDetail,
+        cycleRow: parentCycleRow,
+        matrix: backlog.planningMatrix.get(parentSummaryRow.responsibility) ?? null,
+        backlogMetrics: backlog.metrics,
+      };
+    }
+
+    const statusKind = classifyStatus(dependencyCycleRow.status);
+    if (statusKind === 'done') continue;
+
+    const dependencyContext = buildDependencyContext(
+      parentSummaryRow.responsibility,
+      parentCycle,
+      dependency.responsibility,
+      dependency.cycle,
+    );
+    const dependencyMatrix = backlog.planningMatrix.get(dependency.responsibility) ?? null;
+
+    if (statusKind === 'pause') {
+      const blockerAutomationKind = getRemoteAutomationKind({
+        state: 'blocked',
+        blockKind: 'pause',
+        responsibility: dependency.responsibility,
+        cycle: dependency.cycle,
+        cycleRow: dependencyCycleRow,
+      });
+      return {
+        state: 'blocked',
+        reason: `pause_dependency=${parentSummaryRow.responsibility}/${parentCycle}->${dependency.responsibility}/${dependency.cycle}/${dependencyCycleRow.status}`,
+        blockKind: 'pause',
+        blockerAutomationKind,
+        pauseStatus: dependencyCycleRow.status,
+        pauseReason:
+          dependencyCycleRow.blocker ||
+          dependencyCycleRow.nextAction ||
+          dependencyContext.dependencyReason,
+        responsibility: dependency.responsibility,
+        cycle: dependency.cycle,
+        branchPrefix: controllerBranchPrefix(dependency.cycle, dependency.responsibility),
+        summaryRow: dependencySummary,
+        detail: dependencyDetail,
+        cycleRow: dependencyCycleRow,
+        matrix: dependencyMatrix,
+        backlogMetrics: backlog.metrics,
+        ...dependencyContext,
+      };
+    }
+
+    if (statusKind !== 'actionable') {
+      return {
+        state: 'blocked',
+        reason: `unknown dependency status ${dependencyCycleRow.status} for ${dependency.responsibility}/${dependency.cycle}`,
+        blockKind: 'config',
+        responsibility: dependency.responsibility,
+        cycle: dependency.cycle,
+        branchPrefix: controllerBranchPrefix(dependency.cycle, dependency.responsibility),
+        summaryRow: dependencySummary,
+        detail: dependencyDetail,
+        cycleRow: dependencyCycleRow,
+        matrix: dependencyMatrix,
+        backlogMetrics: backlog.metrics,
+        ...dependencyContext,
+      };
+    }
+
+    return {
+      state: 'actionable',
+      responsibility: dependency.responsibility,
+      cycle: dependency.cycle,
+      branchPrefix: controllerBranchPrefix(dependency.cycle, dependency.responsibility),
+      summaryRow: dependencySummary,
+      detail: dependencyDetail,
+      cycleRow: dependencyCycleRow,
+      matrix: dependencyMatrix,
+      backlogMetrics: backlog.metrics,
+      ...dependencyContext,
+    };
+  }
+
+  return null;
 }
 
 export function resolveNextBacklogTarget(backlog) {
@@ -230,6 +418,15 @@ export function resolveNextBacklogTarget(backlog) {
       }
       const statusKind = classifyStatus(cycleRow.status);
       if (statusKind === 'done') continue;
+
+      const dependencyTarget = resolveDependencyPreemption(
+        backlog,
+        summaryRow,
+        detail,
+        cycle,
+        cycleRow,
+      );
+      if (dependencyTarget) return dependencyTarget;
 
       if (statusKind === 'pause') {
         const blockerAutomationKind = getRemoteAutomationKind({

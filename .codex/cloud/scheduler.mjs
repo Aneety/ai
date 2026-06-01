@@ -16,6 +16,7 @@ import { runControllerHealthCheck } from './health-check.mjs';
 import {
   executeGatewayBordaPublicationRemoteGate,
   getRemoteAutomationRunbook,
+  mapMissingServicesToDependencies,
   REMOTE_GATE_STATE,
 } from './remote-gate.mjs';
 
@@ -124,11 +125,16 @@ function mergeDefined(current, patch) {
 
 function controllerEnv(target) {
   if (!target || target.state !== 'actionable') return {};
-  return {
+  const env = {
     CODEX_CLOUD_TARGET_CYCLE: target.cycle,
     CODEX_CLOUD_TARGET_RESPONSIBILITY: target.responsibility,
     CODEX_CLOUD_TARGET_SIGNATURE: buildActionableSignature(target) ?? '',
   };
+  if (target.dependencyParentResponsibility && target.dependencyParentCycle) {
+    env.CODEX_CLOUD_TARGET_PARENT_RESPONSIBILITY = target.dependencyParentResponsibility;
+    env.CODEX_CLOUD_TARGET_PARENT_CYCLE = target.dependencyParentCycle;
+  }
+  return env;
 }
 
 function cycleStateFromResolvedTarget(resolved) {
@@ -345,6 +351,10 @@ async function resolveCurrentBacklog() {
 async function persistResolvedTarget(resolved, patch = {}) {
   const actionable = resolved?.state === 'actionable';
   const resolvedState = describeResolvedTargetState(resolved);
+  const dependencyParentResponsibility = resolved?.dependencyParentResponsibility ?? null;
+  const dependencyParentCycle = resolved?.dependencyParentCycle ?? null;
+  const dependencyReason = resolved?.dependencyReason ?? null;
+  const dependencySource = resolved?.dependencySource ?? null;
   await writeRuntimeState({
     backlogResolutionState: resolved?.state ?? null,
     backlogResolutionReason: resolved?.reason ?? null,
@@ -359,6 +369,18 @@ async function persistResolvedTarget(resolved, patch = {}) {
     lastPauseReason: resolvedState.pauseReason,
     lastPauseResponsibility: resolved?.state === 'blocked' ? resolved.responsibility ?? null : null,
     lastPauseCycle: resolved?.state === 'blocked' ? resolved.cycle ?? null : null,
+    lastDependencyParentResponsibility: dependencyParentResponsibility,
+    lastDependencyParentCycle: dependencyParentCycle,
+    lastDependencyTargetResponsibility: actionable && dependencyParentResponsibility ? resolved.responsibility : null,
+    lastDependencyTargetCycle: actionable && dependencyParentResponsibility ? resolved.cycle : null,
+    lastDependencyReason: dependencyReason,
+    lastDependencySource: dependencySource,
+    lastDependencyState:
+      actionable && dependencyParentResponsibility
+        ? 'ready_for_dependency_cycle'
+        : resolved?.state === 'blocked' && dependencyParentResponsibility
+          ? 'waiting_on_dependency_blocker'
+          : null,
     ...patch,
   });
 }
@@ -470,6 +492,79 @@ async function publishTaskDiff(taskId, target) {
     prNumber,
     prUrl,
   };
+}
+
+function isDependencyTarget(target) {
+  return Boolean(target?.dependencyParentResponsibility && target?.dependencyParentCycle);
+}
+
+async function executeActionableTarget({ targetBefore, mainSha }) {
+  await persistResolvedTarget(targetBefore, {
+    lastCycleState: cycleStateFromResolvedTarget(targetBefore),
+    lastFunctionalState: describeResolvedTargetState(targetBefore).functionalState ?? 'ready',
+    healthState: 'ready',
+    lastDependencyState: isDependencyTarget(targetBefore) ? 'task_submitted' : null,
+  });
+
+  const submit = await runBash(
+    withEnvFile('.codex/cloud/submit-controller-task.sh', controllerEnv(targetBefore)),
+  );
+  if (submit.code !== 0) throw new Error(`submit failed with exit ${submit.code}`);
+
+  const taskId = extractTaskId(submit.output);
+  if (!taskId) throw new Error('submit did not emit a task id');
+
+  await writeRuntimeState({
+    lastTaskId: taskId,
+    lastSubmittedTargetResponsibility: targetBefore.responsibility,
+    lastSubmittedTargetCycle: targetBefore.cycle,
+    lastDependencyState: isDependencyTarget(targetBefore) ? 'watching_task' : undefined,
+  });
+
+  log(`watching task=${taskId}`);
+  const watch = await runBash(withEnvFile(`.codex/cloud/watch-task.sh ${shellQuote(taskId)}`));
+  if (watch.code !== 0) throw new Error(`watch failed with exit ${watch.code}`);
+  await writeRuntimeState({
+    lastTaskId: taskId,
+    lastTaskCompletedAt: new Date().toISOString(),
+    lastDependencyState: isDependencyTarget(targetBefore) ? 'publishing_diff' : undefined,
+  });
+
+  await publishTaskDiff(taskId, targetBefore);
+  await writeRuntimeState({
+    lastDependencyState: isDependencyTarget(targetBefore) ? 'awaiting_pr_merge' : undefined,
+  });
+  const publishedReconciliation = await reconcileOpenControllerPr({ wait: true });
+
+  if (publishedReconciliation.state === 'merged') {
+    const mergedSha = await syncIsolatedWorktreeToMain();
+    const { resolved: targetAfterMerge } = await resolveCurrentBacklog();
+    await finalizeProgress({
+      targetBefore,
+      targetAfter: targetAfterMerge,
+      mainSha,
+      openControllerPrState: 'merged',
+      cycleCompletedAt: new Date().toISOString(),
+      mergedSha,
+      mergedPrNumber: publishedReconciliation.prNumber ?? null,
+    });
+    log(`cycle_finished_merged_pr=#${publishedReconciliation.prNumber} sha=${mergedSha}`);
+    return;
+  }
+
+  const { resolved: targetAfter } = await resolveCurrentBacklog();
+  const finalized = await finalizeProgress({
+    targetBefore,
+    targetAfter,
+    mainSha,
+    openControllerPrState: publishedReconciliation.state,
+    cycleCompletedAt: new Date().toISOString(),
+  });
+  log(
+    `cycle finished state=${finalized.finalState} target_before=${targetBefore.responsibility}/${targetBefore.cycle} target_after=${
+      targetAfter.state === 'actionable' ? `${targetAfter.responsibility}/${targetAfter.cycle}` : targetAfter.state
+    }`,
+  );
 }
 
 async function recordRemoteActionState(patch = {}) {
@@ -839,6 +934,40 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
     if (targetBefore.state === 'blocked' && targetBefore.blockKind === 'pause' && remoteRunbook) {
       const remoteResult = await executeRemoteGateForTarget(targetBefore, mainSha);
       if (!remoteResult.ok) {
+        const fallbackDependencies =
+          remoteResult.dependencyTargets ??
+          mapMissingServicesToDependencies(remoteResult.deployRun?.result?.missingServices).mapped;
+        if (fallbackDependencies.length > 0) {
+          const { resolved: dependencyTarget } = await resolveCurrentBacklog();
+          if (dependencyTarget.state === 'actionable' && isDependencyTarget(dependencyTarget)) {
+            await writeRuntimeState({
+              lastDependencyParentResponsibility: dependencyTarget.dependencyParentResponsibility,
+              lastDependencyParentCycle: dependencyTarget.dependencyParentCycle,
+              lastDependencyTargetResponsibility: dependencyTarget.responsibility,
+              lastDependencyTargetCycle: dependencyTarget.cycle,
+              lastDependencyReason:
+                dependencyTarget.dependencyReason ??
+                remoteResult.failureReason ??
+                remoteResult.blocker ??
+                'remote_missing_service_dependency',
+              lastDependencySource: dependencyTarget.dependencySource ?? 'planning_matrix',
+              lastDependencyState: 'fallback_remote_missing_service',
+              lastCycleCompletedAt: new Date().toISOString(),
+              lastCycleState: 'dependency_preempted',
+              lastFunctionalState: 'ready',
+              healthState: 'ready',
+              openControllerPrState: 'none',
+              lastError: null,
+              lastErrorAt: null,
+            });
+            log(
+              `remote_gate_dependency_preempted parent=${targetBefore.responsibility}/${targetBefore.cycle} target=${dependencyTarget.responsibility}/${dependencyTarget.cycle}`,
+            );
+            await executeActionableTarget({ targetBefore: dependencyTarget, mainSha });
+            return;
+          }
+        }
+
         const blockedAt = new Date().toISOString();
         await persistResolvedTarget(targetBefore, {
           lastCycleCompletedAt: blockedAt,
@@ -939,62 +1068,7 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
       log('submission_skipped');
       return;
     }
-
-    const submit = await runBash(
-      withEnvFile('.codex/cloud/submit-controller-task.sh', controllerEnv(targetBefore)),
-    );
-    if (submit.code !== 0) throw new Error(`submit failed with exit ${submit.code}`);
-
-    const taskId = extractTaskId(submit.output);
-    if (!taskId) throw new Error('submit did not emit a task id');
-
-    await writeRuntimeState({
-      lastTaskId: taskId,
-      lastSubmittedTargetResponsibility: targetBefore.responsibility,
-      lastSubmittedTargetCycle: targetBefore.cycle,
-    });
-
-    log(`watching task=${taskId}`);
-    const watch = await runBash(withEnvFile(`.codex/cloud/watch-task.sh ${shellQuote(taskId)}`));
-    if (watch.code !== 0) throw new Error(`watch failed with exit ${watch.code}`);
-    await writeRuntimeState({
-      lastTaskId: taskId,
-      lastTaskCompletedAt: new Date().toISOString(),
-    });
-
-    await publishTaskDiff(taskId, targetBefore);
-    const publishedReconciliation = await reconcileOpenControllerPr({ wait: true });
-
-    if (publishedReconciliation.state === 'merged') {
-      const mergedSha = await syncIsolatedWorktreeToMain();
-      const { resolved: targetAfterMerge } = await resolveCurrentBacklog();
-      await finalizeProgress({
-        targetBefore,
-        targetAfter: targetAfterMerge,
-        mainSha,
-        openControllerPrState: 'merged',
-        cycleCompletedAt: new Date().toISOString(),
-        mergedSha,
-        mergedPrNumber: publishedReconciliation.prNumber ?? null,
-      });
-      log(`cycle_finished_merged_pr=#${publishedReconciliation.prNumber} sha=${mergedSha}`);
-      return;
-    }
-
-    const { resolved: targetAfter } = await resolveCurrentBacklog();
-    const finalized = await finalizeProgress({
-      targetBefore,
-      targetAfter,
-      mainSha,
-      openControllerPrState: publishedReconciliation.state,
-      cycleCompletedAt: new Date().toISOString(),
-    });
-
-    log(
-      `cycle finished state=${finalized.finalState} target_before=${targetBefore.responsibility}/${targetBefore.cycle} target_after=${
-        targetAfter.state === 'actionable' ? `${targetAfter.responsibility}/${targetAfter.cycle}` : targetAfter.state
-      }`,
-    );
+    await executeActionableTarget({ targetBefore, mainSha });
   } catch (error) {
     await writeRuntimeState({
       lastError: error.message,

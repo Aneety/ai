@@ -10,7 +10,7 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - A task remota deve gerar apenas diff auditável e relatório coerente com `docs/project`; branch/commit/push/PR/merge oficiais são sempre responsabilidade do scheduler via worktree isolado e `gh`, sem tocar no checkout canônico.
 - O wrapper foi validado com tasks `READY`; o scheduler roda em worktree isolado para evitar aplicar diffs no checkout canônico.
 - Quando existir PR operacional do controlador no padrão `codex/<ciclo>-<responsabilidade>-<YYYY-MM-DD>`, o scheduler entra em reconciliação: consulta checks obrigatórios, aguarda o gate remoto, faz squash merge automático, apaga a branch remota e registra o SHA final de `main`.
-- Para blockers `remote_automable`, o scheduler pode acionar GitHub Actions remotos após reavaliar `origin/main`, sem criar task cloud nova: primeiro `deploy`, depois `smoke`, e só então abre PR operacional com a evidência versionada.
+- Para blockers `remote_automable`, o scheduler pode acionar GitHub Actions remotos após reavaliar `origin/main`, sem criar task cloud nova: primeiro resolve dependências automáveis declaradas na matriz quando elas não estiverem verdes, depois executa `deploy`, `smoke` e só então abre PR operacional com a evidência versionada.
 
 ## Scripts versionados
 
@@ -82,6 +82,12 @@ O arquivo local de estado deve preservar saúde operacional entre ciclos, inclui
 - `lastRemoteSmokeRunId`
 - `lastRemoteSmokeUrl`
 - `lastRemoteConclusion`
+- `lastDependencyParentResponsibility`
+- `lastDependencyParentCycle`
+- `lastDependencyTargetResponsibility`
+- `lastDependencyTargetCycle`
+- `lastDependencyReason`
+- `lastDependencyState`
 
 `npm run codex-cloud:scheduler:dry-run` pode atualizar somente campos próprios de pré-checagem, como `lastDryRunAt`, sem apagar os campos operacionais acima.
 
@@ -171,7 +177,7 @@ Interpretação do monitor:
 - `cloud_task_list_failed`: o CLI não conseguiu consultar tasks do Codex Cloud.
 - `cloud_task_list_empty`: nenhuma task recente foi encontrada. Só vira blocker quando também não houver PR em reconciliação, merge recente, task recente em `runtime-state.json` nem janela válida `awaiting_next_tick`.
 - `scheduler_dry_run=ok`: a pré-checagem local passou, mas isso ainda não comprova task real.
-- `controller_progress_state`: estado derivado do controlador (`ready_for_cycle`, `awaiting_next_tick`, `idle_between_slots`, `pending_pr_checks`, `running_remote_deploy`, `running_remote_smoke`, `paused_waiting_manual_external_gate`, `degraded_health`, `complete`).
+- `controller_progress_state`: estado derivado do controlador (`ready_for_cycle`, `ready_for_dependency_cycle`, `dependency_cycle_running`, `dependency_chain_in_progress`, `awaiting_next_tick`, `idle_between_slots`, `pending_pr_checks`, `running_remote_deploy`, `running_remote_smoke`, `paused_waiting_manual_external_gate`, `degraded_health`, `complete`).
 - `awaiting_next_tick=true`: o processo iniciou ou reiniciou perto do boundary do cron e ainda aguarda o próximo slot válido antes da primeira task nova.
 - `last_success_age_seconds`: idade do sucesso operacional mais recente (`merge` ou conclusão útil de ciclo).
 - `backlog_completion_state`: `in_progress`, `blocked` ou `complete` para a matriz inteira.
@@ -190,8 +196,9 @@ Regras:
 5. Manter o aceite de código em GitHub Actions e Cloudflare gate.
 6. Nunca executar submit/watch/publish diretamente no checkout canônico; o scheduler deve usar worktree isolado, fazer merge no GitHub e reconciliar o worktree de volta para `origin/main`.
 7. Se já existir PR aberta do controlador no padrão `codex/<ciclo>-<responsabilidade>-<YYYY-MM-DD>`, o scheduler não submete task nova; primeiro reconcilia a PR até `merged` ou blocker objetivo.
-8. Para ciclos de dados, Supabase pode ser usado como provedor operacional permitido/padrão quando a responsabilidade exigir, sem virar dependência obrigatória do contrato de produto nem copy de usuário final.
-9. `GH_TOKEN` continua no domínio Codex Cloud/scheduler; `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` precisam existir também no escopo de GitHub Actions usado por `.github/workflows/cloudflare-gate.yml` para que `publicacao` seja automável.
+8. Se o ciclo atual depender de outros módulos declarados na matriz, o scheduler deve preemptar o item pai e avançar a primeira dependência não verde pela ordem canônica de `docs/project/index.md` antes de voltar ao alvo original.
+9. Para ciclos de dados, Supabase pode ser usado como provedor operacional permitido/padrão quando a responsabilidade exigir, sem virar dependência obrigatória do contrato de produto nem copy de usuário final.
+10. `GH_TOKEN` continua no domínio Codex Cloud/scheduler; `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` precisam existir também no escopo de GitHub Actions usado por `.github/workflows/cloudflare-gate.yml` para que `publicacao` seja automável.
 
 ## Critério de aceite do agendamento
 

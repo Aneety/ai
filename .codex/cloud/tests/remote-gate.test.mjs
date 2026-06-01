@@ -4,6 +4,7 @@ import {
   buildPublicationEvidence,
   buildWorkflowDispatchNonce,
   getRemoteAutomationKind,
+  mapMissingServicesToDependencies,
   parseRemoteGateResult,
   REMOTE_AUTOMATION_KIND,
   updateGatewayPublicationDocs,
@@ -38,11 +39,44 @@ test('parseRemoteGateResult normaliza payload JSON', () => {
     smokeUrl: '',
     smokeStatus: '',
     controllerNonce: 'nonce-1',
+    failureCode: '10143',
+    failureReason: 'service_binding_missing',
+    missingServices: ['worker-identidade-acesso'],
   });
 
   assert.equal(result.mode, 'deploy');
   assert.equal(result.runId, '123');
   assert.equal(result.controllerNonce, 'nonce-1');
+  assert.equal(result.failureCode, '10143');
+  assert.deepEqual(result.missingServices, ['worker-identidade-acesso']);
+});
+
+test('mapMissingServicesToDependencies converte services conhecidos em ciclos deploy', () => {
+  const mapped = mapMissingServicesToDependencies([
+    'worker-identidade-acesso',
+    'worker-tenant-white-label',
+    'worker-onboarding-acesso',
+    'worker-desconhecido',
+  ]);
+
+  assert.deepEqual(mapped.mapped, [
+    {
+      service: 'worker-identidade-acesso',
+      responsibility: 'identidade-acesso',
+      cycle: 'deploy',
+    },
+    {
+      service: 'worker-tenant-white-label',
+      responsibility: 'tenant-white-label',
+      cycle: 'deploy',
+    },
+    {
+      service: 'worker-onboarding-acesso',
+      responsibility: 'onboarding-acesso',
+      cycle: 'deploy',
+    },
+  ]);
+  assert.deepEqual(mapped.unmapped, ['worker-desconhecido']);
 });
 
 test('buildPublicationEvidence gera contrato mínimo esperado', () => {

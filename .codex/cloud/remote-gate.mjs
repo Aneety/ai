@@ -30,6 +30,21 @@ export const gatewayBordaPublicationRunbook = {
   commitTitle: 'chore(gateway-borda): record publicacao evidence',
 };
 
+export const MISSING_SERVICE_DEPENDENCY_MAP = Object.freeze({
+  'worker-identidade-acesso': Object.freeze({
+    responsibility: 'identidade-acesso',
+    cycle: 'deploy',
+  }),
+  'worker-tenant-white-label': Object.freeze({
+    responsibility: 'tenant-white-label',
+    cycle: 'deploy',
+  }),
+  'worker-onboarding-acesso': Object.freeze({
+    responsibility: 'onboarding-acesso',
+    cycle: 'deploy',
+  }),
+});
+
 function positiveInteger(value, fallback) {
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
@@ -90,7 +105,34 @@ export function parseRemoteGateResult(payload) {
     smokeUrl: String(data.smokeUrl ?? '').trim(),
     smokeStatus: String(data.smokeStatus ?? '').trim(),
     controllerNonce: String(data.controllerNonce ?? '').trim(),
+    failureCode: String(data.failureCode ?? '').trim(),
+    failureReason: String(data.failureReason ?? '').trim(),
+    missingServices: Array.isArray(data.missingServices)
+      ? data.missingServices.map((item) => String(item ?? '').trim()).filter(Boolean)
+      : [],
   };
+}
+
+export function mapMissingServicesToDependencies(missingServices = []) {
+  const mapped = [];
+  const unmapped = [];
+
+  for (const service of missingServices) {
+    const normalized = String(service ?? '').trim();
+    if (!normalized) continue;
+    const dependency = MISSING_SERVICE_DEPENDENCY_MAP[normalized];
+    if (dependency) {
+      mapped.push({
+        service: normalized,
+        responsibility: dependency.responsibility,
+        cycle: dependency.cycle,
+      });
+      continue;
+    }
+    unmapped.push(normalized);
+  }
+
+  return { mapped, unmapped };
 }
 
 export function buildPublicationEvidence({
@@ -193,6 +235,7 @@ export async function executeGatewayBordaPublicationRemoteGate({
   });
 
   if (deployRun.result.conclusion !== 'success' || !deployRun.result.publishedUrl) {
+    const dependencyConversion = mapMissingServicesToDependencies(deployRun.result.missingServices);
     return {
       ok: false,
       state: REMOTE_GATE_STATE.FAILED,
@@ -200,6 +243,10 @@ export async function executeGatewayBordaPublicationRemoteGate({
       runbook,
       deployRun,
       blocker: `remote_deploy_failed run_id=${deployRun.runId} conclusion=${deployRun.result.conclusion || deployRun.runConclusion || 'unknown'}`,
+      failureCode: deployRun.result.failureCode || null,
+      failureReason: deployRun.result.failureReason || null,
+      dependencyTargets: dependencyConversion.mapped,
+      unmappedServices: dependencyConversion.unmapped,
     };
   }
 

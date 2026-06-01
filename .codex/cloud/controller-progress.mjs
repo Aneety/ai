@@ -91,6 +91,14 @@ export function deriveMonitorState({
   const remoteActionState = runtimeState?.lastRemoteActionState ?? 'none';
   const runningRemoteDeploy = remoteActionState === 'running_remote_deploy';
   const runningRemoteSmoke = remoteActionState === 'running_remote_smoke';
+  const dependencyChainActive =
+    Boolean(resolvedTarget?.dependencyParentResponsibility && resolvedTarget?.dependencyParentCycle) ||
+    Boolean(runtimeState?.lastDependencyParentResponsibility && runtimeState?.lastDependencyTargetResponsibility);
+  const dependencyCycleRunning =
+    dependencyChainActive &&
+    ['task_submitted', 'watching_task', 'publishing_diff', 'awaiting_pr_merge'].includes(
+      runtimeState?.lastDependencyState ?? '',
+    );
   const degradedByBacklog =
     resolvedTarget?.state === 'blocked' && resolvedTarget?.blockKind != null && resolvedTarget?.blockKind !== 'pause';
   const degradedByPr = ['failed', 'timeout'].includes(openControllerPrState);
@@ -135,10 +143,16 @@ export function deriveMonitorState({
     controllerProgressState = 'running_remote_deploy';
   } else if (runningRemoteSmoke) {
     controllerProgressState = 'running_remote_smoke';
+  } else if (dependencyCycleRunning) {
+    controllerProgressState = 'dependency_cycle_running';
   } else if (['pending', 'merge_ready'].includes(openControllerPrState)) {
     controllerProgressState = 'pending_pr_checks';
   } else if (schedulerFunctionalState === 'paused') {
     controllerProgressState = pausedManualExternal ? 'paused_waiting_manual_external_gate' : 'paused_waiting_external_gate';
+  } else if (dependencyChainActive && (betweenSlots || hasRecentSuccess)) {
+    controllerProgressState = 'dependency_chain_in_progress';
+  } else if (dependencyChainActive) {
+    controllerProgressState = 'ready_for_dependency_cycle';
   } else if (awaitingNextTick) {
     controllerProgressState = 'awaiting_next_tick';
   } else if (betweenSlots || hasRecentSuccess) {
@@ -150,6 +164,7 @@ export function deriveMonitorState({
     openControllerPrState === 'none' &&
     schedulerFunctionalState === 'ready' &&
     backlogCompletionState !== 'complete' &&
+    !dependencyChainActive &&
     !runningRemoteDeploy &&
     !runningRemoteSmoke &&
     !awaitingNextTick &&
@@ -169,6 +184,8 @@ export function deriveMonitorState({
     pausedManualExternal,
     runningRemoteDeploy,
     runningRemoteSmoke,
+    dependencyChainActive,
+    dependencyCycleRunning,
     isDegraded,
     shouldWarnCloudTaskListEmpty,
   };

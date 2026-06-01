@@ -55,16 +55,18 @@ O ciclo `publicacao` depende de URL real publicada em ambiente remoto permitido.
 
 Sequência remota mínima após PR gate verde:
 
-1. Acionar `Cloudflare deploy gate` em modo `deploy` com `module_path=aneety-platform/apps/gateway-borda/worker-gateway`.
-2. Registrar a URL HTTPS publicada pelo Worker, sem expor subconta, token ou variável sensível.
-3. Acionar `Cloudflare deploy gate` em modo `smoke` com `smoke_url` igual à URL publicada.
-4. Criar um arquivo de evidência fora de secrets seguindo `publication-evidence.example.json` e validar com `ANEETY_PUBLICATION_EVIDENCE_FILE=<arquivo> npm run publication:validate`.
-5. Atualizar `docs/project/gateway-borda.md` e `docs/project/index.md` com URL real, runs de GitHub Actions/Cloudflare e SHA final antes de marcar `publicacao` como `concluido`.
+1. Confirmar que `tenant-white-label/deploy`, `identidade-acesso/deploy` e `onboarding-acesso/deploy` já estão `concluido`; quando algum deles ainda não estiver verde, o scheduler deve preemptar `gateway-borda/publicacao` e resolver primeiro o dependente.
+2. Acionar `Cloudflare deploy gate` em modo `deploy` com `module_path=aneety-platform/apps/gateway-borda/worker-gateway`.
+3. Registrar a URL HTTPS publicada pelo Worker, sem expor subconta, token ou variável sensível.
+4. Acionar `Cloudflare deploy gate` em modo `smoke` com `smoke_url` igual à URL publicada.
+5. Criar um arquivo de evidência fora de secrets seguindo `publication-evidence.example.json` e validar com `ANEETY_PUBLICATION_EVIDENCE_FILE=<arquivo> npm run publication:validate`.
+6. Atualizar `docs/project/gateway-borda.md` e `docs/project/index.md` com URL real, runs de GitHub Actions/Cloudflare e SHA final antes de marcar `publicacao` como `concluido`.
 
 ## Ambiente e rollback
 
 - Variáveis versionadas sem segredo: `ANEETY_ALLOWED_ORIGINS` e `ANEETY_CONTRACT_VERSION`.
 - Bindings de serviço esperados no ambiente Cloudflare: `IDENTIDADE_ACESSO`, `TENANT_WHITE_LABEL` e `ONBOARDING_ACESSO`, apontando para BFFs `worker-*` canônicos.
+- Se o deploy remoto acusar binding ausente (`code: 10143`), o scheduler deve tratar isso como dependência automatizável dos ciclos `deploy` de `tenant-white-label`, `identidade-acesso` e `onboarding-acesso`, não como pausa manual definitiva do gateway.
 - Segredos, quando existirem em ciclos posteriores dos BFFs, devem ser configurados somente no painel/API Cloudflare e nunca no repositório.
 - Rollback operacional: reimplantar a última versão verde do Worker pelo gate remoto Cloudflare ou reverter a PR do contrato/roteamento e acionar novo dry-run remoto antes de publicar.
 

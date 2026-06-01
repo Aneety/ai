@@ -20,6 +20,18 @@ function actionableTarget(overrides = {}) {
   };
 }
 
+function dependencyTarget(overrides = {}) {
+  return actionableTarget({
+    responsibility: 'tenant-white-label',
+    cycle: 'deploy',
+    dependencyParentResponsibility: 'gateway-borda',
+    dependencyParentCycle: 'publicacao',
+    dependencyReason: 'dependency_preemption=gateway-borda/publicacao->tenant-white-label/deploy',
+    dependencySource: 'planning_matrix',
+    ...overrides,
+  });
+}
+
 function pausedTarget(status = 'bloqueado') {
   return {
     state: 'blocked',
@@ -198,4 +210,63 @@ test('remote smoke em andamento mostra running_remote_smoke', () => {
   });
 
   assert.equal(derived.controllerProgressState, 'running_remote_smoke');
+});
+
+test('dependencia pronta mostra ready_for_dependency_cycle', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: dependencyTarget(),
+    runtimeState: {
+      nextScheduledRunAt: '2026-05-31T20:00:00Z',
+      schedulerStartedAt: '2026-05-31T17:00:00Z',
+      lastCycleStartedAt: '2026-05-31T19:00:00Z',
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 0,
+    nowMs: now,
+  });
+
+  assert.equal(derived.controllerProgressState, 'ready_for_dependency_cycle');
+  assert.equal(derived.shouldWarnCloudTaskListEmpty, false);
+});
+
+test('dependencia em andamento mostra dependency_cycle_running', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: dependencyTarget(),
+    runtimeState: {
+      nextScheduledRunAt: '2026-05-31T20:00:00Z',
+      schedulerStartedAt: '2026-05-31T17:00:00Z',
+      lastCycleStartedAt: '2026-05-31T19:00:00Z',
+      lastDependencyParentResponsibility: 'gateway-borda',
+      lastDependencyTargetResponsibility: 'tenant-white-label',
+      lastDependencyState: 'watching_task',
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 1,
+    nowMs: now,
+  });
+
+  assert.equal(derived.controllerProgressState, 'dependency_cycle_running');
+});
+
+test('cadeia de dependencias em progresso mostra dependency_chain_in_progress', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: dependencyTarget(),
+    runtimeState: {
+      lastMergedAt: '2026-05-31T21:20:00Z',
+      nextScheduledRunAt: '2026-05-31T22:00:00Z',
+      schedulerStartedAt: '2026-05-31T20:00:00Z',
+      lastCycleStartedAt: '2026-05-31T21:00:00Z',
+      lastDependencyParentResponsibility: 'gateway-borda',
+      lastDependencyTargetResponsibility: 'tenant-white-label',
+      lastDependencyState: 'ready_for_dependency_cycle',
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 0,
+    nowMs: now,
+  });
+
+  assert.equal(derived.controllerProgressState, 'dependency_chain_in_progress');
 });

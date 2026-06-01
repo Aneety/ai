@@ -53,6 +53,8 @@ Use allowlist mínima:
 - Codex Cloud deve preparar código fonte, documentação operacional e diff auditável; a mutação GitHub oficial é **scheduler-only**.
 - O scheduler publica o diff com `.codex/cloud/publish-task-diff.sh` exclusivamente em worktree isolado e sem tocar no checkout canônico, e reconcilia checks/merge com `.codex/cloud/reconcile-controller-pr.mjs`.
 - Quando um ciclo estiver pausado por blocker `remote_automable`, o scheduler pode resolver o trecho remoto por GitHub Actions, registrar artefato versionado e abrir uma PR operacional própria para concluir o ciclo sem criar task cloud repetida.
+- Quando o ciclo pausado também declarar dependências automáveis na matriz, o scheduler deve preemptar o item pai e abrir/avançar tasks dos dependentes até `deploy=concluido` antes de voltar ao gate remoto do pai.
+- Para `gateway-borda/publicacao`, o contrato atual exige primeiro `tenant-white-label/deploy`, `identidade-acesso/deploy` e `onboarding-acesso/deploy` verdes; só depois o scheduler pode insistir em `deploy`/`smoke` do gateway.
 - Nem Codex Cloud nem scheduler devem aplicar diff no checkout canônico do executor; o merge automático acontece no GitHub e o worktree isolado é apenas reconciliado de volta para `origin/main`.
 - O controlador não fecha aceite do MVP com execução local ou cloud. Aceite de código fonte continua em GitHub Actions, Cloudflare gate e smoke/API/e2e publicado.
 - Para ciclos de dados do MVP, Supabase pode ser usado como provedor operacional padrão quando o contrato da responsabilidade exigir persistência compatível com Workers, sem virar dependência obrigatória do contrato de produto ou texto visível ao usuário final.

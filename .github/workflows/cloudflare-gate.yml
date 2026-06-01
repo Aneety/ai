@@ -78,6 +78,9 @@ jobs:
             smokeUrl: '',
             smokeStatus: '',
             controllerNonce: process.env.CONTROLLER_NONCE || '',
+            failureCode: '',
+            failureReason: '',
+            missingServices: [],
           };
           writeFileSync(process.env.GATE_RESULT_PATH, `${JSON.stringify(payload, null, 2)}\n`);
           NODE
@@ -160,19 +163,52 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "DEPLOY_FAILURE_REASON=missing_cloudflare_secrets" >> "$GITHUB_ENV"
             echo "Cloudflare deploy secrets are not configured." >&2
             exit 1
           fi
           deploy_log="$(mktemp)"
+          deploy_status=0
           while IFS= read -r worker_dir; do
             [ -n "$worker_dir" ] || continue
             echo "::group::deploy ${worker_dir}"
             cd "$GITHUB_WORKSPACE/$worker_dir"
+            set +e
             npx --yes wrangler deploy 2>&1 | tee -a "$deploy_log"
+            deploy_status=${PIPESTATUS[0]}
+            set -e
             echo "::endgroup::"
+            if [ "$deploy_status" -ne 0 ]; then
+              break
+            fi
           done <<< "${{ steps.discover.outputs.worker_dirs }}"
+          if [ "$deploy_status" -ne 0 ]; then
+            python3 - "$deploy_log" "$GITHUB_ENV" <<'PY'
+            import json
+            import re
+            import sys
+            from pathlib import Path
+
+            log_path = Path(sys.argv[1])
+            env_path = Path(sys.argv[2])
+            log = log_path.read_text()
+            missing = []
+            for match in re.finditer(r"Service binding '([^']+)' references Worker '([^']+)' which was not found\.[^\n]*\[code: (\d+)\]", log):
+              service_name = match.group(2).strip()
+              failure_code = match.group(3).strip()
+              if service_name and service_name not in missing:
+                missing.append(service_name)
+            if missing:
+              with env_path.open('a', encoding='utf-8') as handle:
+                handle.write("DEPLOY_FAILURE_CODE=10143\n")
+                handle.write("DEPLOY_FAILURE_REASON=service_binding_missing\n")
+                handle.write(f"DEPLOY_MISSING_SERVICES_JSON={json.dumps(missing, separators=(',', ':'))}\n")
+            PY
+            exit "$deploy_status"
+          fi
           published_url="$(grep -Eo 'https://[^[:space:]]+' "$deploy_log" | grep -v 'github.com/' | tail -1 || true)"
           if [ -z "$published_url" ]; then
+            echo "DEPLOY_FAILURE_REASON=published_url_missing" >> "$GITHUB_ENV"
             echo "Could not extract published URL from wrangler deploy output." >&2
             exit 1
           fi
@@ -216,6 +252,13 @@ jobs:
           payload.publishedUrl = process.env.PUBLISHED_URL || payload.publishedUrl || '';
           payload.smokeUrl = process.env.SMOKE_URL_INPUT || payload.smokeUrl || '';
           payload.smokeStatus = process.env.SMOKE_STATUS || payload.smokeStatus || '';
+          payload.failureCode = process.env.DEPLOY_FAILURE_CODE || payload.failureCode || '';
+          payload.failureReason = process.env.DEPLOY_FAILURE_REASON || payload.failureReason || '';
+          try {
+            payload.missingServices = JSON.parse(process.env.DEPLOY_MISSING_SERVICES_JSON || '[]');
+          } catch {
+            payload.missingServices = payload.missingServices || [];
+          }
           writeFileSync(process.env.GATE_RESULT_PATH, `${JSON.stringify(payload, null, 2)}\n`);
           NODE
 
