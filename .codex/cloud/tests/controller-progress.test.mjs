@@ -139,7 +139,7 @@ test('backlog pausado mostra paused_waiting_external_gate e nao alerta task vazi
   });
 
   assert.equal(derived.schedulerFunctionalState, 'paused');
-  assert.equal(derived.controllerProgressState, 'paused_waiting_external_gate');
+  assert.equal(derived.controllerProgressState, 'paused_waiting_manual_external_gate');
   assert.equal(derived.shouldWarnCloudTaskListEmpty, false);
 });
 
@@ -160,4 +160,42 @@ test('health degradado mostra degraded_health', () => {
 
   assert.equal(derived.schedulerFunctionalState, 'degraded');
   assert.equal(derived.controllerProgressState, 'degraded_health');
+});
+
+test('remote deploy em andamento mostra running_remote_deploy e nao alerta task vazia', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: pausedTarget('bloqueado'),
+    runtimeState: {
+      nextScheduledRunAt: '2026-05-31T20:00:00Z',
+      schedulerStartedAt: '2026-05-31T17:00:00Z',
+      lastCycleStartedAt: '2026-05-31T19:00:00Z',
+      lastRemoteActionState: 'running_remote_deploy',
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 0,
+    nowMs: now,
+  });
+
+  assert.equal(derived.schedulerFunctionalState, 'ready');
+  assert.equal(derived.controllerProgressState, 'running_remote_deploy');
+  assert.equal(derived.shouldWarnCloudTaskListEmpty, false);
+});
+
+test('remote smoke em andamento mostra running_remote_smoke', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: pausedTarget('bloqueado'),
+    runtimeState: {
+      nextScheduledRunAt: '2026-05-31T20:00:00Z',
+      schedulerStartedAt: '2026-05-31T17:00:00Z',
+      lastCycleStartedAt: '2026-05-31T19:00:00Z',
+      lastRemoteActionState: 'running_remote_smoke',
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 0,
+    nowMs: now,
+  });
+
+  assert.equal(derived.controllerProgressState, 'running_remote_smoke');
 });

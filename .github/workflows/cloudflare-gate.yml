@@ -1,4 +1,5 @@
 name: Cloudflare deploy gate
+run-name: Cloudflare gate ${{ inputs.mode || 'auto' }} ${{ inputs.controller_nonce || github.ref_name }}
 
 on:
   workflow_run:
@@ -10,6 +11,10 @@ on:
     inputs:
       module_path:
         description: Optional module path under aneety-platform/apps
+        required: false
+        type: string
+      controller_nonce:
+        description: Opaque controller correlation id
         required: false
         type: string
       mode:
@@ -32,6 +37,8 @@ permissions:
 
 env:
   CLOUDFLARE_DEPLOY_MODE: ${{ inputs.mode || 'dry-run' }}
+  REQUESTED_MODULE_PATH: ${{ inputs.module_path || 'aneety-platform/apps' }}
+  CONTROLLER_NONCE: ${{ inputs.controller_nonce || '' }}
 
 concurrency:
   group: cloudflare-gate-${{ github.ref }}
@@ -52,6 +59,29 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Initialize Cloudflare gate result
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GATE_RESULT_PATH="$RUNNER_TEMP/cloudflare-gate-result.json"
+          echo "GATE_RESULT_PATH=$GATE_RESULT_PATH" >> "$GITHUB_ENV"
+          node <<'NODE'
+          const { writeFileSync } = require('node:fs');
+          const payload = {
+            mode: process.env.CLOUDFLARE_DEPLOY_MODE,
+            modulePath: process.env.REQUESTED_MODULE_PATH,
+            headSha: process.env.GITHUB_SHA,
+            runId: process.env.GITHUB_RUN_ID,
+            runUrl: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            conclusion: 'pending',
+            publishedUrl: '',
+            smokeUrl: '',
+            smokeStatus: '',
+            controllerNonce: process.env.CONTROLLER_NONCE || '',
+          };
+          writeFileSync(process.env.GATE_RESULT_PATH, `${JSON.stringify(payload, null, 2)}\n`);
+          NODE
+
       - name: Discover deployable Workers
         id: discover
         shell: bash
@@ -62,6 +92,7 @@ jobs:
           if [ -n "$module_path" ]; then
             if [ ! -d "$module_path" ]; then
               echo "has_workers=false" >> "$GITHUB_OUTPUT"
+              echo "effective_module_path=$module_path" >> "$GITHUB_OUTPUT"
               echo "Requested module path does not exist: $module_path"
               exit 0
             fi
@@ -69,6 +100,7 @@ jobs:
           else
             search_root="aneety-platform/apps"
           fi
+          echo "effective_module_path=$search_root" >> "$GITHUB_OUTPUT"
 
           if [ ! -d "$search_root" ]; then
             echo "has_workers=false" >> "$GITHUB_OUTPUT"
@@ -131,13 +163,20 @@ jobs:
             echo "Cloudflare deploy secrets are not configured." >&2
             exit 1
           fi
+          deploy_log="$(mktemp)"
           while IFS= read -r worker_dir; do
             [ -n "$worker_dir" ] || continue
             echo "::group::deploy ${worker_dir}"
             cd "$GITHUB_WORKSPACE/$worker_dir"
-            npx --yes wrangler deploy
+            npx --yes wrangler deploy 2>&1 | tee -a "$deploy_log"
             echo "::endgroup::"
           done <<< "${{ steps.discover.outputs.worker_dirs }}"
+          published_url="$(grep -Eo 'https://[^[:space:]]+' "$deploy_log" | grep -v 'github.com/' | tail -1 || true)"
+          if [ -z "$published_url" ]; then
+            echo "Could not extract published URL from wrangler deploy output." >&2
+            exit 1
+          fi
+          echo "PUBLISHED_URL=$published_url" >> "$GITHUB_ENV"
 
       - name: Smoke published URL
         if: env.CLOUDFLARE_DEPLOY_MODE == 'smoke'
@@ -152,9 +191,38 @@ jobs:
           curl --fail --show-error --silent --max-time 20 "$url" >/tmp/aneety-smoke-response
           bytes=$(wc -c </tmp/aneety-smoke-response | tr -d ' ')
           echo "Smoke OK for $url (${bytes} bytes)."
+          echo "SMOKE_STATUS=success" >> "$GITHUB_ENV"
 
       - name: Report no deployable module
         if: steps.discover.outputs.has_workers != 'true' && env.CLOUDFLARE_DEPLOY_MODE != 'smoke'
         shell: bash
         run: |
           echo "No deployable Cloudflare Worker config found. No Cloudflare deploy or dry-run executed."
+
+      - name: Finalize Cloudflare gate result
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          EFFECTIVE_MODULE_PATH: ${{ steps.discover.outputs.effective_module_path }}
+          SMOKE_URL_INPUT: ${{ inputs.smoke_url || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { readFileSync, writeFileSync } = require('node:fs');
+          const payload = JSON.parse(readFileSync(process.env.GATE_RESULT_PATH, 'utf8'));
+          payload.modulePath = process.env.EFFECTIVE_MODULE_PATH || payload.modulePath;
+          payload.conclusion = process.env.JOB_STATUS || payload.conclusion;
+          payload.publishedUrl = process.env.PUBLISHED_URL || payload.publishedUrl || '';
+          payload.smokeUrl = process.env.SMOKE_URL_INPUT || payload.smokeUrl || '';
+          payload.smokeStatus = process.env.SMOKE_STATUS || payload.smokeStatus || '';
+          writeFileSync(process.env.GATE_RESULT_PATH, `${JSON.stringify(payload, null, 2)}\n`);
+          NODE
+
+      - name: Upload Cloudflare gate result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-gate-result
+          path: ${{ env.GATE_RESULT_PATH }}
+          if-no-files-found: error

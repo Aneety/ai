@@ -18,12 +18,16 @@ Este documento descreve o modo cloud-safe do controlador de implementação da A
 - `.codex/cloud/watch-task.sh` — wrapper para acompanhar uma task remota até `READY` ou falha.
 - `.codex/cloud/publish-task-diff.sh` — fallback operacional versionado para publicar o diff de uma task `READY` como branch/commit/PR a partir do worktree isolado local, sem aplicar nada no checkout canônico.
 - `.codex/cloud/reconcile-controller-pr.mjs` — helper versionado para reconciliar qualquer PR operacional do controlador, classificar `pending|failed|merge_ready|merged|timeout` e concluir squash merge automático quando o gate remoto estiver verde.
+- `.codex/cloud/remote-gate.mjs` — orquestra blockers `remote_automable` depois do merge, disparando `Cloudflare deploy gate`, baixando o artefato JSON do workflow e preparando a evidência versionada do ciclo.
+- `.codex/cloud/publish-operational-update.sh` — publica mudanças operacionais geradas pelo próprio scheduler, sem depender de diff vindo da task cloud.
 
 ## Variáveis e segredos
 
 `GH_TOKEN` é necessário para o **scheduler** publicar PRs, ler checks e reconciliar merge. A task cloud não é mais writer oficial do GitHub. Configure como environment variable do executor local do scheduler e, se a task cloud precisar apenas consultar GitHub, limite o uso a leitura.
 
-Não configurar `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` ou `OPENAI_API_KEY` para este controlador. Deploy Cloudflare real permanece em GitHub Actions secrets, e o controlador não usa OpenAI API.
+`CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` podem existir no ambiente Codex Cloud para tarefas futuras, mas o fluxo oficial de `publicacao` continua **actions-first**: o deploy e o smoke remotos dependem do escopo de **GitHub Actions secrets** usado por `.github/workflows/cloudflare-gate.yml`. O scheduler não passa segredos Cloudflare via diff, input de workflow ou log.
+
+`CLOUDFLARE_EMAIL` não faz parte do contrato atual do workflow remoto e não deve ser exposto em artefatos versionados. O controlador também não usa `OPENAI_API_KEY`.
 
 ## Internet do agente
 
@@ -45,6 +49,7 @@ Use allowlist mínima:
 
 - Codex Cloud deve preparar código fonte, documentação operacional e diff auditável; a mutação GitHub oficial é **scheduler-only**.
 - O scheduler publica o diff com `.codex/cloud/publish-task-diff.sh` exclusivamente em worktree isolado e sem tocar no checkout canônico, e reconcilia checks/merge com `.codex/cloud/reconcile-controller-pr.mjs`.
+- Quando um ciclo estiver pausado por blocker `remote_automable`, o scheduler pode resolver o trecho remoto por GitHub Actions, registrar artefato versionado e abrir uma PR operacional própria para concluir o ciclo sem criar task cloud repetida.
 - Nem Codex Cloud nem scheduler devem aplicar diff no checkout canônico do executor; o merge automático acontece no GitHub e o worktree isolado é apenas reconciliado de volta para `origin/main`.
 - O controlador não fecha aceite do MVP com execução local ou cloud. Aceite de código fonte continua em GitHub Actions, Cloudflare gate e smoke/API/e2e publicado.
 - Para ciclos de dados do MVP, Supabase pode ser usado como provedor operacional padrão quando o contrato da responsabilidade exigir persistência compatível com Workers, sem virar dependência obrigatória do contrato de produto ou texto visível ao usuário final.

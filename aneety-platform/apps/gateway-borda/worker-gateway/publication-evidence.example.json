@@ -1,17 +1,14 @@
 {
   "responsibility": "gateway-borda",
   "cycle": "publicacao",
-  "worker": "aneety-worker-gateway-borda",
   "template": true,
-  "contractVersion": "2026-05-31.gateway-borda.v1",
-  "publishedUrl": "https://aneety-worker-gateway-borda.placeholder.workers.dev",
+  "modulePath": "aneety-platform/apps/gateway-borda/worker-gateway",
+  "deployRunId": "00000000000",
   "deployRunUrl": "https://github.com/Aneety/ai/actions/runs/00000000000",
+  "smokeRunId": "00000000001",
   "smokeRunUrl": "https://github.com/Aneety/ai/actions/runs/00000000001",
-  "commitSha": "0000000000000000000000000000000000000000",
-  "recordedAt": "2026-06-01T00:00:00Z",
-  "remoteAcceptance": {
-    "prGateGreen": true,
-    "cloudflareDeployMode": "deploy",
-    "smokeMode": "smoke"
-  }
+  "publishedUrl": "https://aneety-worker-gateway-borda.placeholder.workers.dev",
+  "headSha": "0000000000000000000000000000000000000000",
+  "validatedAt": "2026-06-01T00:00:00Z",
+  "result": "success"
 }

@@ -84,3 +84,19 @@ test('describeResolvedTargetState trata bloqueio pausado como paused', () => {
   assert.equal(state.functionalState, 'paused');
   assert.equal(state.pauseStatus, 'validacao');
 });
+
+test('merge remoto que tira alvo de paused para próximo ciclo conta como merged funcional', () => {
+  const result = determineFinalCycleState({
+    targetBefore: pausedTarget('bloqueado'),
+    targetAfter: actionableTarget({
+      responsibility: 'gateway-borda',
+      cycle: 'backend',
+    }),
+    openControllerPrState: 'merged',
+    mergedSha: 'def456',
+  });
+
+  assert.equal(result.finalState, 'merged');
+  assert.equal(result.functionalState, 'ready');
+  assert.equal(result.lastError, null);
+});

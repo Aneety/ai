@@ -49,7 +49,7 @@ export function isStableBlockedTarget(target, runtimeState, mainSha) {
 
 export function compareTargets(beforeTarget, afterTarget) {
   if (!beforeTarget || beforeTarget.state !== 'actionable') {
-    return { progressed: afterTarget?.state !== 'actionable', unchanged: false };
+    return { progressed: true, unchanged: false };
   }
   if (!afterTarget || afterTarget.state !== 'actionable') {
     return { progressed: true, unchanged: false };
@@ -86,6 +86,11 @@ export function deriveMonitorState({
   const hasRecentSuccess =
     lastSuccessAgeSeconds != null && lastSuccessAgeSeconds <= Math.max(recentSuccessWindowSeconds, 0);
   const pausedByBacklog = resolvedTarget?.state === 'blocked' && resolvedTarget?.blockKind === 'pause';
+  const pausedManualExternal =
+    pausedByBacklog && resolvedTarget?.blockerAutomationKind !== 'remote_automable';
+  const remoteActionState = runtimeState?.lastRemoteActionState ?? 'none';
+  const runningRemoteDeploy = remoteActionState === 'running_remote_deploy';
+  const runningRemoteSmoke = remoteActionState === 'running_remote_smoke';
   const degradedByBacklog =
     resolvedTarget?.state === 'blocked' && resolvedTarget?.blockKind != null && resolvedTarget?.blockKind !== 'pause';
   const degradedByPr = ['failed', 'timeout'].includes(openControllerPrState);
@@ -106,8 +111,17 @@ export function deriveMonitorState({
   } else if (isDegraded || stableBlocked) {
     schedulerFunctionalState = 'degraded';
   } else if (
-    pausedByBacklog ||
-    (resolvedTarget?.state === 'blocked' && runtimeState?.lastFunctionalState === 'paused')
+    (
+      !runningRemoteDeploy &&
+      !runningRemoteSmoke &&
+      pausedByBacklog
+    ) ||
+    (
+      !runningRemoteDeploy &&
+      !runningRemoteSmoke &&
+      resolvedTarget?.state === 'blocked' &&
+      runtimeState?.lastFunctionalState === 'paused'
+    )
   ) {
     schedulerFunctionalState = 'paused';
   }
@@ -117,10 +131,14 @@ export function deriveMonitorState({
     controllerProgressState = 'complete';
   } else if (schedulerFunctionalState === 'degraded') {
     controllerProgressState = 'degraded_health';
+  } else if (runningRemoteDeploy) {
+    controllerProgressState = 'running_remote_deploy';
+  } else if (runningRemoteSmoke) {
+    controllerProgressState = 'running_remote_smoke';
   } else if (['pending', 'merge_ready'].includes(openControllerPrState)) {
     controllerProgressState = 'pending_pr_checks';
   } else if (schedulerFunctionalState === 'paused') {
-    controllerProgressState = 'paused_waiting_external_gate';
+    controllerProgressState = pausedManualExternal ? 'paused_waiting_manual_external_gate' : 'paused_waiting_external_gate';
   } else if (awaitingNextTick) {
     controllerProgressState = 'awaiting_next_tick';
   } else if (betweenSlots || hasRecentSuccess) {
@@ -132,6 +150,8 @@ export function deriveMonitorState({
     openControllerPrState === 'none' &&
     schedulerFunctionalState === 'ready' &&
     backlogCompletionState !== 'complete' &&
+    !runningRemoteDeploy &&
+    !runningRemoteSmoke &&
     !awaitingNextTick &&
     !betweenSlots &&
     !hasRecentSuccess;
@@ -146,6 +166,9 @@ export function deriveMonitorState({
     lastSuccessAgeSeconds,
     hasRecentSuccess,
     pausedByBacklog,
+    pausedManualExternal,
+    runningRemoteDeploy,
+    runningRemoteSmoke,
     isDegraded,
     shouldWarnCloudTaskListEmpty,
   };

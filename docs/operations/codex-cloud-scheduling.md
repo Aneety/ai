@@ -10,6 +10,7 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - A task remota deve gerar apenas diff auditável e relatório coerente com `docs/project`; branch/commit/push/PR/merge oficiais são sempre responsabilidade do scheduler via worktree isolado e `gh`, sem tocar no checkout canônico.
 - O wrapper foi validado com tasks `READY`; o scheduler roda em worktree isolado para evitar aplicar diffs no checkout canônico.
 - Quando existir PR operacional do controlador no padrão `codex/<ciclo>-<responsabilidade>-<YYYY-MM-DD>`, o scheduler entra em reconciliação: consulta checks obrigatórios, aguarda o gate remoto, faz squash merge automático, apaga a branch remota e registra o SHA final de `main`.
+- Para blockers `remote_automable`, o scheduler pode acionar GitHub Actions remotos após reavaliar `origin/main`, sem criar task cloud nova: primeiro `deploy`, depois `smoke`, e só então abre PR operacional com a evidência versionada.
 
 ## Scripts versionados
 
@@ -17,6 +18,8 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - `.codex/cloud/watch-task.sh` — acompanha uma task até `READY` ou falha.
 - `.codex/cloud/publish-task-diff.sh` — publica o diff de uma task `READY` em branch/commit/PR usando somente worktree isolado; recusa execução no checkout canônico por padrão.
 - `.codex/cloud/reconcile-controller-pr.mjs` — reconcilia PR operacional aberta, classifica `pending|failed|merge_ready|merged|timeout` e executa squash merge automático quando permitido.
+- `.codex/cloud/remote-gate.mjs` — dispara workflows remotos suportados, aguarda conclusão, baixa o artefato JSON do run e prepara a evidência operacional versionada.
+- `.codex/cloud/publish-operational-update.sh` — publica PR operacional criada pelo próprio scheduler após gates remotos concluídos.
 - `.codex/cloud/scheduler.mjs` — agendador Node.js com `node-cron`, resolvendo o próximo item acionável de toda a matriz `docs/project`, executando submit/watch a cada 30 minutos por padrão em worktree isolado fora do checkout canônico e registrando progresso em `runtime-state.json`.
 - `.codex/cloud/monitor-scheduler.mjs` — monitor local do agendamento, do arquivo de ambiente, do processo scheduler, do worktree isolado, das tasks Codex Cloud recentes e do estado derivado do backlog (`controller_progress_state`, `scheduler_functional_state`, `awaiting_next_tick`, `last_success_age_seconds`, `backlog_completion_state`).
 
@@ -71,6 +74,14 @@ O arquivo local de estado deve preservar saúde operacional entre ciclos, inclui
 - `lastFunctionalState`
 - `lastPauseStatus`
 - `lastPauseReason`
+- `lastRemoteAction`
+- `lastRemoteActionState`
+- `lastRemoteDeployRunId`
+- `lastRemoteDeployUrl`
+- `lastPublishedUrl`
+- `lastRemoteSmokeRunId`
+- `lastRemoteSmokeUrl`
+- `lastRemoteConclusion`
 
 `npm run codex-cloud:scheduler:dry-run` pode atualizar somente campos próprios de pré-checagem, como `lastDryRunAt`, sem apagar os campos operacionais acima.
 
@@ -160,7 +171,7 @@ Interpretação do monitor:
 - `cloud_task_list_failed`: o CLI não conseguiu consultar tasks do Codex Cloud.
 - `cloud_task_list_empty`: nenhuma task recente foi encontrada. Só vira blocker quando também não houver PR em reconciliação, merge recente, task recente em `runtime-state.json` nem janela válida `awaiting_next_tick`.
 - `scheduler_dry_run=ok`: a pré-checagem local passou, mas isso ainda não comprova task real.
-- `controller_progress_state`: estado derivado do controlador (`ready_for_cycle`, `awaiting_next_tick`, `idle_between_slots`, `pending`, `merge_ready`, `blocked`, `complete`).
+- `controller_progress_state`: estado derivado do controlador (`ready_for_cycle`, `awaiting_next_tick`, `idle_between_slots`, `pending_pr_checks`, `running_remote_deploy`, `running_remote_smoke`, `paused_waiting_manual_external_gate`, `degraded_health`, `complete`).
 - `awaiting_next_tick=true`: o processo iniciou ou reiniciou perto do boundary do cron e ainda aguarda o próximo slot válido antes da primeira task nova.
 - `last_success_age_seconds`: idade do sucesso operacional mais recente (`merge` ou conclusão útil de ciclo).
 - `backlog_completion_state`: `in_progress`, `blocked` ou `complete` para a matriz inteira.
@@ -180,6 +191,7 @@ Regras:
 6. Nunca executar submit/watch/publish diretamente no checkout canônico; o scheduler deve usar worktree isolado, fazer merge no GitHub e reconciliar o worktree de volta para `origin/main`.
 7. Se já existir PR aberta do controlador no padrão `codex/<ciclo>-<responsabilidade>-<YYYY-MM-DD>`, o scheduler não submete task nova; primeiro reconcilia a PR até `merged` ou blocker objetivo.
 8. Para ciclos de dados, Supabase pode ser usado como provedor operacional permitido/padrão quando a responsabilidade exigir, sem virar dependência obrigatória do contrato de produto nem copy de usuário final.
+9. `GH_TOKEN` continua no domínio Codex Cloud/scheduler; `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` precisam existir também no escopo de GitHub Actions usado por `.github/workflows/cloudflare-gate.yml` para que `publicacao` seja automável.
 
 ## Critério de aceite do agendamento
 
@@ -191,4 +203,5 @@ O agendamento só está operacional quando uma execução recorrente conseguir:
 4. abrir PR no GitHub a partir do diff `READY` ou registrar blocker objetivo de permissão/autenticação;
 5. acompanhar os checks obrigatórios, concluir squash merge automático e registrar o SHA final de `main`;
 6. apagar branch remota quando o merge concluir;
-7. ser visível pelo monitor local sem blockers críticos.
+7. quando o ciclo exigir aceite remoto, disparar `Cloudflare deploy gate`, capturar a URL publicada, executar `smoke`, gerar artefato versionado e abrir/mergear a PR operacional correspondente;
+8. ser visível pelo monitor local sem blockers críticos.

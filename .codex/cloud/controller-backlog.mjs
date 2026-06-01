@@ -8,6 +8,7 @@ import {
   normalizeCycle,
   normalizeStatus,
 } from './controller-constants.mjs';
+import { getRemoteAutomationKind } from './remote-gate.mjs';
 
 function stripCodeFence(value) {
   const trimmed = String(value ?? '').trim();
@@ -231,10 +232,18 @@ export function resolveNextBacklogTarget(backlog) {
       if (statusKind === 'done') continue;
 
       if (statusKind === 'pause') {
+        const blockerAutomationKind = getRemoteAutomationKind({
+          state: 'blocked',
+          blockKind: 'pause',
+          responsibility: summaryRow.responsibility,
+          cycle,
+          cycleRow,
+        });
         return {
           state: 'blocked',
           reason: `pause_status=${summaryRow.responsibility}/${cycle}/${cycleRow.status}`,
           blockKind: 'pause',
+          blockerAutomationKind,
           pauseStatus: cycleRow.status,
           pauseReason: cycleRow.blocker || cycleRow.nextAction || `pause_status=${cycleRow.status}`,
           responsibility: summaryRow.responsibility,

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import cron from 'node-cron';
 import { spawn } from 'node:child_process';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
@@ -12,6 +13,11 @@ import {
 } from './controller-backlog.mjs';
 import { compareTargets, isStableBlockedTarget } from './controller-progress.mjs';
 import { runControllerHealthCheck } from './health-check.mjs';
+import {
+  executeGatewayBordaPublicationRemoteGate,
+  getRemoteAutomationRunbook,
+  REMOTE_GATE_STATE,
+} from './remote-gate.mjs';
 
 const canonicalRepoRoot = process.cwd();
 const schedule = process.env.CODEX_CLOUD_SCHEDULE ?? '*/30 * * * *';
@@ -374,7 +380,7 @@ async function preflight() {
 
   if (autoPublishDiff) {
     const result = await runBash(
-      'test -x .codex/cloud/publish-task-diff.sh && test -f .codex/cloud/reconcile-controller-pr.mjs && test -x .codex/cloud/build-controller-prompt.mjs',
+      'test -x .codex/cloud/publish-task-diff.sh && test -x .codex/cloud/publish-operational-update.sh && test -f .codex/cloud/reconcile-controller-pr.mjs && test -x .codex/cloud/build-controller-prompt.mjs',
       { quiet: true },
     );
     if (result.code !== 0) throw new Error('preflight failed: publish or reconcile artifacts missing');
@@ -464,6 +470,148 @@ async function publishTaskDiff(taskId, target) {
     prNumber,
     prUrl,
   };
+}
+
+async function recordRemoteActionState(patch = {}) {
+  await writeRuntimeState({
+    lastRemoteAction: patch.lastRemoteAction ?? undefined,
+    lastRemoteActionState: patch.lastRemoteActionState ?? undefined,
+    lastRemoteDeployRunId: patch.lastRemoteDeployRunId ?? undefined,
+    lastRemoteDeployUrl: patch.lastRemoteDeployUrl ?? undefined,
+    lastPublishedUrl: patch.lastPublishedUrl ?? undefined,
+    lastRemoteSmokeRunId: patch.lastRemoteSmokeRunId ?? undefined,
+    lastRemoteSmokeUrl: patch.lastRemoteSmokeUrl ?? undefined,
+    lastRemoteConclusion: patch.lastRemoteConclusion ?? undefined,
+    lastRemoteActionAt: patch.lastRemoteActionAt ?? undefined,
+  });
+}
+
+async function publishOperationalUpdate(target, remoteResult) {
+  const bodyFile = path.join(
+    process.env.TMPDIR ?? os.tmpdir(),
+    `aneety-operational-pr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.md`,
+  );
+  const summary = [
+    '## Summary',
+    '',
+    `- Records remote publication evidence for \`${target.responsibility}/${target.cycle}\`.`,
+    `- Published URL: \`${remoteResult.evidence.publishedUrl}\`.`,
+    `- Deploy run: ${remoteResult.deployRun.runUrl}.`,
+    `- Smoke run: ${remoteResult.smokeRun.runUrl}.`,
+    '',
+    '## Validation',
+    '',
+    `- Publication evidence validated locally from \`${remoteResult.runbook.evidenceFile}\`.`,
+    `- Source SHA: \`${remoteResult.evidence.headSha}\`.`,
+    '- Merge: not performed in this step.',
+    '',
+  ].join('\n');
+  await writeFile(bodyFile, summary);
+
+  try {
+    const publish = await runBash(
+      withEnvFile(
+        `.codex/cloud/publish-operational-update.sh`,
+        {
+          ...controllerEnv({
+            state: 'actionable',
+            responsibility: target.responsibility,
+            cycle: target.cycle,
+            cycleRow: { status: 'pronto', gate: 'processo' },
+          }),
+          CODEX_CLOUD_OPERATIONAL_PR_TITLE: remoteResult.runbook.commitTitle,
+          CODEX_CLOUD_OPERATIONAL_PR_BODY_FILE: bodyFile,
+        },
+      ),
+    );
+    if (publish.code !== 0) throw new Error(`operational publish failed with exit ${publish.code}`);
+
+    const prState = extractField(publish.output, 'pr_state') ?? 'unknown';
+    const prBranch = extractField(publish.output, 'pr_branch');
+    const prNumber = extractField(publish.output, 'pr_number');
+    const prUrl = extractField(publish.output, 'pr_url');
+
+    await writeRuntimeState({
+      lastPrNumber: prNumber ?? null,
+      lastPrUrl: prUrl ?? null,
+      lastPrBranch: prBranch ?? null,
+      lastPublishedPrState: prState,
+      lastPublishedPrBranch: prBranch ?? null,
+      lastPublishedPrNumber: prNumber ?? null,
+      lastPublishedPrUrl: prUrl ?? null,
+    });
+
+    return {
+      prState,
+      prBranch,
+      prNumber,
+      prUrl,
+    };
+  } finally {
+    await rm(bodyFile, { force: true });
+  }
+}
+
+async function executeRemoteGateForTarget(target, mainSha) {
+  const runbook = getRemoteAutomationRunbook(target);
+  if (!runbook) {
+    return { ok: false, state: 'unsupported', blocker: 'remote_gate_unsupported' };
+  }
+
+  const onStateChange = async (state) => {
+    await recordRemoteActionState({
+      lastRemoteAction: `${target.responsibility}/${target.cycle}`,
+      lastRemoteActionState: state.state,
+      lastRemoteDeployRunId: state.deployRunId ?? undefined,
+      lastRemoteDeployUrl: state.deployRunUrl ?? undefined,
+      lastPublishedUrl: state.publishedUrl ?? undefined,
+      lastRemoteSmokeRunId: state.smokeRunId ?? undefined,
+      lastRemoteSmokeUrl: state.smokeRunUrl ?? undefined,
+      lastRemoteConclusion: state.state,
+      lastRemoteActionAt: new Date().toISOString(),
+    });
+  };
+
+  const result = await executeGatewayBordaPublicationRemoteGate({
+    repoRoot: executionRoot,
+    mainSha,
+    run: runBash,
+    onStateChange,
+    repo: process.env.CODEX_CLOUD_GITHUB_REPO ?? 'Aneety/ai',
+  });
+
+  if (!result.ok) {
+    await recordRemoteActionState({
+      lastRemoteAction: `${target.responsibility}/${target.cycle}`,
+      lastRemoteActionState: REMOTE_GATE_STATE.FAILED,
+      lastRemoteDeployRunId: result.deployRun?.runId ?? null,
+      lastRemoteDeployUrl: result.deployRun?.runUrl ?? null,
+      lastPublishedUrl: result.deployRun?.result?.publishedUrl ?? null,
+      lastRemoteSmokeRunId: result.smokeRun?.runId ?? null,
+      lastRemoteSmokeUrl: result.smokeRun?.runUrl ?? null,
+      lastRemoteConclusion:
+        result.smokeRun?.result?.conclusion ??
+        result.deployRun?.result?.conclusion ??
+        result.state ??
+        'failed',
+      lastRemoteActionAt: new Date().toISOString(),
+    });
+    return result;
+  }
+
+  await recordRemoteActionState({
+    lastRemoteAction: `${target.responsibility}/${target.cycle}`,
+    lastRemoteActionState: REMOTE_GATE_STATE.SUCCEEDED,
+    lastRemoteDeployRunId: result.deployRun.runId,
+    lastRemoteDeployUrl: result.deployRun.runUrl,
+    lastPublishedUrl: result.evidence.publishedUrl,
+    lastRemoteSmokeRunId: result.smokeRun.runId,
+    lastRemoteSmokeUrl: result.smokeRun.runUrl,
+    lastRemoteConclusion: 'success',
+    lastRemoteActionAt: new Date().toISOString(),
+  });
+
+  return result;
 }
 
 function extractTaskId(output) {
@@ -684,6 +832,64 @@ async function runCycle(reason, scheduledSlotAt = new Date().toISOString()) {
         lastErrorAt: null,
       });
       log('controller_backlog=complete');
+      return;
+    }
+
+    const remoteRunbook = getRemoteAutomationRunbook(targetBefore);
+    if (targetBefore.state === 'blocked' && targetBefore.blockKind === 'pause' && remoteRunbook) {
+      const remoteResult = await executeRemoteGateForTarget(targetBefore, mainSha);
+      if (!remoteResult.ok) {
+        const blockedAt = new Date().toISOString();
+        await persistResolvedTarget(targetBefore, {
+          lastCycleCompletedAt: blockedAt,
+          lastCycleState: 'paused',
+          lastFunctionalState: 'paused',
+          healthState: 'ready',
+          openControllerPrState: 'none',
+          lastError: remoteResult.blocker ?? 'remote_gate_failed',
+          lastErrorAt: blockedAt,
+        });
+        log(`remote_gate_failed target=${targetBefore.responsibility}/${targetBefore.cycle} blocker=${remoteResult.blocker ?? 'unknown'}`);
+        return;
+      }
+
+      const operationalPublish = await publishOperationalUpdate(targetBefore, remoteResult);
+      if (!['created', 'existing'].includes(operationalPublish.prState)) {
+        throw new Error(`operational publish returned state ${operationalPublish.prState}`);
+      }
+
+      const remoteReconciliation = await reconcileOpenControllerPr({ wait: true });
+      if (remoteReconciliation.state === 'merged') {
+        const mergedSha = await syncIsolatedWorktreeToMain();
+        const { resolved: targetAfterMerge } = await resolveCurrentBacklog();
+        await finalizeProgress({
+          targetBefore,
+          targetAfter: targetAfterMerge,
+          mainSha,
+          openControllerPrState: 'merged',
+          cycleCompletedAt: new Date().toISOString(),
+          mergedSha,
+          mergedPrNumber: remoteReconciliation.prNumber ?? null,
+        });
+        log(`cycle_finished_remote_gate_pr=#${remoteReconciliation.prNumber} sha=${mergedSha}`);
+        return;
+      }
+
+      const { resolved: targetAfterRemote } = await resolveCurrentBacklog();
+      const finalizedRemote = await finalizeProgress({
+        targetBefore,
+        targetAfter: targetAfterRemote,
+        mainSha,
+        openControllerPrState: remoteReconciliation.state,
+        cycleCompletedAt: new Date().toISOString(),
+      });
+      log(
+        `cycle finished state=${finalizedRemote.finalState} remote_gate_target=${targetBefore.responsibility}/${targetBefore.cycle} target_after=${
+          targetAfterRemote.state === 'actionable'
+            ? `${targetAfterRemote.responsibility}/${targetAfterRemote.cycle}`
+            : targetAfterRemote.state
+        }`,
+      );
       return;
     }
 
