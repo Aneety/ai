@@ -1,0 +1,13 @@
+{
+  "responsibility": "identidade-acesso",
+  "cycle": "publicacao",
+  "modulePath": "aneety-platform/apps/identidade-acesso/worker-identidade-acesso",
+  "deployRunId": "26743905163",
+  "deployRunUrl": "https://github.com/Aneety/ai/actions/runs/26743905163",
+  "smokeRunId": "26743946336",
+  "smokeRunUrl": "https://github.com/Aneety/ai/actions/runs/26743946336",
+  "publishedUrl": "https://worker-identidade-acesso.ricardomalnati.workers.dev",
+  "headSha": "98f001c986069d2f7a6a9aefaef8f0edc823a084",
+  "validatedAt": "2026-06-01T08:31:27Z",
+  "result": "success"
+}
