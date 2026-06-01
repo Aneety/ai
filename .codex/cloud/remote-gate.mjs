@@ -5,7 +5,14 @@ import path from 'node:path';
 const defaultRepo = process.env.CODEX_CLOUD_GITHUB_REPO ?? 'Aneety/ai';
 const remotePollIntervalSeconds = positiveInteger(process.env.CODEX_CLOUD_REMOTE_POLL_INTERVAL, 20);
 const remotePollMaxPolls = positiveInteger(process.env.CODEX_CLOUD_REMOTE_MAX_POLLS, 60);
-const useEnvGhToken = process.env.CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN === '1';
+export function shouldUseEnvGhToken(env = process.env) {
+  const mode = env.CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN;
+  if (mode === '1') return true;
+  if (mode === '0') return false;
+  return Boolean(env.GH_TOKEN);
+}
+
+const useEnvGhToken = shouldUseEnvGhToken();
 
 export const REMOTE_AUTOMATION_KIND = {
   MANUAL_EXTERNAL: 'manual_external',

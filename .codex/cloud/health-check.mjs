@@ -32,6 +32,17 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
+function shouldUseEnvGhToken(env = process.env) {
+  const mode = env.CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN;
+  if (mode === '1') return true;
+  if (mode === '0') return false;
+  return Boolean(env.GH_TOKEN);
+}
+
+function ghCommand(command) {
+  return shouldUseEnvGhToken() ? `gh ${command}` : `env -u GH_TOKEN gh ${command}`;
+}
+
 function parseArgs(argv) {
   return {
     json: argv.includes('--json'),
@@ -164,14 +175,14 @@ export async function runControllerHealthCheck({
     }
   }
 
-  const ghAuth = await run('env -u GH_TOKEN gh auth status --hostname github.com >/dev/null 2>&1', { cwd: repoRoot });
+  const ghAuth = await run(`${ghCommand('auth status --hostname github.com')} >/dev/null 2>&1`, { cwd: repoRoot });
   result.checks.ghAuth = ghAuth.code === 0;
   if (!result.checks.ghAuth) {
     addFailure(result, 'gh_auth_missing');
   }
 
   const pushPermission = await run(
-    `env -u GH_TOKEN gh api repos/${repo} --jq '.permissions.push'`,
+    `${ghCommand(`api repos/${repo} --jq '.permissions.push'`)}`,
     { cwd: repoRoot },
   );
   result.checks.pushPermission = pushPermission.code === 0 && pushPermission.stdout.trim() === 'true';
