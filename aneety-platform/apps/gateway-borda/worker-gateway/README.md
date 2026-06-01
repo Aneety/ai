@@ -18,8 +18,9 @@ Este diretório agora contém uma implementação mínima versionável para Clou
 
 - `src/index.js` exporta o handler `fetch` do Worker;
 - `wrangler.toml` declara o Worker público sem segredos e os service bindings canônicos para BFFs `worker-*`;
-- `package.json` expõe checks leves de sintaxe e testes de módulo para o gate remoto;
-- `tests/gateway.test.js` valida CORS, versão de contrato, sessão pública Aneety e roteamento para service binding simulado.
+- `package.json` expõe checks leves de sintaxe, testes de módulo e validação do contrato de deploy para o gate remoto;
+- `tests/gateway.test.js` valida CORS, versão de contrato, sessão pública Aneety e roteamento para service binding simulado;
+- `scripts/validate-deploy-contract.mjs` confere que `wrangler.toml` permanece alinhado ao contrato público, sem variáveis com nomes de segredo e com service bindings canônicos.
 
 ## Runbook remoto do gate de deploy
 
@@ -27,9 +28,10 @@ O ciclo `deploy` só pode ser aceito pela superfície remota, sem usar `wrangler
 
 1. Abrir PR a partir de branch `codex/deploy-gateway-borda-*` contra `main`.
 2. Aguardar GitHub Actions verdes na PR para `Remote CI gate`, `Governance policy gate` e `Security gate`.
-3. Após a PR verde, acionar o workflow remoto `Cloudflare deploy gate` em modo `dry-run` com `module_path` igual a `aneety-platform/apps/gateway-borda/worker-gateway`.
-4. Registrar no painel operacional o link do PR, o run do gate Cloudflare e a evidência de que `wrangler.toml` foi validado sem segredos antes de avaliar `deploy` como `concluido`.
-5. Manter `publicacao`, `backend`, `teste-integracao-api`, `smoke` e `teste` bloqueados até o gate remoto do ciclo `deploy` estar comprovado.
+3. Confirmar que o script `deploy:validate` rodou no `Remote CI gate`, garantindo versão de contrato, variáveis públicas e service bindings coerentes antes do dry-run.
+4. Após a PR verde, acionar o workflow remoto `Cloudflare deploy gate` em modo `dry-run` com `module_path` igual a `aneety-platform/apps/gateway-borda/worker-gateway`.
+5. Registrar no painel operacional o link do PR, o run do gate Cloudflare e a evidência de que `wrangler.toml` foi validado sem segredos antes de avaliar `deploy` como `concluido`.
+6. Manter `publicacao`, `backend`, `teste-integracao-api`, `smoke` e `teste` bloqueados até o gate remoto do ciclo `deploy` estar comprovado.
 
 Exemplo de acionamento remoto após checks verdes da PR:
 
