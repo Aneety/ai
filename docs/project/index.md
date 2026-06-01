@@ -12,7 +12,7 @@
 
 | Responsabilidade | Owner | Prioridade | Ciclo ativo | Status | Arquivo | Evidência atual | Bloqueio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `gateway-borda` | Ricardo Malnati | alta | `publicacao` | `bloqueado` | [gateway-borda](./gateway-borda.md) | `deploy` concluído no SHA [`cbee580`](https://github.com/Aneety/ai/commit/cbee580800141f0a9e57c8f83208e4de09babb00) com `Cloudflare deploy gate` dry-run verde; evidência versionável de publicação preparada com `publication-evidence.example.json` e `publication:validate`. | Falta URL HTTPS real publicada por `Cloudflare deploy gate` remoto em modo `deploy` após PR gate verde e segredos/permissões Cloudflare disponíveis. |
+| `gateway-borda` | Ricardo Malnati | alta | `publicacao` | `bloqueado` | [gateway-borda](./gateway-borda.md) | PR #41 preparou evidência versionável de publicação; [`Cloudflare deploy gate` deploy #26731716443](https://github.com/Aneety/ai/actions/runs/26731716443) falhou antes do deploy porque `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` chegaram vazios ao workflow. | Segredos Cloudflare de GitHub Actions indisponíveis impedem publicar URL HTTPS real no `Cloudflare deploy gate` remoto em modo `deploy`. |
 | `tenant-white-label` | Ricardo Malnati | alta | `deploy` | `pronto` | [tenant-white-label](./tenant-white-label.md) | [PR #19](https://github.com/Aneety/ai/pull/19) cria a raiz física e scaffolds mínimos, já mergeada em `main`. | — |
 | `identidade-acesso` | Ricardo Malnati | alta | `deploy` | `pronto` | [identidade-acesso](./identidade-acesso.md) | [PR #22](https://github.com/Aneety/ai/pull/22) cria a raiz física e scaffolds mínimos, já mergeada em `main`. | — |
 | `onboarding-acesso` | Ricardo Malnati | alta | `deploy` | `pronto` | [onboarding-acesso](./onboarding-acesso.md) | [PR #24](https://github.com/Aneety/ai/pull/24) cria a raiz física e scaffolds mínimos, já mergeada em `main`. | — |
@@ -59,6 +59,8 @@
 
 
 - 2026-06-01 — `gateway-borda` avança o preparo do ciclo `publicacao` sem concluir aceite remoto: o Worker agora possui template e validação de evidência para URL publicada, runs `deploy`/`smoke`, SHA e versão de contrato; o status fica `bloqueado` até existir URL HTTPS real publicada pelo `Cloudflare deploy gate` remoto.
+
+- 2026-06-01 — `gateway-borda` tentou avançar `publicacao` pelo `Cloudflare deploy gate` remoto em modo `deploy`, mas o run #26731716443 falhou com `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` vazios; próxima ação global é configurar/disponibilizar os segredos Cloudflare no repositório antes de reexecutar deploy e smoke.
 
 ## Governança mínima de atualização
 
