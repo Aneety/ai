@@ -365,6 +365,24 @@ async function main() {
   if (runtimeState?.lastPublishedUrl) {
     log(`last_published_url=${runtimeState.lastPublishedUrl}`);
   }
+  if (runtimeState?.lastDependencyParentResponsibility) {
+    log(`dependency_parent_responsibility=${runtimeState.lastDependencyParentResponsibility}`);
+  }
+  if (runtimeState?.lastDependencyParentCycle) {
+    log(`dependency_parent_cycle=${runtimeState.lastDependencyParentCycle}`);
+  }
+  if (runtimeState?.lastDependencyTargetResponsibility) {
+    log(`dependency_target_responsibility=${runtimeState.lastDependencyTargetResponsibility}`);
+  }
+  if (runtimeState?.lastDependencyTargetCycle) {
+    log(`dependency_target_cycle=${runtimeState.lastDependencyTargetCycle}`);
+  }
+  if (runtimeState?.lastDependencyReason) {
+    log(`dependency_reason=${runtimeState.lastDependencyReason}`);
+  }
+  if (runtimeState?.lastDependencyState) {
+    log(`dependency_state=${runtimeState.lastDependencyState}`);
+  }
   log(`controller_progress_state=${derived.controllerProgressState}`);
   log(`awaiting_next_tick=${derived.awaitingNextTick}`);
   log(`backlog_completion_state=${derived.backlogCompletionState}`);

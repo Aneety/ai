@@ -10,7 +10,7 @@ function row(cycle, status = 'triagem', priority = 'alta', blocker = '—', next
   return `| \`${cycle}\` | \`${status}\` | ${priority} | \`gate\` | — | ${blocker} | ${nextAction} |`;
 }
 
-async function createFixture({ indexRows, responsibilityRows }) {
+async function createFixture({ indexRows, responsibilityRows, dependencyRows = [] }) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aneety-controller-backlog-'));
   await mkdir(path.join(root, 'docs', 'project'), { recursive: true });
 
@@ -23,7 +23,11 @@ async function createFixture({ indexRows, responsibilityRows }) {
         `| \`${responsibility}\` | tabela | \`${responsibility}\` | \`aneety-platform/apps/${responsibility}\` | ${CYCLE_ORDER.map((cycle) => `\`${cycle}\``).join(', ')} | aceite |`,
     )
     .join('\n');
-  const planningMarkdown = `# Planejamento\n\n| Responsabilidade | Tabelas cobertas | Responsabilidade raiz | Caminho no monorepo | Ciclos obrigatórios | Aceite e evidência base |\n| --- | --- | --- | --- | --- | --- |\n${planningRows}\n`;
+  const dependencySection =
+    dependencyRows.length > 0
+      ? `\n## Dependências automáveis do scheduler\n\n| Responsabilidade alvo | Ciclo alvo | Dependências mínimas | Regra operacional |\n| --- | --- | --- | --- |\n${dependencyRows.join('\n')}\n`
+      : '';
+  const planningMarkdown = `# Planejamento\n\n| Responsabilidade | Tabelas cobertas | Responsabilidade raiz | Caminho no monorepo | Ciclos obrigatórios | Aceite e evidência base |\n| --- | --- | --- | --- | --- | --- |\n${planningRows}\n${dependencySection}`;
   await writeFile(path.join(root, 'docs', '08-planejamento-ciclos-implementacao-repositorios.md'), planningMarkdown);
 
   for (const [responsibility, cycleStatuses] of Object.entries(responsibilityRows)) {
@@ -102,10 +106,13 @@ test('pausa quando encontra ciclo em validacao', async () => {
   }
 });
 
-test('classifica gateway-borda/publicacao bloqueado como remote_automable', async () => {
+test('preempta gateway-borda/publicacao para primeira dependencia com deploy pronto', async () => {
   const root = await createFixture({
     indexRows: [
       '| `gateway-borda` | Ricardo | alta | `publicacao` | `bloqueado` | [gateway-borda](./gateway-borda.md) | — | Falta URL remota |',
+      '| `tenant-white-label` | Ricardo | alta | `deploy` | `pronto` | [tenant-white-label](./tenant-white-label.md) | — | — |',
+      '| `identidade-acesso` | Ricardo | alta | `deploy` | `pronto` | [identidade-acesso](./identidade-acesso.md) | — | — |',
+      '| `onboarding-acesso` | Ricardo | alta | `deploy` | `pronto` | [onboarding-acesso](./onboarding-acesso.md) | — | — |',
     ],
     responsibilityRows: {
       'gateway-borda': {
@@ -113,7 +120,110 @@ test('classifica gateway-borda/publicacao bloqueado como remote_automable', asyn
         deploy: { status: 'concluido' },
         publicacao: { status: 'bloqueado', blocker: 'Aguardando deploy remoto.' },
       },
+      'tenant-white-label': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'pronto' },
+      },
+      'identidade-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'pronto' },
+      },
+      'onboarding-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'pronto' },
+      },
     },
+    dependencyRows: [
+      '| `gateway-borda` | `publicacao` | `tenant-white-label/deploy`, `identidade-acesso/deploy`, `onboarding-acesso/deploy` | Preemptar dependências antes do remote gate. |',
+    ],
+  });
+
+  try {
+    const backlog = await loadControllerBacklog(root);
+    const target = resolveNextBacklogTarget(backlog);
+    assert.equal(target.state, 'actionable');
+    assert.equal(target.responsibility, 'tenant-white-label');
+    assert.equal(target.cycle, 'deploy');
+    assert.equal(target.dependencyParentResponsibility, 'gateway-borda');
+    assert.equal(target.dependencyParentCycle, 'publicacao');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('avanca para proxima dependencia depois do primeiro deploy concluido', async () => {
+  const root = await createFixture({
+    indexRows: [
+      '| `gateway-borda` | Ricardo | alta | `publicacao` | `bloqueado` | [gateway-borda](./gateway-borda.md) | — | Falta URL remota |',
+      '| `tenant-white-label` | Ricardo | alta | `deploy` | `concluido` | [tenant-white-label](./tenant-white-label.md) | — | — |',
+      '| `identidade-acesso` | Ricardo | alta | `deploy` | `pronto` | [identidade-acesso](./identidade-acesso.md) | — | — |',
+      '| `onboarding-acesso` | Ricardo | alta | `deploy` | `pronto` | [onboarding-acesso](./onboarding-acesso.md) | — | — |',
+    ],
+    responsibilityRows: {
+      'gateway-borda': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'bloqueado', blocker: 'Aguardando deploy remoto.' },
+      },
+      'tenant-white-label': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+      },
+      'identidade-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'pronto' },
+      },
+      'onboarding-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'pronto' },
+      },
+    },
+    dependencyRows: [
+      '| `gateway-borda` | `publicacao` | `tenant-white-label/deploy`, `identidade-acesso/deploy`, `onboarding-acesso/deploy` | Preemptar dependências antes do remote gate. |',
+    ],
+  });
+
+  try {
+    const backlog = await loadControllerBacklog(root);
+    const target = resolveNextBacklogTarget(backlog);
+    assert.equal(target.state, 'actionable');
+    assert.equal(target.responsibility, 'identidade-acesso');
+    assert.equal(target.cycle, 'deploy');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('retorna ao gateway/publicacao quando os tres deploys dependentes estao concluidos', async () => {
+  const root = await createFixture({
+    indexRows: [
+      '| `gateway-borda` | Ricardo | alta | `publicacao` | `bloqueado` | [gateway-borda](./gateway-borda.md) | — | Falta URL remota |',
+      '| `tenant-white-label` | Ricardo | alta | `deploy` | `concluido` | [tenant-white-label](./tenant-white-label.md) | — | — |',
+      '| `identidade-acesso` | Ricardo | alta | `deploy` | `concluido` | [identidade-acesso](./identidade-acesso.md) | — | — |',
+      '| `onboarding-acesso` | Ricardo | alta | `deploy` | `concluido` | [onboarding-acesso](./onboarding-acesso.md) | — | — |',
+    ],
+    responsibilityRows: {
+      'gateway-borda': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'bloqueado', blocker: 'Aguardando deploy remoto.' },
+      },
+      'tenant-white-label': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+      },
+      'identidade-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+      },
+      'onboarding-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+      },
+    },
+    dependencyRows: [
+      '| `gateway-borda` | `publicacao` | `tenant-white-label/deploy`, `identidade-acesso/deploy`, `onboarding-acesso/deploy` | Preemptar dependências antes do remote gate. |',
+    ],
   });
 
   try {
