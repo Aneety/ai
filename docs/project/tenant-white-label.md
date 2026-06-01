@@ -16,9 +16,9 @@
 | `repositorio` | `concluido` | alta | `arquitetura` | [PR #19](https://github.com/Aneety/ai/pull/19) cria a raiz `aneety-platform/apps/tenant-white-label/` com `README.md` raiz e diretórios `db-tenant-white-label`, `worker-tenant-white-label` e `mfe-tenant-white-label`, já mergeada em `main`. | — | Avançar para `deploy` com runtime 100% Workers e evidência remota. |
 | `deploy` | `concluido` | alta | `processo` | [`Cloudflare deploy gate` dry-run #26734998742](https://github.com/Aneety/ai/actions/runs/26734998742) validou `tenant-white-label` no SHA [`9e83da0`](https://github.com/Aneety/ai/commit/9e83da0d136a22e61db234be78b9bde01ae565a7) sem segredo versionado e com runtime Workers compatível. | — | Executar `publicacao` com evidência remota objetiva do ciclo seguinte. |
 | `publicacao` | `concluido` | alta | `processo` | [`Cloudflare deploy gate` deploy #26741516221](https://github.com/Aneety/ai/actions/runs/26741516221) publicou a URL real `https://worker-tenant-white-label.ricardomalnati.workers.dev`, [`Cloudflare deploy gate` smoke #26741553080](https://github.com/Aneety/ai/actions/runs/26741553080) validou o endpoint público e `worker-tenant-white-label/publication-evidence.json` registrou o SHA [7ea8e3b](https://github.com/Aneety/ai/commit/7ea8e3bda805834fa3ec1eb4da867ef4623418fb). | — | Executar `banco` com evidência objetiva do primeiro contrato persistido após a URL pública validada. |
-| `banco` | `triagem` | alta | `DB` | — | — | Executar `banco` agora que `publicacao` já ficou verde com URL real publicada. |
+| `banco` | `validacao` | alta | `DB` | `db-tenant-white-label` agora declara migration D1 `0001_tenant_white_label_d1.sql`, rollback, seed sanitizado Lia Demonstração, contrato de storage `TENANT_WHITE_LABEL_DB`, queries CRUD tenant-scoped e validação leve `validate-db-contract.mjs`. | Aguardando scheduler publicar o diff, obter GitHub Actions verdes e executar validação Cloudflare D1-backed da migration/fixture antes de concluir `banco`. | Publicar PR/checks pelo scheduler e registrar evidência remota D1-backed; depois avançar para `backend`. |
 | `jobs` | `na` | alta | `job` | — | — | Reavaliar somente se houver mudança contratual aprovada nos documentos normativos. |
-| `backend` | `triagem` | alta | `backend` | — | Aguardando ciclo `banco` ficar verde neste arquivo. | Executar `backend` depois de concluir `banco` com evidência objetiva. |
+| `backend` | `triagem` | alta | `backend` | — | Aguardando ciclo `banco` sair de `validacao` para `concluido` com evidência D1-backed remota. | Executar `backend` depois de concluir `banco` com evidência objetiva. |
 | `teste-integracao-api` | `triagem` | alta | `teste` | — | Aguardando ciclo `backend` ficar verde neste arquivo. | Executar `teste-integracao-api` depois de concluir `backend` com evidência objetiva. |
 | `microfrontend` | `triagem` | alta | `microfrontend` | — | Aguardando ciclo `teste-integracao-api` ficar verde neste arquivo. | Executar `microfrontend` depois de concluir `teste-integracao-api` com evidência objetiva. |
 | `smoke` | `triagem` | alta | `smoke` | — | Aguardando ciclo `microfrontend` ficar verde neste arquivo. | Executar `smoke` depois de concluir `microfrontend` com evidência objetiva. |
@@ -41,6 +41,8 @@
 
 - 2026-06-01 — ciclo `publicacao` avançou sem concluir aceite remoto: o módulo `worker-tenant-white-label` agora possui template e validação de evidência de publicação para URL HTTPS, runs remotos de deploy/smoke, SHA e versão de contrato; o status fica `bloqueado` até o scheduler publicar a branch, obter PR gate verde, executar `Cloudflare deploy gate` em modo `deploy`/`smoke` e versionar a evidência real.
 
+
+- 2026-06-01 — ciclo `banco` avançou para `validacao`: `db-tenant-white-label` recebeu migration/rollback D1 para `tenants`, `tenant_branding` e auditoria, seed sanitizado Lia Demonstração, contrato de storage `TENANT_WHITE_LABEL_DB`, queries CRUD tenant-scoped e validação leve; conclusão depende do scheduler publicar o diff, obter checks verdes e registrar execução Cloudflare D1-backed da migration/fixture.
 
 ## Triagem Google Stitch
 
