@@ -12,3 +12,9 @@ test('publish-task-diff nao cria PR draft', () => {
   assert.match(script, /gh pr create/);
   assert.doesNotMatch(script, /gh pr create[\s\S]*--draft/);
 });
+
+test('publish-task-diff trata patch stale como stale_conflict', () => {
+  const script = readFileSync(publishScriptPath, 'utf8');
+  assert.match(script, /pr_state=stale_conflict/);
+  assert.match(script, /task_diff_state=stale_conflict/);
+});

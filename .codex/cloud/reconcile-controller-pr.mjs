@@ -112,6 +112,35 @@ export function parseChecksPayload(stdout) {
   }
 }
 
+export function isMergedPrDetails(details) {
+  return String(details?.state ?? '').toUpperCase() === 'MERGED' || Boolean(details?.mergedAt);
+}
+
+export function resolveMergeFailure(prInfo, refreshed, mergedDetails = null) {
+  if (refreshed?.state === 'merged') return refreshed;
+  if (isMergedPrDetails(mergedDetails)) {
+    return {
+      state: 'merged',
+      number: mergedDetails.number ?? prInfo.number,
+      url: mergedDetails.url ?? prInfo.url,
+      branch: mergedDetails.headRefName ?? prInfo.branch,
+      mergedSha: mergedDetails.mergeCommit?.oid ?? 'unknown',
+    };
+  }
+  if (refreshed?.headRefOid && refreshed.headRefOid !== prInfo.headRefOid) {
+    return {
+      ...refreshed,
+      state: 'failed',
+      mergeError: 'head_drift',
+    };
+  }
+  return {
+    ...refreshed,
+    state: 'failed',
+    mergeError: 'merge_failed',
+  };
+}
+
 async function loadRequiredChecks(prNumber) {
   let result = await runGh(
     `pr checks ${shellQuote(String(prNumber))} --repo ${shellQuote(repo)} --required --json name,state,workflow,link`,
@@ -196,7 +225,7 @@ async function inspectOpenPr() {
   }
 
   const details = await loadPrDetails(pr.number);
-  if (String(details.state ?? '').toUpperCase() === 'MERGED' || details.mergedAt) {
+  if (isMergedPrDetails(details)) {
     const mergedSha = details.mergeCommit?.oid ?? 'unknown';
     log(`open_controller_pr_state=merged`);
     log(`open_controller_pr_merged=#${details.number} sha=${mergedSha}`);
@@ -257,23 +286,23 @@ async function mergePr(prInfo) {
 
   if (result.code !== 0) {
     const refreshed = await inspectOpenPr();
-    if (refreshed.state === 'merged') return refreshed;
-    if (refreshed.headRefOid && refreshed.headRefOid !== prInfo.headRefOid) {
-      log('open_controller_pr_state=failed');
-      log('open_controller_pr_merge_error=head_drift');
-      return {
-        ...refreshed,
-        state: 'failed',
-        mergeError: 'head_drift',
-      };
+    let mergedDetails = null;
+    if (refreshed.state === 'none') {
+      try {
+        mergedDetails = await loadPrDetails(prInfo.number);
+      } catch {
+        mergedDetails = null;
+      }
+    }
+    const resolved = resolveMergeFailure(prInfo, refreshed, mergedDetails);
+    if (resolved.state === 'merged') {
+      log('open_controller_pr_state=merged');
+      log(`open_controller_pr_merged=#${resolved.number} sha=${resolved.mergedSha ?? 'unknown'}`);
+      return resolved;
     }
     log('open_controller_pr_state=failed');
-    log(`open_controller_pr_merge_error=merge_failed`);
-    return {
-      ...refreshed,
-      state: 'failed',
-      mergeError: 'merge_failed',
-    };
+    log(`open_controller_pr_merge_error=${resolved.mergeError ?? 'merge_failed'}`);
+    return resolved;
   }
 
   const merged = await loadPrDetails(prInfo.number);
