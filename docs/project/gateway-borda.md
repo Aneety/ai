@@ -14,7 +14,7 @@
 | Ciclo | Status | Prioridade | Gate | Evidência | Bloqueio | Próxima ação |
 | --- | --- | --- | --- | --- | --- | --- |
 | `repositorio` | `concluido` | alta | `arquitetura` | [PR #14](https://github.com/Aneety/ai/pull/14) valida `aneety-platform/apps/gateway-borda/`, `worker-gateway/` e `pkg-contratos-publicos/` com checks remotos verdes antes do merge. | — | Iniciar ciclo `deploy` somente com runtime 100% Workers e evidência remota. |
-| `deploy` | `validacao` | alta | `processo` | Branch `codex/deploy-gateway-borda-worker-gateway` prepara `worker-gateway` deployable com Wrangler, contrato público e testes de roteamento para abrir PR e acionar GitHub Actions. | Aguardando PR/checks remotos e Cloudflare dry-run/deploy no gate oficial; sem evidência remota publicada nesta task. | Abrir PR, aguardar GitHub Actions verdes e então acionar Cloudflare gate remoto antes de avançar para `publicacao`. |
+| `deploy` | `validacao` | alta | `processo` | Branch `codex/deploy-gateway-borda-worker-gateway` prepara `worker-gateway` deployable com Wrangler, contrato público, service bindings canônicos e testes de roteamento para abrir PR e acionar GitHub Actions. | Aguardando PR/checks remotos e Cloudflare dry-run/deploy no gate oficial; sem evidência remota publicada nesta task. | Abrir PR, aguardar GitHub Actions verdes e então acionar Cloudflare gate remoto antes de avançar para `publicacao`. |
 | `publicacao` | `triagem` | alta | `processo` | — | Aguardando ciclo `deploy` ficar verde neste arquivo. | Executar `publicacao` depois de concluir `deploy` com evidência objetiva. |
 | `banco` | `na` | alta | `DB` | — | — | Reavaliar somente se houver mudança contratual aprovada nos documentos normativos. |
 | `jobs` | `na` | alta | `job` | — | — | Reavaliar somente se houver mudança contratual aprovada nos documentos normativos. |
@@ -36,4 +36,4 @@
 
 - 2026-05-29 — backlog migrado do painel operacional anterior para `docs/project`.
 - 2026-05-30 — ciclo `repositorio` concluído pela PR #14: raiz canônica `aneety-platform/apps/gateway-borda/` criada com contrato inicial de `worker-gateway` e `pkg-contratos-publicos`, validada por checks remotos verdes antes do merge.
-- 2026-05-31 — ciclo `deploy` entra em `validacao`: branch `codex/deploy-gateway-borda-worker-gateway` adiciona Worker deployable 100% Cloudflare Workers, contrato público versionado, Wrangler sem segredos e testes de rota/sessão/CORS para o gate remoto da PR.
+- 2026-05-31 — ciclo `deploy` entra em `validacao`: branch `codex/deploy-gateway-borda-worker-gateway` adiciona Worker deployable 100% Cloudflare Workers, contrato público versionado, Wrangler sem segredos, service bindings para BFFs `worker-*`, plano de rollback e testes de rota/sessão/CORS para o gate remoto da PR.

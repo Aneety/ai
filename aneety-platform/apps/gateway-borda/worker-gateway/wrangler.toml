@@ -9,3 +9,15 @@ enabled = true
 [vars]
 ANEETY_ALLOWED_ORIGINS = "https://app.aneety.com.br,https://lia.aneety.com.br"
 ANEETY_CONTRACT_VERSION = "2026-05-31.gateway-borda.v1"
+
+[[services]]
+binding = "IDENTIDADE_ACESSO"
+service = "worker-identidade-acesso"
+
+[[services]]
+binding = "TENANT_WHITE_LABEL"
+service = "worker-tenant-white-label"
+
+[[services]]
+binding = "ONBOARDING_ACESSO"
+service = "worker-onboarding-acesso"

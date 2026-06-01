@@ -12,7 +12,7 @@
 
 | Responsabilidade | Owner | Prioridade | Ciclo ativo | Status | Arquivo | Evidência atual | Bloqueio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `gateway-borda` | Ricardo Malnati | alta | `deploy` | `validacao` | [gateway-borda](./gateway-borda.md) | Branch `codex/deploy-gateway-borda-worker-gateway` prepara `worker-gateway` deployable com contrato público, Wrangler e testes para PR/checks remotos. | Aguardando PR/checks remotos e Cloudflare dry-run/deploy no gate oficial. |
+| `gateway-borda` | Ricardo Malnati | alta | `deploy` | `validacao` | [gateway-borda](./gateway-borda.md) | Branch `codex/deploy-gateway-borda-worker-gateway` prepara `worker-gateway` deployable com contrato público, Wrangler, service bindings e testes para PR/checks remotos. | Aguardando PR/checks remotos e Cloudflare dry-run/deploy no gate oficial. |
 | `tenant-white-label` | Ricardo Malnati | alta | `deploy` | `pronto` | [tenant-white-label](./tenant-white-label.md) | [PR #19](https://github.com/Aneety/ai/pull/19) cria a raiz física e scaffolds mínimos, já mergeada em `main`. | — |
 | `identidade-acesso` | Ricardo Malnati | alta | `deploy` | `pronto` | [identidade-acesso](./identidade-acesso.md) | [PR #22](https://github.com/Aneety/ai/pull/22) cria a raiz física e scaffolds mínimos, já mergeada em `main`. | — |
 | `onboarding-acesso` | Ricardo Malnati | alta | `deploy` | `pronto` | [onboarding-acesso](./onboarding-acesso.md) | [PR #24](https://github.com/Aneety/ai/pull/24) cria a raiz física e scaffolds mínimos, já mergeada em `main`. | — |
@@ -48,7 +48,7 @@
 - 2026-05-30 — `docs/project` neste repositório segue como fonte única de backlog operacional; nenhuma consulta a painel fora do repositório é necessária.
 - 2026-05-30 — PR [#7](https://github.com/Aneety/ai/pull/7) já está mergeada em `Aneety/ai`; `gh pr checks 7 --repo Aneety/ai` e `gh run view` confirmaram `Governance audit`, `Security gate`, `Remote CI gate`, `Governance policy gate` e `Cloudflare deploy gate` verdes entre o PR `codex/ai-canonical-transition` e o push em `main` no SHA `33620f5b834a`.
 - 2026-05-30 — `gateway-borda` conclui o ciclo `repositorio` pela PR #14; demais responsabilidades seguem bloqueadas em `repositorio` por falta de raiz canônica.
-- 2026-05-31 — `gateway-borda` avança o ciclo `deploy` para `validacao` com Worker deployable, contrato público versionado e configuração Wrangler sem segredos aguardando PR/checks remotos e Cloudflare gate.
+- 2026-05-31 — `gateway-borda` avança o ciclo `deploy` para `validacao` com Worker deployable, contrato público versionado, service bindings canônicos, plano de rollback e configuração Wrangler sem segredos aguardando PR/checks remotos e Cloudflare gate.
 - 2026-05-31 — `tenant-white-label`, `identidade-acesso` e `onboarding-acesso` concluem `repositorio` pelas PRs [#19](https://github.com/Aneety/ai/pull/19), [#22](https://github.com/Aneety/ai/pull/22) e [#24](https://github.com/Aneety/ai/pull/24), todas mergeadas em `main`, e passam a ter `deploy` como próximo ciclo acionável.
 
 - 2026-05-30 — monitoramento Codex Cloud registrado em [`controller-monitoring-2026-05-30.md`](./controller-monitoring-2026-05-30.md): `gh` autenticado para leitura, nenhum PR aberto no momento da consulta, workflows ativos listados, últimos runs de `main` verdes no SHA `1a039111882ee949722bd3980c4f6550d323fa32`, 22 responsabilidades ainda bloqueadas em `repositorio` por falta de raízes canônicas, e push/PR remoto bloqueado por `403 Permission to Aneety/ai.git denied to Malnati`.
