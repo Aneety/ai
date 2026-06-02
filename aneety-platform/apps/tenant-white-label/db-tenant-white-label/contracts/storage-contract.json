@@ -1,0 +1,32 @@
+{
+  "responsibility": "tenant-white-label",
+  "cycle": "banco",
+  "runtime": "cloudflare-workers",
+  "storage": {
+    "type": "d1",
+    "binding": "TENANT_WHITE_LABEL_DB",
+    "databaseName": "tenant-white-label-db",
+    "migrationDirectory": "migrations",
+    "rollbackDirectory": "rollbacks",
+    "seedDirectory": "seeds"
+  },
+  "entities": [
+    {
+      "name": "tenants",
+      "tenantIsolation": "tenant_id primary boundary",
+      "crudLevelDeclared": "create/read/update/delete by tenant_id or tenant_key in D1"
+    },
+    {
+      "name": "tenant_branding",
+      "tenantIsolation": "tenant_id foreign key and all indexes start from tenant_id where tenant scoped",
+      "crudLevelDeclared": "create/read/update/delete by tenant_id and brand_key in D1"
+    },
+    {
+      "name": "tenant_branding_audit_events",
+      "tenantIsolation": "tenant_id foreign key and tenant-scoped audit index",
+      "crudLevelDeclared": "append/read by tenant_id in D1"
+    }
+  ],
+  "secretPolicy": "No raw secrets, DNS tokens, CDN credentials or customer data are stored in migrations, seeds or fixtures.",
+  "acceptanceEvidenceRequired": "GitHub Actions plus Cloudflare D1-backed migration/test run before moving this cycle to concluido."
+}
