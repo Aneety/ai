@@ -3,6 +3,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
 function assertNonEmptyString(value, label) {
@@ -33,13 +34,20 @@ export function sanitizeD1DatabaseName(value) {
 }
 
 export function buildEphemeralDatabaseName(databaseName, controllerNonce, maxLength = 64) {
-  const base = sanitizeD1DatabaseName(databaseName);
-  const nonce = sanitizeD1DatabaseName(controllerNonce).slice(0, 24);
-  const suffix = nonce || 'validation';
+  const base = sanitizeD1DatabaseName(databaseName) || 'aneety-d1';
+  const sanitizedNonce = sanitizeD1DatabaseName(controllerNonce) || 'validation';
+  const nonceHash = createHash('sha256').update(sanitizedNonce).digest('hex').slice(0, 8);
+  const humanNonceMaxLength = 24;
+  const humanNonce = sanitizedNonce.slice(0, humanNonceMaxLength).replace(/-+$/g, '') || 'validation';
+  const suffix = `${humanNonce}-${nonceHash}`;
   const separator = '-';
   const allowedBaseLength = Math.max(maxLength - suffix.length - separator.length, 8);
   const trimmedBase = base.slice(0, allowedBaseLength).replace(/-+$/g, '') || 'aneety-d1';
   return `${trimmedBase}${separator}${suffix}`;
+}
+
+export function buildD1DeleteArgs(databaseName) {
+  return ['--yes', 'wrangler@latest', 'd1', 'delete', assertNonEmptyString(databaseName, 'databaseName'), '--skip-confirmation'];
 }
 
 export function parseD1ListJson(payload) {
@@ -284,7 +292,7 @@ async function main() {
     setFailure(result, 'd1_gate_unhandled_error', error instanceof Error ? error.message : String(error), 'validate');
   } finally {
     if (tempDatabaseName) {
-      const cleanup = await runCommand('npx', ['--yes', 'wrangler@latest', 'd1', 'delete', tempDatabaseName, '--yes'], {
+      const cleanup = await runCommand('npx', buildD1DeleteArgs(tempDatabaseName), {
         cwd: workspace,
         env: process.env,
       });
