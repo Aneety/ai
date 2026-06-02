@@ -40,11 +40,11 @@ CREATE TABLE tenant_branding (
   UNIQUE (tenant_id, brand_key),
   CHECK (brand_key = lower(brand_key)),
   CHECK (brand_key GLOB '[a-z0-9][a-z0-9-]*'),
-  CHECK (primary_color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'),
-  CHECK (secondary_color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'),
-  CHECK (accent_color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'),
-  CHECK (surface_color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'),
-  CHECK (text_color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'),
+  CHECK (length(primary_color) = 7 AND substr(primary_color, 1, 1) = '#'),
+  CHECK (length(secondary_color) = 7 AND substr(secondary_color, 1, 1) = '#'),
+  CHECK (length(accent_color) = 7 AND substr(accent_color, 1, 1) = '#'),
+  CHECK (length(surface_color) = 7 AND substr(surface_color, 1, 1) = '#'),
+  CHECK (length(text_color) = 7 AND substr(text_color, 1, 1) = '#'),
   CHECK (active_until IS NULL OR active_from IS NULL OR active_until > active_from)
 );
 
