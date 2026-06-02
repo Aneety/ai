@@ -13,8 +13,11 @@ CREATE TABLE tenants (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   archived_at TEXT,
   CHECK (length(tenant_id) BETWEEN 12 AND 80),
+  CHECK (length(tenant_key) BETWEEN 2 AND 80),
   CHECK (tenant_key = lower(tenant_key)),
-  CHECK (tenant_key GLOB '[a-z0-9][a-z0-9-]*'),
+  CHECK (tenant_key NOT GLOB '*[^a-z0-9-]*'),
+  CHECK (tenant_key NOT GLOB '-*'),
+  CHECK (tenant_key NOT GLOB '*-'),
   CHECK (archived_at IS NULL OR status = 'archived')
 );
 
@@ -38,8 +41,11 @@ CREATE TABLE tenant_branding (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE RESTRICT,
   UNIQUE (tenant_id, brand_key),
+  CHECK (length(brand_key) BETWEEN 2 AND 80),
   CHECK (brand_key = lower(brand_key)),
-  CHECK (brand_key GLOB '[a-z0-9][a-z0-9-]*'),
+  CHECK (brand_key NOT GLOB '*[^a-z0-9-]*'),
+  CHECK (brand_key NOT GLOB '-*'),
+  CHECK (brand_key NOT GLOB '*-'),
   CHECK (primary_color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'),
   CHECK (secondary_color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'),
   CHECK (accent_color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'),
