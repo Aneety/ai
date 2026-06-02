@@ -11,8 +11,8 @@
   "headSha": "0000000000000000000000000000000000000000",
   "validatedAt": "2026-06-01T00:00:00Z",
   "costProofRef": "docs/ai-guardrails/cost-proofs/current-services.json",
-  "costProofValidatedAt": "2026-06-02T20:59:29Z",
-  "servicesChecked": 3,
+  "costProofValidatedAt": "2026-06-02T21:40:57Z",
+  "servicesChecked": 6,
   "costResult": "free",
   "result": "success"
 }
