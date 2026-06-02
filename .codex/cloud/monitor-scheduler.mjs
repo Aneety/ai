@@ -375,6 +375,15 @@ async function main() {
   if (runtimeState?.lastRemoteDeployUrl) {
     log(`last_remote_deploy_run_url=${runtimeState.lastRemoteDeployUrl}`);
   }
+  if (runtimeState?.lastRemoteValidationRunId) {
+    log(`last_remote_validation_run_id=${runtimeState.lastRemoteValidationRunId}`);
+  }
+  if (runtimeState?.lastRemoteValidationUrl) {
+    log(`last_remote_validation_run_url=${runtimeState.lastRemoteValidationUrl}`);
+  }
+  if (runtimeState?.lastRemoteDatabaseName) {
+    log(`last_remote_database_name=${runtimeState.lastRemoteDatabaseName}`);
+  }
   if (runtimeState?.lastRemoteSmokeRunId) {
     log(`last_remote_smoke_run_id=${runtimeState.lastRemoteSmokeRunId}`);
   }

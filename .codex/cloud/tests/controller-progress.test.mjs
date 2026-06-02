@@ -214,6 +214,26 @@ test('remote deploy em andamento mostra running_remote_deploy e nao alerta task 
   assert.equal(derived.shouldWarnCloudTaskListEmpty, false);
 });
 
+test('remote database validation em andamento mostra running_remote_database', () => {
+  const derived = deriveMonitorState({
+    resolvedTarget: pausedTarget('validacao'),
+    runtimeState: {
+      nextScheduledRunAt: '2026-05-31T20:00:00Z',
+      schedulerStartedAt: '2026-05-31T17:00:00Z',
+      lastCycleStartedAt: '2026-05-31T19:00:00Z',
+      lastRemoteActionState: 'running_remote_database',
+    },
+    mainSha: 'abc123',
+    openControllerPrState: 'none',
+    cloudTaskCount: 0,
+    nowMs: now,
+  });
+
+  assert.equal(derived.schedulerFunctionalState, 'ready');
+  assert.equal(derived.controllerProgressState, 'running_remote_database');
+  assert.equal(derived.shouldWarnCloudTaskListEmpty, false);
+});
+
 test('remote smoke em andamento mostra running_remote_smoke', () => {
   const derived = deriveMonitorState({
     resolvedTarget: pausedTarget('bloqueado'),

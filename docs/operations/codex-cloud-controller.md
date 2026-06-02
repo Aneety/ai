@@ -18,7 +18,8 @@ Este documento descreve o modo cloud-safe do controlador de implementação da A
 - `.codex/cloud/watch-task.sh` — wrapper para acompanhar uma task remota até `READY` ou falha.
 - `.codex/cloud/publish-task-diff.sh` — fallback operacional versionado para publicar o diff de uma task `READY` como branch/commit/PR a partir do worktree isolado local, sem aplicar nada no checkout canônico.
 - `.codex/cloud/reconcile-controller-pr.mjs` — helper versionado para reconciliar qualquer PR operacional do controlador, classificar `pending|failed|merge_ready|merged|timeout` e concluir squash merge automático quando o gate remoto estiver verde.
-- `.codex/cloud/remote-gate.mjs` — orquestra blockers `remote_automable` depois do merge, disparando `Cloudflare deploy gate`, baixando o artefato JSON do workflow e preparando a evidência versionada do ciclo. Hoje cobre `deploy` e `publicacao` dos Workers suportados, além de `gateway-borda/publicacao`.
+- `.codex/cloud/remote-gate.mjs` — orquestra blockers `remote_automable` depois do merge, disparando gates remotos suportados, baixando o artefato JSON do workflow e preparando a evidência versionada do ciclo. Hoje cobre `deploy`, `publicacao` e `banco` (D1 efêmero) dos módulos suportados, além de `gateway-borda/publicacao`.
+- `.github/workflows/cloudflare-d1-gate.yml` + `.codex/cloud/run-d1-gate.mjs` — executam o gate remoto de `banco` em D1 efêmero: `db:validate`, create, migrations, seeds, fixture, rollback, cleanup e artefato `cloudflare-d1-gate-result`.
 - `.codex/cloud/publish-operational-update.sh` — publica mudanças operacionais geradas pelo próprio scheduler, sem depender de diff vindo da task cloud.
 - `.codex/cloud/mirror-actions-secrets.sh` — bootstrap operacional para espelhar segredos Cloudflare do ambiente Codex Cloud para GitHub Actions secrets, sem imprimir valores.
 
@@ -61,7 +62,7 @@ Use allowlist mínima:
 - Nem Codex Cloud nem scheduler devem aplicar diff no checkout canônico do executor; o merge automático acontece no GitHub e o worktree isolado é apenas reconciliado de volta para `origin/main`.
 - O controlador não fecha aceite do MVP com execução local ou cloud. Aceite de código fonte continua em GitHub Actions, Cloudflare gate e smoke/API/e2e publicado.
 - Para Workers com contrato público mínimo, o `smoke` remoto precisa validar `GET /health` e `GET /contract`; quando `/contract` exigir `x-aneety-contract-version`, o gate deve enviar a versão canônica lida do `wrangler.toml`.
-- Para ciclos de dados do MVP, Supabase pode ser usado como provedor operacional padrão quando o contrato da responsabilidade exigir persistência compatível com Workers, sem virar dependência obrigatória do contrato de produto ou texto visível ao usuário final.
+- Para ciclos de dados do MVP, o caminho preferencial atual é D1 quando o contrato local declarar `storage.type=d1`; provedores externos continuam opcionais apenas quando um contrato aprovado realmente exigir.
 - Se credencial, ambiente ou permissão estiverem ausentes, registrar bloqueio objetivo em `docs/project` em vez de criar fallback.
 
 ## Validação manual recomendada
