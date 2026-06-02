@@ -1,7 +1,7 @@
 {
   "responsibility": "gateway-borda",
   "cycle": "backend",
-  "status": "blocked",
+  "status": "bloqueado",
   "gatewayPublicationEvidence": "publication-evidence.json",
   "publishedUrl": "https://aneety-worker-gateway-borda.ricardomalnati.workers.dev",
   "contractVersion": "2026-05-31.gateway-borda.v1",
@@ -30,7 +30,7 @@
       "requiredUpstreamMethod": "GET",
       "requiredUpstreamPath": "/branding",
       "publicationEvidence": "../../tenant-white-label/worker-tenant-white-label/publication-evidence.json",
-      "currentBlockingCycle": "banco"
+      "currentBlockingCycle": "backend"
     },
     {
       "responsibility": "onboarding-acesso",

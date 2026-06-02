@@ -130,8 +130,6 @@ async function handleRequest(request, env = {}) {
     return jsonResponse(request, env, 200, {
       contractVersion: env.ANEETY_CONTRACT_VERSION || CONTRACT_VERSION,
       runtime: 'cloudflare-workers',
-      backendStatus: 'blocked',
-      backendBlocker: 'BFFs upstream ainda precisam concluir backend para os caminhos exigidos pelo gateway.',
       routes: Object.values(PUBLIC_ROUTES).map(({ id, method, path, requiresSession, binding, upstreamPath }) => ({
         id,
         method,

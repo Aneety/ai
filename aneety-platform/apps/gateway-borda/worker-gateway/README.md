@@ -71,7 +71,7 @@ O ciclo `backend` começa depois da publicação real do `worker-gateway`, mas s
 - `scripts/validate-backend-readiness.mjs` valida que o contrato versionado do gateway, as evidências de publicação dos BFFs e os bindings declarados permanecem coerentes;
 - `npm run backend:validate` é uma validação leve de fonte/documento para o PR gate, não um aceite funcional local.
 
-Estado atual: `blocked`. O gateway publicado já possui envelope HTTP, CORS, versão de contrato, sessão pública e roteamento por service binding, mas os BFFs `worker-identidade-acesso`, `worker-tenant-white-label` e `worker-onboarding-acesso` ainda estão com ciclo ativo em `banco`; portanto ainda não existe evidência remota de backend concluído para os caminhos que a borda encaminha.
+Estado atual: `bloqueado`. O gateway publicado já possui envelope HTTP, CORS, versão de contrato, sessão pública e roteamento por service binding, mas os BFFs `worker-identidade-acesso`, `worker-tenant-white-label` e `worker-onboarding-acesso` ainda estão com ciclo ativo em `banco`; portanto ainda não existe evidência remota de backend concluído para os caminhos que a borda encaminha.
 
 Próxima ação remota: concluir os ciclos `backend` dos três BFFs dependentes e então executar um gate remoto do `gateway-borda/backend` contra a URL publicada, validando contrato HTTP e roteamento real pelos service bindings Cloudflare.
 
