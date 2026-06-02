@@ -14,8 +14,8 @@ Este contrato e a prova JSON versionada em `docs/ai-guardrails/cost-proofs/curre
 ```json
 {
   "project": "Aneety/ai",
-  "validatedAt": "2026-06-02T20:40:41Z",
-  "validUntil": "2026-06-09T20:40:41Z",
+  "validatedAt": "2026-06-02T21:40:57Z",
+  "validUntil": "2026-06-09T21:40:57Z",
   "result": "free",
   "services": [
     {
@@ -43,6 +43,7 @@ Este contrato e a prova JSON versionada em `docs/ai-guardrails/cost-proofs/curre
 - GitHub Actions: public repositories using standard GitHub-hosted runners are free; private repositories receive plan quotas. See https://docs.github.com/en/billing/concepts/product-billing/github-actions.
 - Cloudflare Workers Free: 100,000 requests/day, 10 ms CPU/request, 100 Workers/account and excess free-plan requests fail with Cloudflare error 1027 instead of silently becoming paid usage. See https://developers.cloudflare.com/workers/platform/limits/.
 - Cloudflare Workers pricing: Workers Paid is a separate plan; KV/Hyperdrive/Logs have free-plan allowances and paid overages only on paid-capable usage. See https://developers.cloudflare.com/workers/platform/pricing/.
+- Cloudflare D1 pricing: Workers Free includes 5,000,000 rows read/day, 100,000 rows written/day and 5 GB total storage; D1 returns errors after daily free limits and does not charge for egress. See https://developers.cloudflare.com/d1/platform/pricing/.
 
 ## Uso em evidencias de publicacao
 
@@ -51,8 +52,8 @@ Cada `publication-evidence.json` deve incluir:
 ```json
 {
   "costProofRef": "docs/ai-guardrails/cost-proofs/current-services.json",
-  "costProofValidatedAt": "2026-06-02T20:40:41Z",
-  "servicesChecked": 3,
+  "costProofValidatedAt": "2026-06-02T21:40:57Z",
+  "servicesChecked": 6,
   "costResult": "free"
 }
 ```

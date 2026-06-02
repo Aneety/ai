@@ -1,7 +1,7 @@
 {
   "project": "Aneety/ai",
-  "validatedAt": "2026-06-02T20:59:29Z",
-  "validUntil": "2026-06-09T20:59:29Z",
+  "validatedAt": "2026-06-02T21:40:57Z",
+  "validUntil": "2026-06-09T21:40:57Z",
   "result": "free",
   "services": [
     {
@@ -79,6 +79,81 @@
       "projectedCostUsd": 0,
       "status": "free",
       "calculation": "8 smoke requests observed in versioned publication evidence divided by elapsed month ratio 0.06248804012345679 = 128.02 projected requests, below 100,000/day * 30 days = 3,000,000 requests/month. Cloudflare Free plan returns an error after the daily limit instead of converting this proof into paid usage."
+    },
+    {
+      "provider": "Cloudflare",
+      "service": "D1 Free rows read",
+      "planName": "Workers Free",
+      "pricingSourceUrl": "https://developers.cloudflare.com/d1/platform/pricing/",
+      "pricingCheckedAt": "2026-06-02T21:40:57Z",
+      "usageSource": "Static SQL inventory: find aneety-platform/apps -path '*/db-*/*.sql' -type f; 19 SELECT statements across the three current D1 banco modules; no d1-validation-evidence.json is versioned yet.",
+      "observedUsage": {
+        "quantity": 100,
+        "unit": "rows/day"
+      },
+      "periodStart": "2026-06-02T00:00:00Z",
+      "periodEnd": "2026-06-03T00:00:00Z",
+      "freeAllowance": {
+        "quantity": 5000000,
+        "unit": "rows/day"
+      },
+      "projectedUsage": {
+        "quantity": 100,
+        "unit": "rows/day"
+      },
+      "projectedCostUsd": 0,
+      "status": "free",
+      "calculation": "Conservative projection for one daily full D1 gate pass across the three current banco modules: 19 SELECT statements over tiny seed/fixture data rounded up to 100 rows read/day, below the Workers Free D1 allowance of 5,000,000 rows read/day. Free-plan overage returns D1 API errors rather than converting this proof into paid usage."
+    },
+    {
+      "provider": "Cloudflare",
+      "service": "D1 Free rows written",
+      "planName": "Workers Free",
+      "pricingSourceUrl": "https://developers.cloudflare.com/d1/platform/pricing/",
+      "pricingCheckedAt": "2026-06-02T21:40:57Z",
+      "usageSource": "Static SQL inventory: find aneety-platform/apps -path '*/db-*/*.sql' -type f; 35 INSERT, 11 UPDATE, 43 CREATE and 43 DROP statements across the three current D1 banco modules; no d1-validation-evidence.json is versioned yet.",
+      "observedUsage": {
+        "quantity": 132,
+        "unit": "rows/day"
+      },
+      "periodStart": "2026-06-02T00:00:00Z",
+      "periodEnd": "2026-06-03T00:00:00Z",
+      "freeAllowance": {
+        "quantity": 100000,
+        "unit": "rows/day"
+      },
+      "projectedUsage": {
+        "quantity": 132,
+        "unit": "rows/day"
+      },
+      "projectedCostUsd": 0,
+      "status": "free",
+      "calculation": "Conservative projection for one daily full D1 gate pass across the three current banco modules: 35 INSERT + 11 UPDATE + 43 CREATE + 43 DROP statements = 132 potential written/DDL operations/day, below the Workers Free D1 allowance of 100,000 rows written/day. DDL may contribute to mixed rows read/written, so it is included conservatively."
+    },
+    {
+      "provider": "Cloudflare",
+      "service": "D1 Free storage",
+      "planName": "Workers Free",
+      "pricingSourceUrl": "https://developers.cloudflare.com/d1/platform/pricing/",
+      "pricingCheckedAt": "2026-06-02T21:40:57Z",
+      "usageSource": "D1 gate design creates one ephemeral database per validation and deletes it in cleanup; current SQL fixtures are tiny demo records for three banco modules and no d1-validation-evidence.json is versioned yet.",
+      "observedUsage": {
+        "quantity": 0.001,
+        "unit": "GB/account"
+      },
+      "periodStart": "2026-06-02T00:00:00Z",
+      "periodEnd": "2026-06-09T21:40:57Z",
+      "freeAllowance": {
+        "quantity": 5,
+        "unit": "GB/account"
+      },
+      "projectedUsage": {
+        "quantity": 0.001,
+        "unit": "GB/account"
+      },
+      "projectedCostUsd": 0,
+      "status": "free",
+      "calculation": "Conservative storage projection for the remote D1 validation gate is 0.001 GB/account for ephemeral validation databases and tiny seed/fixture rows, below the Workers Free D1 total storage allowance of 5 GB. Empty D1 databases are documented as approximately 12 KB and cleanup deletes gate-created databases."
     }
   ]
 }
