@@ -34,6 +34,10 @@ Ordem operacional registrada em `docs/project/onboarding-acesso.md` e `docs/08-p
 - [`worker-onboarding-acesso`](./worker-onboarding-acesso/README.md) — BFF HTTP compatível com Cloudflare Workers/Hono para convites, confirmação e recuperação.
 - [`mfe-onboarding-acesso`](./mfe-onboarding-acesso/README.md) — microfrontend Single SPA para primeiro acesso e recuperação.
 
+## Status operacional atual
+
+Conforme `docs/project/onboarding-acesso.md`, os ciclos `repositorio`, `deploy` e `publicacao` já estão `concluido`: o Worker foi validado por dry-run remoto, publicado em URL HTTPS real e registrado com evidência de deploy/smoke remoto. O ciclo ativo agora é `banco`, em `validacao`, para consolidar o contrato D1 de convites, primeiro acesso, confirmação, recuperação e lifecycle com isolamento por tenant antes de liberar `backend`.
+
 ## Próximo gate
 
-Após este scaffold do ciclo `repositorio`, o próximo gate é `deploy`: preparar evidência remota em Cloudflare Workers/GitHub Actions antes de qualquer smoke, integração, E2E ou aceite operacional.
+O próximo gate operacional é `banco`: publicar a PR/checks do contrato persistido e registrar a execução remota D1-backed de migration, rollback e fixture. Não reabrir `deploy` ou `publicacao` sem evidência objetiva de drift, e não avançar `backend` enquanto `banco` não estiver `concluido` no painel operacional.
