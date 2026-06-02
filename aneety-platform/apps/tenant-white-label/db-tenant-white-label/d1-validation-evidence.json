@@ -1,0 +1,56 @@
+{
+  "responsibility": "tenant-white-label",
+  "cycle": "banco",
+  "runtime": "cloudflare-workers",
+  "modulePath": "aneety-platform/apps/tenant-white-label/db-tenant-white-label",
+  "binding": "TENANT_WHITE_LABEL_DB",
+  "databaseName": "tenant-white-label-db",
+  "headSha": "61d1b39fa4fb9cdd51644eab65f45a1609a08c6e",
+  "runId": "26850571410",
+  "runUrl": "https://github.com/Aneety/ai/actions/runs/26850571410",
+  "controllerNonce": "tenant-white-label-banco-validate-20260602220010",
+  "migrationFiles": [
+    "migrations/0001_tenant_white_label_d1.sql"
+  ],
+  "seedFiles": [
+    "seeds/0001_lia_demo_brand.sql"
+  ],
+  "fixtureFiles": [
+    "tests/tenant-isolation-fixture.sql"
+  ],
+  "rollbackFiles": [
+    "rollbacks/0001_tenant_white_label_d1.sql"
+  ],
+  "steps": {
+    "validate": {
+      "status": "success",
+      "detail": "npm run db:validate completed."
+    },
+    "create": {
+      "status": "success",
+      "detail": "Ephemeral D1 database tenant-white-label-db-tenant-white-label-banco-dec9363c created."
+    },
+    "migrate": {
+      "status": "success",
+      "detail": "Applied 1 migration file(s)."
+    },
+    "seed": {
+      "status": "success",
+      "detail": "Executed 1 seed file(s)."
+    },
+    "fixture": {
+      "status": "success",
+      "detail": "Executed 1 fixture file(s)."
+    },
+    "rollback": {
+      "status": "success",
+      "detail": "Executed 1 rollback file(s)."
+    },
+    "cleanup": {
+      "status": "success",
+      "detail": "Deleted ephemeral D1 database tenant-white-label-db-tenant-white-label-banco-dec9363c."
+    }
+  },
+  "validatedAt": "2026-06-02T22:00:47Z",
+  "result": "success"
+}
