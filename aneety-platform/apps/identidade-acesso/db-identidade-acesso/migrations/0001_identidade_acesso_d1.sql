@@ -13,6 +13,7 @@ CREATE TABLE app_identities (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   deleted_at TEXT,
+  UNIQUE (tenant_id, identity_id),
   CHECK (length(identity_id) BETWEEN 12 AND 80),
   CHECK (length(tenant_id) BETWEEN 12 AND 80),
   CHECK (email_hash IS NOT NULL OR phone_hash IS NOT NULL),
@@ -33,33 +34,9 @@ CREATE TABLE auth_credentials (
   revoked_at TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   deleted_at TEXT,
-  FOREIGN KEY (identity_id) REFERENCES app_identities(identity_id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, identity_id) REFERENCES app_identities(tenant_id, identity_id) ON DELETE RESTRICT,
   CHECK (length(credential_hash) BETWEEN 48 AND 512),
   CHECK (expires_at IS NULL OR expires_at > created_at),
-  CHECK (deleted_at IS NULL OR revoked_at IS NOT NULL)
-);
-
-CREATE TABLE auth_sessions (
-  session_id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL,
-  identity_id TEXT NOT NULL,
-  access_token_hash TEXT NOT NULL,
-  refresh_token_hash TEXT NOT NULL,
-  effective_profile_id TEXT,
-  issued_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  expires_at TEXT NOT NULL,
-  refresh_expires_at TEXT NOT NULL,
-  rotated_from_session_id TEXT,
-  revoked_at TEXT,
-  revoked_reason TEXT,
-  last_seen_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  deleted_at TEXT,
-  FOREIGN KEY (identity_id) REFERENCES app_identities(identity_id) ON DELETE RESTRICT,
-  CHECK (length(access_token_hash) BETWEEN 48 AND 512),
-  CHECK (length(refresh_token_hash) BETWEEN 48 AND 512),
-  CHECK (expires_at > issued_at),
-  CHECK (refresh_expires_at >= expires_at),
   CHECK (deleted_at IS NULL OR revoked_at IS NOT NULL)
 );
 
@@ -74,10 +51,38 @@ CREATE TABLE access_profiles (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   deleted_at TEXT,
+  UNIQUE (tenant_id, access_profile_id),
   UNIQUE (tenant_id, profile_key),
   CHECK (profile_key = lower(profile_key)),
   CHECK (profile_key GLOB '[a-z0-9][a-z0-9-]*'),
   CHECK (deleted_at IS NULL OR status = 'archived')
+);
+
+CREATE TABLE auth_sessions (
+  session_id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  identity_id TEXT NOT NULL,
+  access_token_hash TEXT NOT NULL,
+  refresh_token_hash TEXT NOT NULL,
+  effective_profile_id TEXT NOT NULL,
+  issued_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  expires_at TEXT NOT NULL,
+  refresh_expires_at TEXT NOT NULL,
+  rotated_from_session_id TEXT,
+  revoked_at TEXT,
+  revoked_reason TEXT,
+  last_seen_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  deleted_at TEXT,
+  UNIQUE (tenant_id, session_id),
+  FOREIGN KEY (tenant_id, identity_id) REFERENCES app_identities(tenant_id, identity_id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, effective_profile_id) REFERENCES access_profiles(tenant_id, access_profile_id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, rotated_from_session_id) REFERENCES auth_sessions(tenant_id, session_id) ON DELETE RESTRICT,
+  CHECK (length(access_token_hash) BETWEEN 48 AND 512),
+  CHECK (length(refresh_token_hash) BETWEEN 48 AND 512),
+  CHECK (expires_at > issued_at),
+  CHECK (refresh_expires_at >= expires_at),
+  CHECK (deleted_at IS NULL OR revoked_at IS NOT NULL)
 );
 
 CREATE TABLE app_users (
@@ -93,9 +98,10 @@ CREATE TABLE app_users (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   deleted_at TEXT,
-  FOREIGN KEY (identity_id) REFERENCES app_identities(identity_id) ON DELETE RESTRICT,
-  FOREIGN KEY (access_profile_id) REFERENCES access_profiles(access_profile_id) ON DELETE RESTRICT,
+  UNIQUE (tenant_id, app_user_id),
   UNIQUE (tenant_id, identity_id),
+  FOREIGN KEY (tenant_id, identity_id) REFERENCES app_identities(tenant_id, identity_id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, access_profile_id) REFERENCES access_profiles(tenant_id, access_profile_id) ON DELETE RESTRICT,
   CHECK (blocked_at IS NULL OR is_active = 0)
 );
 
@@ -117,7 +123,7 @@ CREATE TABLE access_profile_permissions (
   permission_id TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   deleted_at TEXT,
-  FOREIGN KEY (access_profile_id) REFERENCES access_profiles(access_profile_id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, access_profile_id) REFERENCES access_profiles(tenant_id, access_profile_id) ON DELETE RESTRICT,
   FOREIGN KEY (permission_id) REFERENCES permissions(permission_id) ON DELETE RESTRICT,
   UNIQUE (tenant_id, access_profile_id, permission_id)
 );
@@ -133,8 +139,8 @@ CREATE TABLE identity_audit_events (
   occurred_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   deleted_at TEXT,
-  FOREIGN KEY (identity_id) REFERENCES app_identities(identity_id) ON DELETE RESTRICT,
-  FOREIGN KEY (app_user_id) REFERENCES app_users(app_user_id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, identity_id) REFERENCES app_identities(tenant_id, identity_id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, app_user_id) REFERENCES app_users(tenant_id, app_user_id) ON DELETE RESTRICT,
   CHECK (identity_id IS NOT NULL OR app_user_id IS NOT NULL),
   CHECK (length(actor_ref) BETWEEN 3 AND 120),
   CHECK (length(reason) BETWEEN 3 AND 240)
@@ -147,6 +153,7 @@ CREATE INDEX idx_auth_credentials_identity_active ON auth_credentials(tenant_id,
 CREATE UNIQUE INDEX idx_auth_sessions_access_hash ON auth_sessions(access_token_hash);
 CREATE UNIQUE INDEX idx_auth_sessions_refresh_hash ON auth_sessions(refresh_token_hash);
 CREATE INDEX idx_auth_sessions_tenant_identity_expiration ON auth_sessions(tenant_id, identity_id, expires_at, revoked_at);
+CREATE INDEX idx_auth_sessions_tenant_profile_expiration ON auth_sessions(tenant_id, effective_profile_id, expires_at, revoked_at);
 CREATE INDEX idx_access_profiles_tenant_status ON access_profiles(tenant_id, status, profile_key);
 CREATE INDEX idx_app_users_tenant_profile_status ON app_users(tenant_id, access_profile_id, is_active, updated_at);
 CREATE INDEX idx_permissions_scope_key ON permissions(scope, permission_key);

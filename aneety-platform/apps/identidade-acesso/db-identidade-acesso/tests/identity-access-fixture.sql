@@ -1,6 +1,6 @@
 -- Cloudflare D1-backed validation fixture for remote acceptance.
 -- Precondition: apply migrations/0001_identidade_acesso_d1.sql and seeds/0001_lia_demo_identity.sql first.
--- Expected result: expired/revoked sessions are rejected and cross-tenant reads return zero rows.
+-- The assertion table fails the fixture if active/revoked session semantics, cross-tenant isolation or FK integrity drift.
 PRAGMA foreign_keys = ON;
 
 INSERT INTO app_identities (identity_id, tenant_id, email_hash, display_name, status)
@@ -14,8 +14,8 @@ VALUES (
   'session_lia_admin_revoked_0001',
   'tenant_lia_demo_0001',
   'identity_lia_admin_0001',
-  'sha256:synthetic-revoked-access-token-hash-lia-admin-0001',
-  'sha256:synthetic-revoked-refresh-token-hash-lia-admin-0001',
+  'sha256:synthetic-revoked-access-hash-lia-admin-0001',
+  'sha256:synthetic-revoked-refresh-hash-lia-admin-0001',
   'profile_lia_admin_0001',
   '2026-06-01T00:00:00.000Z',
   '2026-06-01T01:00:00.000Z',
@@ -24,20 +24,34 @@ VALUES (
   'fixture-revocation'
 );
 
-SELECT COUNT(*) AS active_session_rows
+CREATE TABLE identity_access_fixture_assertions (
+  assertion_name TEXT PRIMARY KEY,
+  actual_count INTEGER NOT NULL,
+  expected_count INTEGER NOT NULL,
+  CHECK (actual_count = expected_count)
+);
+
+INSERT INTO identity_access_fixture_assertions (assertion_name, actual_count, expected_count)
+SELECT 'active_session_rows', COUNT(*), 1
 FROM auth_sessions
 WHERE tenant_id = 'tenant_lia_demo_0001'
-  AND access_token_hash = 'sha256:synthetic-access-token-hash-lia-admin-0001-not-a-real-token'
+  AND access_token_hash = 'sha256:synthetic-access-hash-lia-admin-0001-demo-only-value'
   AND expires_at > '2026-06-01T00:30:00.000Z'
   AND revoked_at IS NULL;
 
-SELECT COUNT(*) AS revoked_session_rows
+INSERT INTO identity_access_fixture_assertions (assertion_name, actual_count, expected_count)
+SELECT 'revoked_session_rows', COUNT(*), 0
 FROM auth_sessions
 WHERE tenant_id = 'tenant_lia_demo_0001'
-  AND access_token_hash = 'sha256:synthetic-revoked-access-token-hash-lia-admin-0001'
+  AND access_token_hash = 'sha256:synthetic-revoked-access-hash-lia-admin-0001'
   AND expires_at > '2026-06-01T00:30:00.000Z'
   AND revoked_at IS NULL;
 
-SELECT COUNT(*) AS cross_tenant_identity_rows
+INSERT INTO identity_access_fixture_assertions (assertion_name, actual_count, expected_count)
+SELECT 'cross_tenant_identity_rows', COUNT(*), 0
 FROM app_identities
 WHERE tenant_id = 'tenant_lia_demo_0001' AND identity_id = 'identity_other_admin_0001';
+
+INSERT INTO identity_access_fixture_assertions (assertion_name, actual_count, expected_count)
+SELECT 'foreign_key_violations', COUNT(*), 0
+FROM pragma_foreign_key_check;

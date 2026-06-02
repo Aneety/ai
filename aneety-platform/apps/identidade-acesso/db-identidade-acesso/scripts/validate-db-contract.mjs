@@ -47,13 +47,19 @@ for (const fragment of [
   "hash_algorithm TEXT NOT NULL DEFAULT 'argon2id'",
   'access_token_hash TEXT NOT NULL',
   'refresh_token_hash TEXT NOT NULL',
+  'effective_profile_id TEXT NOT NULL',
   'expires_at TEXT NOT NULL',
   'refresh_expires_at TEXT NOT NULL',
   'revoked_at TEXT',
   'CHECK (expires_at > issued_at)',
   'CHECK (refresh_expires_at >= expires_at)',
+  'UNIQUE (tenant_id, identity_id)',
+  'FOREIGN KEY (tenant_id, identity_id) REFERENCES app_identities(tenant_id, identity_id) ON DELETE RESTRICT',
+  'FOREIGN KEY (tenant_id, effective_profile_id) REFERENCES access_profiles(tenant_id, access_profile_id) ON DELETE RESTRICT',
   'UNIQUE (tenant_id, profile_key)',
+  'UNIQUE (tenant_id, app_user_id)',
   'UNIQUE (tenant_id, access_profile_id, permission_id)',
+  'FOREIGN KEY (tenant_id, access_profile_id) REFERENCES access_profiles(tenant_id, access_profile_id) ON DELETE RESTRICT',
   'CREATE INDEX idx_auth_sessions_tenant_identity_expiration ON auth_sessions(tenant_id, identity_id, expires_at, revoked_at)',
   'CREATE INDEX idx_access_profile_permissions_tenant_profile ON access_profile_permissions(tenant_id, access_profile_id, deleted_at)',
 ]) {
@@ -83,6 +89,8 @@ assertIncludes(seed, 'argon2id:v=19:m=65536:t=3:p=1');
 assertIncludes(seed, 'session_lia_admin_0001');
 assertIncludes(fixture, 'revoked_session_rows');
 assertIncludes(fixture, 'cross_tenant_identity_rows');
+assertIncludes(fixture, 'identity_access_fixture_assertions');
+assertIncludes(fixture, 'pragma_foreign_key_check');
 assertNoForbiddenRuntimeSecrets('seed', stripSqlComments(seed));
 assertNoForbiddenRuntimeSecrets('fixture', stripSqlComments(fixture));
 
