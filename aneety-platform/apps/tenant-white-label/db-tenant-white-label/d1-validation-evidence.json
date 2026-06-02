@@ -5,10 +5,10 @@
   "modulePath": "aneety-platform/apps/tenant-white-label/db-tenant-white-label",
   "binding": "TENANT_WHITE_LABEL_DB",
   "databaseName": "tenant-white-label-db",
-  "headSha": "61d1b39fa4fb9cdd51644eab65f45a1609a08c6e",
-  "runId": "26850571410",
-  "runUrl": "https://github.com/Aneety/ai/actions/runs/26850571410",
-  "controllerNonce": "tenant-white-label-banco-validate-20260602220010",
+  "headSha": "42550e2807629a3807f3de90bf519ec6108db0a9",
+  "runId": "26850845013",
+  "runUrl": "https://github.com/Aneety/ai/actions/runs/26850845013",
+  "controllerNonce": "tenant-white-label-banco-validate-20260602220626",
   "migrationFiles": [
     "migrations/0001_tenant_white_label_d1.sql"
   ],
@@ -28,7 +28,7 @@
     },
     "create": {
       "status": "success",
-      "detail": "Ephemeral D1 database tenant-white-label-db-tenant-white-label-banco-dec9363c created."
+      "detail": "Ephemeral D1 database tenant-white-label-db-tenant-white-label-banco-aca49395 created."
     },
     "migrate": {
       "status": "success",
@@ -48,9 +48,9 @@
     },
     "cleanup": {
       "status": "success",
-      "detail": "Deleted ephemeral D1 database tenant-white-label-db-tenant-white-label-banco-dec9363c."
+      "detail": "Deleted ephemeral D1 database tenant-white-label-db-tenant-white-label-banco-aca49395."
     }
   },
-  "validatedAt": "2026-06-02T22:00:47Z",
+  "validatedAt": "2026-06-02T22:06:58Z",
   "result": "success"
 }
