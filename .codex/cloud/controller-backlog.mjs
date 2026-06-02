@@ -25,7 +25,7 @@ function parseDependencyDescriptor(value) {
   const [responsibility, cycle] = String(raw).split('/').map((item) => item?.trim() ?? '');
   return {
     responsibility,
-    cycle: normalizeCycle(cycle),
+    cycle: cycle ? normalizeCycle(cycle) : '',
   };
 }
 
@@ -160,7 +160,7 @@ export async function loadPlanningMatrix(repoRoot) {
     const dependencies = String(row['Dependências mínimas'] ?? '')
       .split(',')
       .map((item) => parseDependencyDescriptor(item))
-      .filter((item) => item.responsibility && item.cycle);
+      .filter((item) => item.responsibility);
 
     dependencyRules.set(dependencyRuleKey(targetResponsibility, targetCycle), {
       responsibility: targetResponsibility,
@@ -264,6 +264,20 @@ function resolveDependencyPreemption(backlog, parentSummaryRow, parentDetail, pa
   const orderedDependencies = sortDependencies(backlog, rule.dependencies);
 
   for (const dependency of orderedDependencies) {
+    if (!dependency.cycle) {
+      const resolvedDependency = resolveResponsibilityTarget(backlog, dependency.responsibility);
+      if (resolvedDependency.state === 'complete') continue;
+      return {
+        ...resolvedDependency,
+        ...buildDependencyContext(
+          parentSummaryRow.responsibility,
+          parentCycle,
+          dependency.responsibility,
+          resolvedDependency.cycle ?? 'next',
+        ),
+      };
+    }
+
     const dependencySummary = backlog.summaryRows.find((row) => row.responsibility === dependency.responsibility);
     if (!dependencySummary) {
       return {
@@ -398,6 +412,22 @@ function collectDependencyPreemptionTargets(backlog, parentSummaryRow, parentDet
   const targets = [];
   const orderedDependencies = sortDependencies(backlog, rule.dependencies);
   for (const dependency of orderedDependencies) {
+    if (!dependency.cycle) {
+      const resolvedDependency = resolveResponsibilityTarget(backlog, dependency.responsibility);
+      if (resolvedDependency.state !== 'actionable') continue;
+
+      targets.push({
+        ...resolvedDependency,
+        ...buildDependencyContext(
+          parentSummaryRow.responsibility,
+          parentCycle,
+          dependency.responsibility,
+          resolvedDependency.cycle ?? 'next',
+        ),
+      });
+      continue;
+    }
+
     const dependencySummary = backlog.summaryRows.find((row) => row.responsibility === dependency.responsibility);
     const dependencyDetail = backlog.detailsByResponsibility.get(dependency.responsibility);
     const dependencyCycleRow = dependencyDetail?.cycles.find((cycleRow) => cycleRow.cycle === dependency.cycle);
