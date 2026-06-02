@@ -50,6 +50,23 @@ export function buildD1DeleteArgs(databaseName) {
   return ['--yes', 'wrangler@latest', 'd1', 'delete', assertNonEmptyString(databaseName, 'databaseName'), '--skip-confirmation'];
 }
 
+export function buildD1WranglerConfig({ binding, databaseName, databaseUuid, migrationDirectory, moduleDir }) {
+  const resolvedModuleDir = assertNonEmptyString(moduleDir, 'moduleDir');
+  const resolvedMigrationDirectory = assertNonEmptyString(migrationDirectory, 'migrationDirectory');
+  return {
+    name: 'aneety-d1-gate',
+    compatibility_date: '2026-06-02',
+    d1_databases: [
+      {
+        binding: assertNonEmptyString(binding, 'binding'),
+        database_name: assertNonEmptyString(databaseName, 'databaseName'),
+        database_id: assertNonEmptyString(databaseUuid, 'databaseUuid'),
+        migrations_dir: path.resolve(resolvedModuleDir, resolvedMigrationDirectory),
+      },
+    ],
+  };
+}
+
 export function parseD1ListJson(payload) {
   const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
   assert.ok(Array.isArray(data), 'D1 list payload must be an array.');
@@ -223,18 +240,13 @@ async function main() {
     tempConfigPath = path.join(tempConfigDir, 'wrangler.jsonc');
     await writeFile(
       tempConfigPath,
-      `${JSON.stringify({
-        name: 'aneety-d1-gate',
-        compatibility_date: '2026-06-02',
-        d1_databases: [
-          {
-            binding: result.binding,
-            database_name: tempDatabaseName,
-            database_id: database.uuid,
-            migrations_dir: assertNonEmptyString(contract.storage.migrationDirectory, 'contract.storage.migrationDirectory'),
-          },
-        ],
-      }, null, 2)}\n`,
+      `${JSON.stringify(buildD1WranglerConfig({
+        binding: result.binding,
+        databaseName: tempDatabaseName,
+        databaseUuid: database.uuid,
+        migrationDirectory: contract.storage.migrationDirectory,
+        moduleDir,
+      }), null, 2)}\n`,
     );
 
     const migrate = await runCommand(

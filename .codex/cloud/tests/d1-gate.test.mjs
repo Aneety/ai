@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildD1DeleteArgs, buildEphemeralDatabaseName, parseD1ListJson, sanitizeD1DatabaseName } from '../run-d1-gate.mjs';
+import { buildD1DeleteArgs, buildD1WranglerConfig, buildEphemeralDatabaseName, parseD1ListJson, sanitizeD1DatabaseName } from '../run-d1-gate.mjs';
 
 test('sanitizeD1DatabaseName normaliza caracteres inválidos', () => {
   assert.equal(sanitizeD1DatabaseName('Tenant White Label DB!'), 'tenant-white-label-db');
@@ -26,6 +26,21 @@ test('buildD1DeleteArgs usa a flag confirmada pelo Wrangler atual', () => {
     'tenant-white-label-db-validation',
     '--skip-confirmation',
   ]);
+});
+
+test('buildD1WranglerConfig usa migrations_dir absoluto para config temporário', () => {
+  const config = buildD1WranglerConfig({
+    binding: 'TENANT_WHITE_LABEL_DB',
+    databaseName: 'tenant-white-label-db-validation',
+    databaseUuid: 'uuid-1',
+    migrationDirectory: 'migrations',
+    moduleDir: '/workspace/aneety-platform/apps/tenant-white-label/db-tenant-white-label',
+  });
+
+  assert.equal(
+    config.d1_databases[0].migrations_dir,
+    '/workspace/aneety-platform/apps/tenant-white-label/db-tenant-white-label/migrations',
+  );
 });
 
 test('parseD1ListJson normaliza saída json do wrangler', () => {
