@@ -18,6 +18,9 @@ test('D1 migration declares identity, credential, session and permission boundar
   assert.match(migration, /credential_hash TEXT NOT NULL/);
   assert.match(migration, /access_token_hash TEXT NOT NULL/);
   assert.match(migration, /refresh_token_hash TEXT NOT NULL/);
+  assert.match(migration, /effective_profile_id TEXT NOT NULL/);
+  assert.match(migration, /FOREIGN KEY \(tenant_id, identity_id\) REFERENCES app_identities\(tenant_id, identity_id\)/);
+  assert.match(migration, /FOREIGN KEY \(tenant_id, effective_profile_id\) REFERENCES access_profiles\(tenant_id, access_profile_id\)/);
   assert.match(migration, /CHECK \(expires_at > issued_at\)/);
   assert.match(migration, /idx_auth_sessions_tenant_identity_expiration ON auth_sessions\(tenant_id, identity_id, expires_at, revoked_at\)/);
 });
@@ -54,6 +57,8 @@ test('negative fixture covers revocation and cross-tenant denial evidence', () =
   assert.match(fixture, /revoked_session_rows/);
   assert.match(fixture, /cross_tenant_identity_rows/);
   assert.match(fixture, /revoked_at IS NULL/);
+  assert.match(fixture, /identity_access_fixture_assertions/);
+  assert.match(fixture, /pragma_foreign_key_check/);
 });
 
 test('storage contract points to Cloudflare D1 without local fallback', () => {

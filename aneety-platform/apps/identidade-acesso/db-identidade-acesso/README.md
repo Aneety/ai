@@ -20,7 +20,7 @@ Definir o contrato de dados do ciclo `banco` da responsabilidade `identidade-ace
 | [`seeds/0001_lia_demo_identity.sql`](./seeds/0001_lia_demo_identity.sql) | Insere massa sanitizada da identidade inicial de demonstração com hash sintético, perfil, permissões e sessão expirada/revogável sem dados reais. |
 | [`contracts/storage-contract.json`](./contracts/storage-contract.json) | Declara o binding D1, diretórios de banco, entidades, política de segurança e evidência remota necessária para conclusão. |
 | [`queries/crud-contract.sql`](./queries/crud-contract.sql) | Declara o contrato CRUD tenant-scoped que o BFF poderá expor no ciclo `backend`, sem acesso direto do frontend ao banco. |
-| [`tests/identity-access-fixture.sql`](./tests/identity-access-fixture.sql) | Fixture para validação D1-backed remota de sessão ativa, sessão revogada e isolamento cross-tenant. |
+| [`tests/identity-access-fixture.sql`](./tests/identity-access-fixture.sql) | Fixture para validação D1-backed remota de sessão ativa, sessão revogada, isolamento cross-tenant e integridade de chaves estrangeiras. |
 | [`scripts/validate-db-contract.mjs`](./scripts/validate-db-contract.mjs) | Validação leve local de estrutura, hash, expiração, revogação, permissões, rollback e ausência de segredos em seeds. |
 
 ## Modelo de dados
@@ -36,7 +36,7 @@ Definir o contrato de dados do ciclo `banco` da responsabilidade `identidade-ace
 
 ## Regras de isolamento e segurança
 
-- Toda tabela operacional sensível contém `tenant_id` obrigatório; índices tenant-scoped começam por `tenant_id` quando a consulta opera dados de identidade, usuário, perfil ou auditoria.
+- Toda tabela operacional sensível contém `tenant_id` obrigatório; vínculos internos usam chaves estrangeiras compostas com `tenant_id` para impedir associação cross-tenant entre identidade, credencial, sessão, perfil, usuário e auditoria.
 - Credenciais, sessões, recuperação e refresh são persistidos somente como hashes; o contrato não cria coluna para segredo, token cru ou senha em texto.
 - Sessões exigem `expires_at`, `refresh_expires_at`, suporte a `revoked_at`, motivo de revogação e vínculo explícito com identidade, tenant e perfil efetivo.
 - O contrato CRUD em `queries/crud-contract.sql` exige `WHERE tenant_id = :tenant_id` para leituras e mutações tenant-scoped.
