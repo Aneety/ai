@@ -7,5 +7,5 @@ workers_dev = true
 enabled = true
 
 [vars]
-ANEETY_CONTRACT_VERSION = "2026-06-01.tenant-white-label.deploy.v1"
+ANEETY_CONTRACT_VERSION = "2026-06-02.tenant-white-label.backend.v1"
 ANEETY_SERVICE_NAME = "worker-tenant-white-label"

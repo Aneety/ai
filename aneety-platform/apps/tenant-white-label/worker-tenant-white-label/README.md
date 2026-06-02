@@ -84,3 +84,15 @@ O aceite operacional continua remoto: GitHub Actions da PR devem ficar verdes an
 - O frontend não pode acessar banco, storage privilegiado, segredo ou fornecedor externo diretamente.
 - Erros de domínio devem ser expostos por contrato público sem vazar detalhe técnico.
 - As fronteiras `tenant` e `tenant_branding` já aparecem no catálogo de deploy apenas como escopo de responsabilidade; DDL/storage real pertence ao ciclo `banco`.
+
+## Ciclo `backend`
+
+O ciclo `backend` introduz o primeiro contrato HTTP/BFF sobre o banco D1 já validado remotamente no ciclo `banco`, sem criar runtime local ou acesso direto do microfrontend ao storage:
+
+- `GET /branding` expõe dados públicos de marca para o gateway, exigindo `x-aneety-contract-version`, `x-aneety-tenant-id` e permissão `tenant-white-label:read` em `x-aneety-permissions`;
+- o handler consulta `TENANT_WHITE_LABEL_DB` apenas com cláusulas `tenant_id = ?`, preservando isolamento cross-tenant e evitando lookup global por `brand_key`;
+- erros públicos retornam JSON padronizado com `401` para contexto de tenant ausente, `403` para permissão insuficiente, `404` para marca inexistente e `503` quando o binding D1 remoto ainda não está disponível;
+- `backend-readiness.json` registra URL publicada, binding D1, evidências de `publicacao`/`banco`, rota `/branding`, blocker remoto e próxima ação;
+- `scripts/validate-backend-contract.mjs` valida contrato, evidências versionadas e prova de custo zero como inspeção leve de PR, sem substituir o aceite remoto.
+
+O status operacional fica em `validacao`: o diff é auditável e testável por GitHub Actions, mas a conclusão exige que o scheduler publique a PR, obtenha checks verdes e execute o gate remoto contra o Worker publicado com o binding `TENANT_WHITE_LABEL_DB` configurado no Cloudflare.
