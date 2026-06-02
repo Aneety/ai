@@ -3,6 +3,7 @@
   "cycle": "publicacao",
   "template": true,
   "modulePath": "aneety-platform/apps/onboarding-acesso/worker-onboarding-acesso",
+  "contractVersion": "2026-06-01.onboarding-acesso.deploy.v1",
   "deployRunId": "00000000000",
   "deployRunUrl": "https://github.com/Aneety/ai/actions/runs/00000000000",
   "smokeRunId": "00000000001",
