@@ -47,6 +47,14 @@ if (readiness.cycle !== 'backend') {
   fail('backend-readiness.json deve declarar o ciclo backend.');
 }
 
+if (!['bloqueado', 'validacao', 'concluido'].includes(readiness.status)) {
+  fail('backend-readiness.json deve usar um status operacional canônico em português.');
+}
+
+if (readiness.status === 'bloqueado' && (!readiness.blocker || !readiness.nextAction)) {
+  fail('Status bloqueado exige blocker objetivo e próxima ação.');
+}
+
 if (readiness.contractVersion !== CONTRACT_VERSION) {
   fail(`Versão de contrato divergente: esperado ${CONTRACT_VERSION}.`);
 }

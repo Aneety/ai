@@ -51,7 +51,8 @@ test('publishes public contract metadata after version validation', async () => 
   assert.equal(response.status, 200);
   assert.equal(body.contractVersion, CONTRACT_VERSION);
   assert.equal(body.runtime, 'cloudflare-workers');
-  assert.equal(body.backendStatus, 'blocked');
+  assert.equal(Object.hasOwn(body, 'backendStatus'), false);
+  assert.equal(Object.hasOwn(body, 'backendBlocker'), false);
   assert.ok(body.routes.some((route) => route.id === 'tenant.branding'));
   assert.ok(body.routes.some((route) => route.id === 'tenant.branding' && route.binding === 'TENANT_WHITE_LABEL' && route.upstreamPath === '/branding'));
 });
