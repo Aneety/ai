@@ -1,0 +1,84 @@
+{
+  "project": "Aneety/ai",
+  "validatedAt": "2026-06-02T20:59:29Z",
+  "validUntil": "2026-06-09T20:59:29Z",
+  "result": "free",
+  "services": [
+    {
+      "provider": "GitHub",
+      "service": "GitHub Actions standard runners",
+      "planName": "GitHub Free for public repositories",
+      "pricingSourceUrl": "https://docs.github.com/en/billing/concepts/product-billing/github-actions",
+      "pricingCheckedAt": "2026-06-02T20:59:29Z",
+      "usageSource": "gh repo view Aneety/ai --json visibility,isPrivate; gh run list --repo Aneety/ai --limit 1000 --json createdAt,updatedAt",
+      "observedUsage": {
+        "quantity": 231.92,
+        "unit": "minutes/month-to-date"
+      },
+      "periodStart": "2026-06-01T00:00:00Z",
+      "periodEnd": "2026-07-01T00:00:00Z",
+      "freeAllowance": {
+        "unlimited": true,
+        "unit": "minutes/month",
+        "label": "standard GitHub-hosted runners in public repositories"
+      },
+      "projectedUsage": {
+        "quantity": 3711.38,
+        "unit": "minutes/month"
+      },
+      "projectedCostUsd": 0,
+      "status": "free",
+      "calculation": "Aneety/ai visibility is PUBLIC. 231.92 observed minutes from 2026-06-01T00:00:00Z to 2026-06-02T20:59:29Z divided by elapsed month ratio 0.06248804012345679 = 3711.38 projected minutes. GitHub standard runners are free for public repositories, so projected cost is 0."
+    },
+    {
+      "provider": "Cloudflare",
+      "service": "Workers Free script count",
+      "planName": "Workers Free",
+      "pricingSourceUrl": "https://developers.cloudflare.com/workers/platform/limits/",
+      "pricingCheckedAt": "2026-06-02T20:59:29Z",
+      "usageSource": "find aneety-platform/apps -name wrangler.toml -type f",
+      "observedUsage": {
+        "quantity": 4,
+        "unit": "workers/account"
+      },
+      "periodStart": "2026-06-02T00:00:00Z",
+      "periodEnd": "2026-06-09T20:59:29Z",
+      "freeAllowance": {
+        "quantity": 100,
+        "unit": "workers/account"
+      },
+      "projectedUsage": {
+        "quantity": 4,
+        "unit": "workers/account"
+      },
+      "projectedCostUsd": 0,
+      "status": "free",
+      "calculation": "4 Wrangler Worker configs are present in the repo, below the Workers Free allowance of 100 Workers per account."
+    },
+    {
+      "provider": "Cloudflare",
+      "service": "Workers Free runtime requests",
+      "planName": "Workers Free",
+      "pricingSourceUrl": "https://developers.cloudflare.com/workers/platform/limits/",
+      "pricingCheckedAt": "2026-06-02T20:59:29Z",
+      "usageSource": "publication-evidence.json files for gateway-borda, tenant-white-label, identidade-acesso and onboarding-acesso plus smoke contract /health and /contract",
+      "observedUsage": {
+        "quantity": 8,
+        "unit": "requests/month-to-date"
+      },
+      "periodStart": "2026-06-01T00:00:00Z",
+      "periodEnd": "2026-07-01T00:00:00Z",
+      "freeAllowance": {
+        "quantity": 3000000,
+        "unit": "requests/month"
+      },
+      "projectedUsage": {
+        "quantity": 128.02,
+        "unit": "requests/month"
+      },
+      "projectedCostUsd": 0,
+      "status": "free",
+      "calculation": "8 smoke requests observed in versioned publication evidence divided by elapsed month ratio 0.06248804012345679 = 128.02 projected requests, below 100,000/day * 30 days = 3,000,000 requests/month. Cloudflare Free plan returns an error after the daily limit instead of converting this proof into paid usage."
+    }
+  ]
+}

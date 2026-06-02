@@ -9,5 +9,9 @@
   "publishedUrl": "https://worker-onboarding-acesso.ricardomalnati.workers.dev",
   "headSha": "cdeec94eef79086ba620364ea7a38b7eeddc73b4",
   "validatedAt": "2026-06-01T10:01:29Z",
-  "result": "success"
+  "result": "success",
+  "costProofRef": "docs/ai-guardrails/cost-proofs/current-services.json",
+  "costProofValidatedAt": "2026-06-02T20:59:29Z",
+  "servicesChecked": 3,
+  "costResult": "free"
 }

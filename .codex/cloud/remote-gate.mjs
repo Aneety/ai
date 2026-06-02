@@ -2,6 +2,11 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  DEFAULT_COST_PROOF_REF,
+  loadCostProof,
+  validateCostProofDocument,
+} from './validate-cost-proof.mjs';
 
 const defaultRepo = process.env.CODEX_CLOUD_GITHUB_REPO ?? 'Aneety/ai';
 const remotePollIntervalSeconds = positiveInteger(process.env.CODEX_CLOUD_REMOTE_POLL_INTERVAL, 20);
@@ -329,6 +334,10 @@ export function buildPublicationEvidence({
   smokeRunId,
   smokeRunUrl,
   validatedAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+  costProofRef = DEFAULT_COST_PROOF_REF,
+  costProofValidatedAt,
+  servicesChecked,
+  costResult = 'free',
 }) {
   return {
     responsibility,
@@ -341,6 +350,10 @@ export function buildPublicationEvidence({
     publishedUrl,
     headSha,
     validatedAt,
+    costProofRef,
+    costProofValidatedAt,
+    servicesChecked,
+    costResult,
     result: 'success',
   };
 }
@@ -380,6 +393,11 @@ export function buildDatabaseValidationEvidence({
     validatedAt,
     result: 'success',
   };
+}
+
+async function resolveCurrentCostProof(repoRoot) {
+  const proof = await loadCostProof(DEFAULT_COST_PROOF_REF, { repoRoot });
+  return validateCostProofDocument(proof);
 }
 
 export function updateGatewayPublicationDocs({ gatewayMarkdown, indexMarkdown, publishedUrl, headSha, deployRunUrl, smokeRunUrl }) {
@@ -646,6 +664,7 @@ export async function executeGatewayBordaPublicationRemoteGate({
     };
   }
 
+  const costProof = await resolveCurrentCostProof(repoRoot);
   const evidence = buildPublicationEvidence({
     publishedUrl: deployRun.result.publishedUrl,
     headSha: mainSha,
@@ -653,6 +672,9 @@ export async function executeGatewayBordaPublicationRemoteGate({
     deployRunUrl: deployRun.runUrl,
     smokeRunId: smokeRun.runId,
     smokeRunUrl: smokeRun.runUrl,
+    costProofValidatedAt: costProof.validatedAt,
+    servicesChecked: costProof.servicesChecked,
+    costResult: costProof.result,
   });
 
   const evidencePath = path.join(repoRoot, runbook.evidenceFile);
@@ -877,6 +899,7 @@ export async function executeWorkerPublicationRemoteGate({
     };
   }
 
+  const costProof = await resolveCurrentCostProof(repoRoot);
   const evidence = buildPublicationEvidence({
     responsibility: runbook.responsibility,
     modulePath: runbook.modulePath,
@@ -886,6 +909,9 @@ export async function executeWorkerPublicationRemoteGate({
     deployRunUrl: deployRun.runUrl,
     smokeRunId: smokeRun.runId,
     smokeRunUrl: smokeRun.runUrl,
+    costProofValidatedAt: costProof.validatedAt,
+    servicesChecked: costProof.servicesChecked,
+    costResult: costProof.result,
   });
 
   const evidencePath = path.join(repoRoot, runbook.evidenceFile);

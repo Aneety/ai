@@ -196,6 +196,8 @@ test('buildPublicationEvidence gera contrato mínimo esperado', () => {
     smokeRunId: '11',
     smokeRunUrl: 'https://github.com/Aneety/ai/actions/runs/11',
     validatedAt: '2026-06-01T03:00:00Z',
+    costProofValidatedAt: '2026-06-02T20:40:41Z',
+    servicesChecked: 3,
   });
 
   assert.deepEqual(evidence, {
@@ -209,6 +211,10 @@ test('buildPublicationEvidence gera contrato mínimo esperado', () => {
     publishedUrl: 'https://aneety.example.workers.dev',
     headSha: '0123456789abcdef0123456789abcdef01234567',
     validatedAt: '2026-06-01T03:00:00Z',
+    costProofRef: 'docs/ai-guardrails/cost-proofs/current-services.json',
+    costProofValidatedAt: '2026-06-02T20:40:41Z',
+    servicesChecked: 3,
+    costResult: 'free',
     result: 'success',
   });
 });

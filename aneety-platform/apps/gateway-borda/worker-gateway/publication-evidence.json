@@ -9,5 +9,9 @@
   "publishedUrl": "https://aneety-worker-gateway-borda.ricardomalnati.workers.dev",
   "headSha": "1244bf4fc33f17c32d89d9ec920b1d1982b22fd7",
   "validatedAt": "2026-06-01T11:31:30Z",
-  "result": "success"
+  "result": "success",
+  "costProofRef": "docs/ai-guardrails/cost-proofs/current-services.json",
+  "costProofValidatedAt": "2026-06-02T20:59:29Z",
+  "servicesChecked": 3,
+  "costResult": "free"
 }
