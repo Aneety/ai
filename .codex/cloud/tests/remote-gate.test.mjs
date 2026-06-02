@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildDatabaseValidationEvidence,
   buildPublicationEvidence,
   buildWorkflowDispatchNonce,
   getRemoteAutomationKind,
   getRemoteAutomationRunbook,
   mapMissingServicesToDependencies,
+  parseDatabaseGateResult,
   parseRemoteGateResult,
   REMOTE_AUTOMATION_KIND,
+  updateDatabaseValidationDocs,
   updateWorkerDeployDocs,
   updateWorkerPublicationDocs,
   updateGatewayPublicationDocs,
@@ -74,6 +77,28 @@ test('classifica tenant-white-label/publicacao bloqueado como remote_automable',
   );
 });
 
+test('classifica tenant-white-label/banco em validacao como remote_automable', () => {
+  const target = {
+    state: 'blocked',
+    blockKind: 'pause',
+    responsibility: 'tenant-white-label',
+    cycle: 'banco',
+    pauseStatus: 'validacao',
+    cycleRow: {
+      status: 'validacao',
+      gate: 'DB',
+      blocker: 'Aguardando validação D1-backed.',
+      nextAction: 'Executar gate remoto D1.',
+    },
+  };
+
+  assert.equal(getRemoteAutomationKind(target), REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE);
+  assert.equal(
+    getRemoteAutomationRunbook(target)?.evidenceFile,
+    'aneety-platform/apps/tenant-white-label/db-tenant-white-label/d1-validation-evidence.json',
+  );
+});
+
 test('parseRemoteGateResult normaliza payload JSON', () => {
   const result = parseRemoteGateResult({
     mode: 'deploy',
@@ -96,6 +121,42 @@ test('parseRemoteGateResult normaliza payload JSON', () => {
   assert.equal(result.controllerNonce, 'nonce-1');
   assert.equal(result.failureCode, '10143');
   assert.deepEqual(result.missingServices, ['worker-identidade-acesso']);
+});
+
+test('parseDatabaseGateResult normaliza payload JSON do gate D1', () => {
+  const result = parseDatabaseGateResult({
+    mode: 'validate',
+    modulePath: 'aneety-platform/apps/tenant-white-label/db-tenant-white-label',
+    headSha: 'abc',
+    runId: 456,
+    runUrl: 'https://github.com/Aneety/ai/actions/runs/456',
+    conclusion: 'success',
+    controllerNonce: 'nonce-2',
+    responsibility: 'tenant-white-label',
+    cycle: 'banco',
+    runtime: 'cloudflare-workers',
+    binding: 'TENANT_WHITE_LABEL_DB',
+    databaseName: 'tenant-white-label-db',
+    migrationFiles: ['migrations/0001_tenant_white_label_d1.sql'],
+    seedFiles: ['seeds/0001_lia_demo_brand.sql'],
+    fixtureFiles: ['tests/tenant-isolation-fixture.sql'],
+    rollbackFiles: ['rollbacks/0001_tenant_white_label_d1.sql'],
+    steps: {
+      validate: { status: 'success', detail: 'ok' },
+      create: { status: 'success', detail: 'ok' },
+      migrate: { status: 'success', detail: 'ok' },
+      seed: { status: 'success', detail: 'ok' },
+      fixture: { status: 'success', detail: 'ok' },
+      rollback: { status: 'success', detail: 'ok' },
+      cleanup: { status: 'success', detail: 'ok' },
+    },
+    validatedAt: '2026-06-02T10:00:00Z',
+  });
+
+  assert.equal(result.runId, '456');
+  assert.equal(result.databaseName, 'tenant-white-label-db');
+  assert.deepEqual(result.fixtureFiles, ['tests/tenant-isolation-fixture.sql']);
+  assert.equal(result.steps.cleanup.status, 'success');
 });
 
 test('mapMissingServicesToDependencies converte services conhecidos em ciclos deploy', () => {
@@ -135,6 +196,8 @@ test('buildPublicationEvidence gera contrato mínimo esperado', () => {
     smokeRunId: '11',
     smokeRunUrl: 'https://github.com/Aneety/ai/actions/runs/11',
     validatedAt: '2026-06-01T03:00:00Z',
+    costProofValidatedAt: '2026-06-02T20:40:41Z',
+    servicesChecked: 3,
   });
 
   assert.deepEqual(evidence, {
@@ -148,8 +211,43 @@ test('buildPublicationEvidence gera contrato mínimo esperado', () => {
     publishedUrl: 'https://aneety.example.workers.dev',
     headSha: '0123456789abcdef0123456789abcdef01234567',
     validatedAt: '2026-06-01T03:00:00Z',
+    costProofRef: 'docs/ai-guardrails/cost-proofs/current-services.json',
+    costProofValidatedAt: '2026-06-02T20:40:41Z',
+    servicesChecked: 3,
+    costResult: 'free',
     result: 'success',
   });
+});
+
+test('buildDatabaseValidationEvidence gera contrato mínimo esperado', () => {
+  const evidence = buildDatabaseValidationEvidence({
+    responsibility: 'tenant-white-label',
+    modulePath: 'aneety-platform/apps/tenant-white-label/db-tenant-white-label',
+    binding: 'TENANT_WHITE_LABEL_DB',
+    databaseName: 'tenant-white-label-db',
+    headSha: '0123456789abcdef0123456789abcdef01234567',
+    runId: '20',
+    runUrl: 'https://github.com/Aneety/ai/actions/runs/20',
+    controllerNonce: 'tenant-white-label-banco-validate-20260602094427',
+    migrationFiles: ['migrations/0001_tenant_white_label_d1.sql'],
+    seedFiles: ['seeds/0001_lia_demo_brand.sql'],
+    fixtureFiles: ['tests/tenant-isolation-fixture.sql'],
+    rollbackFiles: ['rollbacks/0001_tenant_white_label_d1.sql'],
+    steps: {
+      validate: { status: 'success', detail: 'ok' },
+      create: { status: 'success', detail: 'ok' },
+      migrate: { status: 'success', detail: 'ok' },
+      seed: { status: 'success', detail: 'ok' },
+      fixture: { status: 'success', detail: 'ok' },
+      rollback: { status: 'success', detail: 'ok' },
+      cleanup: { status: 'success', detail: 'ok' },
+    },
+    validatedAt: '2026-06-02T10:00:00Z',
+  });
+
+  assert.equal(evidence.cycle, 'banco');
+  assert.equal(evidence.databaseName, 'tenant-white-label-db');
+  assert.equal(evidence.steps.migrate.status, 'success');
 });
 
 test('updateGatewayPublicationDocs conclui publicacao e aponta backend como próximo ciclo', () => {
@@ -211,6 +309,26 @@ test('updateWorkerPublicationDocs conclui publicacao e aponta banco como próxim
   assert.match(updated.responsibilityMarkdown, /\| `publicacao` \| `concluido` \|/);
   assert.match(updated.responsibilityMarkdown, /\| `banco` \| `triagem` \| alta \| `DB` \| — \| — \| Executar `banco`/);
   assert.match(updated.indexMarkdown, /\| `tenant-white-label` \| Ricardo Malnati \| alta \| `banco` \| `triagem` \|/);
+});
+
+test('updateDatabaseValidationDocs conclui banco e aponta backend como próximo ciclo', () => {
+  const sourceResponsibilityMarkdown =
+    '| `banco` | `validacao` | alta | `DB` | — | Aguardando validação D1-backed. | Executar gate remoto D1. |\n' +
+    '| `backend` | `triagem` | alta | `backend` | — | Aguardando banco. | Executar backend depois. |';
+  const sourceIndexMarkdown =
+    '| `tenant-white-label` | Ricardo Malnati | alta | `banco` | `validacao` | [tenant-white-label](./tenant-white-label.md) | — | Aguardando validação D1-backed. |';
+
+  const updated = updateDatabaseValidationDocs({
+    responsibility: 'tenant-white-label',
+    responsibilityMarkdown: sourceResponsibilityMarkdown,
+    indexMarkdown: sourceIndexMarkdown,
+    headSha: '0123456789abcdef0123456789abcdef01234567',
+    runUrl: 'https://github.com/Aneety/ai/actions/runs/456',
+  });
+
+  assert.match(updated.responsibilityMarkdown, /\| `banco` \| `concluido` \|/);
+  assert.match(updated.responsibilityMarkdown, /\| `backend` \| `triagem` \| alta \| `backend` \| — \| — \| Executar `backend`/);
+  assert.match(updated.indexMarkdown, /\| `tenant-white-label` \| Ricardo Malnati \| alta \| `backend` \| `triagem` \|/);
 });
 
 test('buildWorkflowDispatchNonce inclui responsabilidade, ciclo e estágio', () => {

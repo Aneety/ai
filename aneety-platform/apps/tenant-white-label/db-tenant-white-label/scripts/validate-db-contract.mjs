@@ -37,12 +37,6 @@ for (const fragment of [
   'UNIQUE (tenant_id, brand_key)',
   'CHECK (publication_status IN',
   'CHECK (status IN',
-  "CHECK (tenant_key NOT GLOB '*[^a-z0-9-]*')",
-  "CHECK (tenant_key NOT GLOB '-*')",
-  "CHECK (tenant_key NOT GLOB '*-')",
-  "CHECK (brand_key NOT GLOB '*[^a-z0-9-]*')",
-  "CHECK (brand_key NOT GLOB '-*')",
-  "CHECK (brand_key NOT GLOB '*-')",
   'CREATE INDEX idx_tenant_branding_tenant_status ON tenant_branding(tenant_id, publication_status, brand_key)',
   'CREATE INDEX idx_tenant_branding_audit_tenant_created ON tenant_branding_audit_events(tenant_id, created_at)',
 ]) {

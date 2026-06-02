@@ -116,6 +116,7 @@ export function deriveMonitorState({
   const pausedManualExternal =
     pausedByBacklog && resolvedTarget?.blockerAutomationKind !== 'remote_automable';
   const remoteActionState = runtimeState?.lastRemoteActionState ?? 'none';
+  const runningRemoteDatabase = remoteActionState === 'running_remote_database';
   const runningRemoteDeploy = remoteActionState === 'running_remote_deploy';
   const runningRemoteSmoke = remoteActionState === 'running_remote_smoke';
   const activeDependencyChainCount = countDependencyChains(runtimeState);
@@ -159,6 +160,7 @@ export function deriveMonitorState({
     schedulerFunctionalState = 'degraded';
   } else if (
     (
+      !runningRemoteDatabase &&
       !runningRemoteDeploy &&
       !runningRemoteSmoke &&
       pausedByBacklog &&
@@ -168,6 +170,7 @@ export function deriveMonitorState({
       parallelEligibleCount === 0
     ) ||
     (
+      !runningRemoteDatabase &&
       !runningRemoteDeploy &&
       !runningRemoteSmoke &&
       resolvedTarget?.state === 'blocked' &&
@@ -186,6 +189,8 @@ export function deriveMonitorState({
     controllerProgressState = 'complete';
   } else if (schedulerFunctionalState === 'degraded') {
     controllerProgressState = 'degraded_health';
+  } else if (runningRemoteDatabase) {
+    controllerProgressState = 'running_remote_database';
   } else if (runningRemoteDeploy) {
     controllerProgressState = 'running_remote_deploy';
   } else if (runningRemoteSmoke) {
@@ -220,6 +225,7 @@ export function deriveMonitorState({
     activeTaskCount === 0 &&
     publishQueueCount === 0 &&
     !dependencyChainActive &&
+    !runningRemoteDatabase &&
     !runningRemoteDeploy &&
     !runningRemoteSmoke &&
     !awaitingNextTick &&

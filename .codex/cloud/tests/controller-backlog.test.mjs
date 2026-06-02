@@ -14,7 +14,7 @@ function row(cycle, status = 'triagem', priority = 'alta', blocker = '—', next
   return `| \`${cycle}\` | \`${status}\` | ${priority} | \`gate\` | — | ${blocker} | ${nextAction} |`;
 }
 
-async function createFixture({ indexRows, responsibilityRows, dependencyRows = [] }) {
+async function createFixture({ indexRows, responsibilityRows, dependencyRows = [], extraFiles = {} }) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aneety-controller-backlog-'));
   await mkdir(path.join(root, 'docs', 'project'), { recursive: true });
 
@@ -48,6 +48,12 @@ async function createFixture({ indexRows, responsibilityRows, dependencyRows = [
 
     const markdown = `# ${responsibility}\n\n## Status operacional por ciclo\n\n| Ciclo | Status | Prioridade | Gate | Evidência | Bloqueio | Próxima ação |\n| --- | --- | --- | --- | --- | --- | --- |\n${rows}\n`;
     await writeFile(path.join(root, 'docs', 'project', `${responsibility}.md`), markdown);
+  }
+
+  for (const [relativePath, content] of Object.entries(extraFiles)) {
+    const targetPath = path.join(root, relativePath);
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, content);
   }
 
   return root;
@@ -105,6 +111,49 @@ test('pausa quando encontra ciclo em validacao', async () => {
     assert.equal(target.pauseStatus, 'validacao');
     assert.equal(target.responsibility, 'alta-a');
     assert.equal(target.cycle, 'deploy');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('marca banco validacao como remote_automable quando contrato D1 existe', async () => {
+  const root = await createFixture({
+    indexRows: [
+      '| `tenant-white-label` | Ricardo | alta | `banco` | `validacao` | [tenant-white-label](./tenant-white-label.md) | — | Aguardando validação D1-backed |',
+    ],
+    responsibilityRows: {
+      'tenant-white-label': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
+        banco: { status: 'validacao', blocker: 'Aguardando validação D1-backed.' },
+      },
+    },
+    extraFiles: {
+      'aneety-platform/apps/tenant-white-label/db-tenant-white-label/contracts/storage-contract.json': JSON.stringify({
+        responsibility: 'tenant-white-label',
+        cycle: 'banco',
+        runtime: 'cloudflare-workers',
+        storage: {
+          type: 'd1',
+          binding: 'TENANT_WHITE_LABEL_DB',
+          databaseName: 'tenant-white-label-db',
+          migrationDirectory: 'migrations',
+          rollbackDirectory: 'rollbacks',
+          seedDirectory: 'seeds',
+        },
+      }, null, 2),
+    },
+  });
+
+  try {
+    const backlog = await loadControllerBacklog(root);
+    const target = resolveNextBacklogTarget(backlog);
+    assert.equal(target.state, 'blocked');
+    assert.equal(target.blockKind, 'pause');
+    assert.equal(target.blockerAutomationKind, 'remote_automable');
+    assert.equal(target.responsibility, 'tenant-white-label');
+    assert.equal(target.cycle, 'banco');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -247,6 +296,151 @@ test('retorna ao gateway/publicacao quando as tres publicacoes dependentes estao
     assert.equal(target.blockerAutomationKind, 'remote_automable');
     assert.equal(target.responsibility, 'gateway-borda');
     assert.equal(target.cycle, 'publicacao');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('preempta gateway-borda/backend para proximo ciclo pendente da primeira dependencia', async () => {
+  const root = await createFixture({
+    indexRows: [
+      '| `gateway-borda` | Ricardo | alta | `backend` | `bloqueado` | [gateway-borda](./gateway-borda.md) | — | BFFs dependentes ainda não concluíram backend |',
+      '| `tenant-white-label` | Ricardo | alta | `banco` | `validacao` | [tenant-white-label](./tenant-white-label.md) | — | Aguardando validação D1-backed |',
+      '| `identidade-acesso` | Ricardo | alta | `banco` | `validacao` | [identidade-acesso](./identidade-acesso.md) | — | Aguardando validação D1-backed |',
+      '| `onboarding-acesso` | Ricardo | alta | `banco` | `validacao` | [onboarding-acesso](./onboarding-acesso.md) | — | Aguardando validação D1-backed |',
+    ],
+    responsibilityRows: {
+      'gateway-borda': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
+        banco: { status: 'concluido' },
+        jobs: { status: 'concluido' },
+        backend: { status: 'bloqueado', blocker: 'BFFs dependentes ainda não concluíram backend.' },
+      },
+      'tenant-white-label': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
+        banco: { status: 'validacao', blocker: 'Aguardando validação D1-backed.' },
+      },
+      'identidade-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
+        banco: { status: 'validacao', blocker: 'Aguardando validação D1-backed.' },
+      },
+      'onboarding-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
+        banco: { status: 'validacao', blocker: 'Aguardando validação D1-backed.' },
+      },
+    },
+    dependencyRows: [
+      '| `gateway-borda` | `backend` | `tenant-white-label`, `identidade-acesso`, `onboarding-acesso` | Preemptar proximo ciclo pendente da dependencia antes do backend do gateway. |',
+    ],
+    extraFiles: {
+      'aneety-platform/apps/tenant-white-label/db-tenant-white-label/contracts/storage-contract.json': JSON.stringify({
+        responsibility: 'tenant-white-label',
+        cycle: 'banco',
+        runtime: 'cloudflare-workers',
+        storage: { type: 'd1', binding: 'TENANT_WHITE_LABEL_DB', databaseName: 'tenant-white-label-db', migrationDirectory: 'migrations', rollbackDirectory: 'rollbacks', seedDirectory: 'seeds' },
+      }, null, 2),
+      'aneety-platform/apps/identidade-acesso/db-identidade-acesso/contracts/storage-contract.json': JSON.stringify({
+        responsibility: 'identidade-acesso',
+        cycle: 'banco',
+        runtime: 'cloudflare-workers',
+        storage: { type: 'd1', binding: 'IDENTIDADE_ACESSO_DB', databaseName: 'identidade-acesso-db', migrationDirectory: 'migrations', rollbackDirectory: 'rollbacks', seedDirectory: 'seeds' },
+      }, null, 2),
+      'aneety-platform/apps/onboarding-acesso/db-onboarding-acesso/contracts/storage-contract.json': JSON.stringify({
+        responsibility: 'onboarding-acesso',
+        cycle: 'banco',
+        runtime: 'cloudflare-workers',
+        storage: { type: 'd1', binding: 'ONBOARDING_ACESSO_DB', databaseName: 'onboarding-acesso-db', migrationDirectory: 'migrations', rollbackDirectory: 'rollbacks', seedDirectory: 'seeds' },
+      }, null, 2),
+    },
+  });
+
+  try {
+    const backlog = await loadControllerBacklog(root);
+    const target = resolveNextBacklogTarget(backlog);
+    assert.equal(target.state, 'blocked');
+    assert.equal(target.responsibility, 'tenant-white-label');
+    assert.equal(target.cycle, 'banco');
+    assert.equal(target.blockerAutomationKind, 'remote_automable');
+    assert.equal(target.dependencyParentResponsibility, 'gateway-borda');
+    assert.equal(target.dependencyParentCycle, 'backend');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('depois de banco concluido preempta gateway-borda/backend para backend da mesma dependencia', async () => {
+  const root = await createFixture({
+    indexRows: [
+      '| `gateway-borda` | Ricardo | alta | `backend` | `bloqueado` | [gateway-borda](./gateway-borda.md) | — | BFFs dependentes ainda não concluíram backend |',
+      '| `tenant-white-label` | Ricardo | alta | `backend` | `triagem` | [tenant-white-label](./tenant-white-label.md) | — | Aguardando backend |',
+      '| `identidade-acesso` | Ricardo | alta | `banco` | `validacao` | [identidade-acesso](./identidade-acesso.md) | — | Aguardando validação D1-backed |',
+      '| `onboarding-acesso` | Ricardo | alta | `banco` | `validacao` | [onboarding-acesso](./onboarding-acesso.md) | — | Aguardando validação D1-backed |',
+    ],
+    responsibilityRows: {
+      'gateway-borda': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
+        banco: { status: 'concluido' },
+        jobs: { status: 'concluido' },
+        backend: { status: 'bloqueado', blocker: 'BFFs dependentes ainda não concluíram backend.' },
+      },
+      'tenant-white-label': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
+        banco: { status: 'concluido' },
+        jobs: { status: 'na' },
+        backend: { status: 'triagem' },
+      },
+      'identidade-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
+        banco: { status: 'validacao', blocker: 'Aguardando validação D1-backed.' },
+      },
+      'onboarding-acesso': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
+        banco: { status: 'validacao', blocker: 'Aguardando validação D1-backed.' },
+      },
+    },
+    dependencyRows: [
+      '| `gateway-borda` | `backend` | `tenant-white-label`, `identidade-acesso`, `onboarding-acesso` | Preemptar proximo ciclo pendente da dependencia antes do backend do gateway. |',
+    ],
+    extraFiles: {
+      'aneety-platform/apps/identidade-acesso/db-identidade-acesso/contracts/storage-contract.json': JSON.stringify({
+        responsibility: 'identidade-acesso',
+        cycle: 'banco',
+        runtime: 'cloudflare-workers',
+        storage: { type: 'd1', binding: 'IDENTIDADE_ACESSO_DB', databaseName: 'identidade-acesso-db', migrationDirectory: 'migrations', rollbackDirectory: 'rollbacks', seedDirectory: 'seeds' },
+      }, null, 2),
+      'aneety-platform/apps/onboarding-acesso/db-onboarding-acesso/contracts/storage-contract.json': JSON.stringify({
+        responsibility: 'onboarding-acesso',
+        cycle: 'banco',
+        runtime: 'cloudflare-workers',
+        storage: { type: 'd1', binding: 'ONBOARDING_ACESSO_DB', databaseName: 'onboarding-acesso-db', migrationDirectory: 'migrations', rollbackDirectory: 'rollbacks', seedDirectory: 'seeds' },
+      }, null, 2),
+    },
+  });
+
+  try {
+    const backlog = await loadControllerBacklog(root);
+    const target = resolveNextBacklogTarget(backlog);
+    assert.equal(target.state, 'actionable');
+    assert.equal(target.responsibility, 'tenant-white-label');
+    assert.equal(target.cycle, 'backend');
+    assert.equal(target.dependencyParentResponsibility, 'gateway-borda');
+    assert.equal(target.dependencyParentCycle, 'backend');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

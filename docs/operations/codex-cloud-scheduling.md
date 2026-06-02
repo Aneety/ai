@@ -18,7 +18,8 @@ Este documento descreve o caminho v1 para agendar o controlador Aneety via Codex
 - `.codex/cloud/watch-task.sh` — acompanha uma task até `READY` ou falha; permanece disponível para inspeção/manual, mas o scheduler paralelo usa polling do pool rastreado em `runtime-state.json`.
 - `.codex/cloud/publish-task-diff.sh` — publica o diff de uma task `READY` em branch/commit/PR usando somente worktree isolado; recusa execução no checkout canônico por padrão.
 - `.codex/cloud/reconcile-controller-pr.mjs` — reconcilia PR operacional aberta, classifica `pending|failed|merge_ready|merged|timeout` e executa squash merge automático quando permitido.
-- `.codex/cloud/remote-gate.mjs` — dispara workflows remotos suportados, aguarda conclusão, baixa o artefato JSON do run e prepara a evidência operacional versionada. Além do `deploy` dos Workers e de `gateway-borda/publicacao`, também fecha `publicacao` dos Workers suportados com `deploy` + URL publicada + `smoke` + `publication-evidence.json`.
+- `.codex/cloud/remote-gate.mjs` — dispara workflows remotos suportados, aguarda conclusão, baixa o artefato JSON do run e prepara a evidência operacional versionada. Além do `deploy` dos Workers e de `gateway-borda/publicacao`, também fecha `publicacao` dos Workers suportados com `deploy` + URL publicada + `smoke` + `publication-evidence.json`, e fecha `banco` dos módulos `db-*` suportados com D1 efêmero + `d1-validation-evidence.json`.
+- `.github/workflows/cloudflare-d1-gate.yml` + `.codex/cloud/run-d1-gate.mjs` — gate remoto de `banco` para módulos `db-*` com contrato D1 válido; cria banco efêmero, aplica migrations, executa seed/fixture/rollback, apaga o banco e devolve artefato estruturado.
 - `.codex/cloud/validate-publication-smoke.mjs` — valida remotamente `GET /health` e `GET /contract` contra a URL publicada; para `/contract`, injeta `x-aneety-contract-version` a partir do `wrangler.toml` do módulo alvo e falha fechado quando o contrato público não responde `200`.
 - Os scripts de publicação/reconciliação preferem `GH_TOKEN` automaticamente quando ele existir no ambiente do scheduler; `CODEX_CLOUD_PUBLISH_USE_ENV_GH_TOKEN=0` continua disponível só para forçar o modo legado baseado em `gh auth`.
 - `.codex/cloud/publish-operational-update.sh` — publica PR operacional criada pelo próprio scheduler após gates remotos concluídos.
@@ -191,7 +192,7 @@ Interpretação do monitor:
 - `cloud_task_list_failed`: o CLI não conseguiu consultar tasks do Codex Cloud.
 - `cloud_task_list_empty`: nenhuma task recente foi encontrada. Só vira blocker quando também não houver PR em reconciliação, merge recente, task recente em `runtime-state.json` nem janela válida `awaiting_next_tick`.
 - `scheduler_dry_run=ok`: a pré-checagem local passou, mas isso ainda não comprova task real.
-- `controller_progress_state`: estado derivado do controlador (`ready_for_more_parallel_work`, `ready_for_dependency_cycle`, `parallel_tasks_running`, `publish_queue_pending`, `dependency_chain_in_progress`, `awaiting_next_tick`, `idle_between_slots`, `pending_pr_checks`, `running_remote_deploy`, `running_remote_smoke`, `paused_waiting_manual_external_gate`, `degraded_health`, `complete`).
+- `controller_progress_state`: estado derivado do controlador (`ready_for_more_parallel_work`, `ready_for_dependency_cycle`, `parallel_tasks_running`, `publish_queue_pending`, `dependency_chain_in_progress`, `awaiting_next_tick`, `idle_between_slots`, `pending_pr_checks`, `running_remote_database`, `running_remote_deploy`, `running_remote_smoke`, `paused_waiting_manual_external_gate`, `degraded_health`, `complete`).
 - `parallel_limit`: limite operacional atual de tasks cloud paralelas.
 - `active_task_count`: quantidade de tasks rastreadas em `pending|running`.
 - `publish_queue_count`: quantidade de tasks `ready` aguardando publicação serial.
@@ -219,8 +220,8 @@ Regras:
 8. Tasks cloud podem rodar em paralelo até `CODEX_CLOUD_MAX_PARALLEL_TASKS`, mas o scheduler publica e mergeia no máximo uma PR operacional por vez.
 9. Se o ciclo atual depender de outros módulos declarados na matriz, o scheduler deve preemptar o item pai e avançar as dependências não verdes elegíveis no pool paralelo antes de voltar ao alvo original.
 10. `remote gate` de ciclos pausados (`validacao`/`bloqueado`) só roda quando não houver tasks ativas, fila de publicação ou targets paralelos elegíveis; blockers remotos não congelam o restante do pool cloud.
-11. Para ciclos de dados, Supabase pode ser usado como provedor operacional permitido/padrão quando a responsabilidade exigir, sem virar dependência obrigatória do contrato de produto nem copy de usuário final.
-12. `GH_TOKEN` continua no domínio Codex Cloud/scheduler; `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` precisam existir também no escopo de GitHub Actions usado por `.github/workflows/cloudflare-gate.yml` para que `publicacao` seja automável.
+11. Para ciclos de dados, o gate remoto padrão atual do MVP usa D1 efêmero quando o contrato da responsabilidade declarar `storage.type=d1`; provedores externos seguem opcionais apenas mediante contrato aprovado.
+12. `GH_TOKEN` continua no domínio Codex Cloud/scheduler; `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` precisam existir também no escopo de GitHub Actions usado por `.github/workflows/cloudflare-gate.yml` e `.github/workflows/cloudflare-d1-gate.yml` para que `publicacao` e `banco` sejam automáveis.
 13. Se um diff pronto ficar stale depois de outro merge serial em `main`, o publisher deve marcá-lo como `stale_conflict`/`superseded` e voltar ao backlog para gerar uma task nova, nunca falhar o ciclo inteiro por patch drift esperado.
 
 ## Critério de aceite do agendamento

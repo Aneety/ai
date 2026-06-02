@@ -1,0 +1,47 @@
+{
+  "responsibility": "gateway-borda",
+  "cycle": "backend",
+  "status": "blocked",
+  "gatewayPublicationEvidence": "publication-evidence.json",
+  "publishedUrl": "https://aneety-worker-gateway-borda.ricardomalnati.workers.dev",
+  "contractVersion": "2026-05-31.gateway-borda.v1",
+  "runtime": "cloudflare-workers",
+  "requiresRemoteAcceptance": true,
+  "blocker": "Os BFFs upstream ainda não possuem ciclos backend concluídos e contratos HTTP publicados para os caminhos /session, /branding e /invitations exigidos pelo worker-gateway.",
+  "nextAction": "Concluir backend dos Workers identidade-acesso, tenant-white-label e onboarding-acesso; depois executar gate remoto de contrato do gateway-borda/backend contra a URL publicada.",
+  "upstreams": [
+    {
+      "responsibility": "identidade-acesso",
+      "service": "worker-identidade-acesso",
+      "binding": "IDENTIDADE_ACESSO",
+      "gatewayRouteId": "identity.session",
+      "gatewayPath": "/bff/identidade-acesso/session",
+      "requiredUpstreamMethod": "POST",
+      "requiredUpstreamPath": "/session",
+      "publicationEvidence": "../../identidade-acesso/worker-identidade-acesso/publication-evidence.json",
+      "currentBlockingCycle": "banco"
+    },
+    {
+      "responsibility": "tenant-white-label",
+      "service": "worker-tenant-white-label",
+      "binding": "TENANT_WHITE_LABEL",
+      "gatewayRouteId": "tenant.branding",
+      "gatewayPath": "/bff/tenant-white-label/branding",
+      "requiredUpstreamMethod": "GET",
+      "requiredUpstreamPath": "/branding",
+      "publicationEvidence": "../../tenant-white-label/worker-tenant-white-label/publication-evidence.json",
+      "currentBlockingCycle": "banco"
+    },
+    {
+      "responsibility": "onboarding-acesso",
+      "service": "worker-onboarding-acesso",
+      "binding": "ONBOARDING_ACESSO",
+      "gatewayRouteId": "onboarding.invitations",
+      "gatewayPath": "/bff/onboarding-acesso/invitations",
+      "requiredUpstreamMethod": "POST",
+      "requiredUpstreamPath": "/invitations",
+      "publicationEvidence": "../../onboarding-acesso/worker-onboarding-acesso/publication-evidence.json",
+      "currentBlockingCycle": "banco"
+    }
+  ]
+}

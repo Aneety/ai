@@ -53,8 +53,9 @@ __TARGET_MATRIX__
 6. Se o ciclo alvo for aplicável, faça progresso real no próprio ciclo: código, configuração, contrato, teste, evidência ou atualização documental coerente com as normas. Não gere PR repetida de `repositorio` quando o alvo já estiver em outro ciclo.
 7. Não use paths absolutos da máquina local nem paths de cache de plugins.
 8. Não use runtime local, container, servidor local, Python de runtime MVP, Podman, Docker, Wrangler local como aceite, nem fallback fora de Cloudflare Workers.
-9. Se criar Markdown com Mermaid, manter `.mmd`, renderizar `.svg` e `.jpg`, linkar os três artefatos e mostrar o código em bloco `mmd`.
-10. Não exponha segredos, tokens, ids sensíveis ou valores de variáveis de ambiente no diff, log ou relatório final.
+9. Antes de `deploy`, `publicacao`, merge, fechamento ou conclusão final, valide `docs/ai-guardrails/cost-proofs/current-services.json`; serviço pago, desconhecido, expirado ou acima da franquia gratuita vira blocker objetivo.
+10. Se criar Markdown com Mermaid, manter `.mmd`, renderizar `.svg` e `.jpg`, linkar os três artefatos e mostrar o código em bloco `mmd`.
+11. Não exponha segredos, tokens, ids sensíveis ou valores de variáveis de ambiente no diff, log ou relatório final.
 
 ## Fluxo esperado para este ciclo
 
@@ -63,7 +64,8 @@ __TARGET_MATRIX__
 3. Atualizar primeiro `__TARGET_PROJECT_FILE__`, depois `docs/project/index.md`, sempre com evidência curta, blocker objetivo e próxima ação coerentes.
 4. Se houver mudança rastreável, deixe o diff pronto para publicação pelo scheduler. Não tente mutar o GitHub a partir da task cloud.
 5. Se o ciclo depender de gate remoto, permissão ou PR ainda inexistente, registre blocker objetivo coerente com o estado real do repositório e do próprio ciclo.
-6. Não espere checks, não faça merge e não reporte sucesso funcional só porque houve diff. Entregue `task_outcome=diff_ready`, `task_outcome=no_diff` ou `task_outcome=blocked`.
+6. Se a prova de custo zero estiver ausente ou vencida, registre blocker em vez de avançar aceite.
+7. Não espere checks, não faça merge e não reporte sucesso funcional só porque houve diff. Entregue `task_outcome=diff_ready`, `task_outcome=no_diff` ou `task_outcome=blocked`.
 
 ## Evidência obrigatória no relatório final
 
@@ -72,4 +74,5 @@ __TARGET_MATRIX__
 - Arquivos alterados e relação deles com o aceite do ciclo.
 - `task_outcome=diff_ready|no_diff|blocked`.
 - Estado final do alvo no painel (`concluido`, `na`, `bloqueado`, `validacao` ou outro estado realmente usado).
+- Prova de custo zero usada ou blocker de custo quando ausente.
 - Blocker objetivo, impacto e próxima ação quando o ciclo não puder ser concluído nesta execução.

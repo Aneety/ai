@@ -15,10 +15,16 @@ test('D1 migration declares tenant and branding isolation boundaries', () => {
   assert.match(migration, /FOREIGN KEY \(tenant_id\) REFERENCES tenants\(tenant_id\)/);
   assert.match(migration, /UNIQUE \(tenant_id, brand_key\)/);
   assert.match(migration, /idx_tenant_branding_tenant_status ON tenant_branding\(tenant_id, publication_status, brand_key\)/);
-  assert.equal(migration.includes("CHECK (tenant_key NOT GLOB '*[^a-z0-9-]*')"), true);
-  assert.equal(migration.includes("CHECK (brand_key NOT GLOB '*[^a-z0-9-]*')"), true);
-  assert.equal(migration.includes("CHECK (tenant_key NOT GLOB '-*')"), true);
-  assert.equal(migration.includes("CHECK (brand_key NOT GLOB '-*')"), true);
+});
+
+test('color checks avoid complex GLOB patterns unsupported by remote D1', () => {
+  const migration = read('migrations/0001_tenant_white_label_d1.sql');
+
+  for (const column of ['primary_color', 'secondary_color', 'accent_color', 'surface_color', 'text_color']) {
+    assert.doesNotMatch(migration, new RegExp(`${column}\\s+GLOB`, 'i'));
+    assert.ok(migration.includes(`length(${column}) = 7`));
+    assert.ok(migration.includes(`substr(${column}, 1, 1) = '#'`));
+  }
 });
 
 test('CRUD query contract keeps tenant-scoped reads and mutations', () => {

@@ -16,6 +16,7 @@ import {
 import { compareTargets, isStableBlockedTarget } from './controller-progress.mjs';
 import { runControllerHealthCheck } from './health-check.mjs';
 import {
+  executeDatabaseValidationRemoteGate,
   executeWorkerDeployRemoteGate,
   executeWorkerPublicationRemoteGate,
   executeGatewayBordaPublicationRemoteGate,
@@ -1088,6 +1089,9 @@ async function recordRemoteActionState(patch = {}) {
     lastRemoteActionState: patch.lastRemoteActionState ?? undefined,
     lastRemoteDeployRunId: patch.lastRemoteDeployRunId ?? undefined,
     lastRemoteDeployUrl: patch.lastRemoteDeployUrl ?? undefined,
+    lastRemoteValidationRunId: patch.lastRemoteValidationRunId ?? undefined,
+    lastRemoteValidationUrl: patch.lastRemoteValidationUrl ?? undefined,
+    lastRemoteDatabaseName: patch.lastRemoteDatabaseName ?? undefined,
     lastPublishedUrl: patch.lastPublishedUrl ?? undefined,
     lastRemoteSmokeRunId: patch.lastRemoteSmokeRunId ?? undefined,
     lastRemoteSmokeUrl: patch.lastRemoteSmokeUrl ?? undefined,
@@ -1101,8 +1105,24 @@ async function publishOperationalUpdate(target, remoteResult) {
     process.env.TMPDIR ?? os.tmpdir(),
     `aneety-operational-pr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.md`,
   );
+  const isDatabaseEvidence = target.cycle === 'banco' && Boolean(remoteResult.evidence?.databaseName);
   const isPublicationEvidence = Boolean(remoteResult.evidence?.publishedUrl && remoteResult.smokeRun);
-  const summary = isPublicationEvidence
+  const summary = isDatabaseEvidence
+    ? [
+        '## Summary',
+        '',
+        `- Records remote D1 validation evidence for \`${target.responsibility}/${target.cycle}\`.`,
+        `- D1 database contract: \`${remoteResult.evidence.databaseName}\` via binding \`${remoteResult.evidence.binding}\`.`,
+        `- Validation run: ${remoteResult.validationRun.runUrl}.`,
+        '',
+        '## Validation',
+        '',
+        `- D1 validation evidence validated locally from \`${remoteResult.runbook.evidenceFile}\`.`,
+        `- Source SHA: \`${remoteResult.evidence.headSha}\`.`,
+        '- Merge: not performed in this step.',
+        '',
+      ].join('\n')
+    : isPublicationEvidence
     ? [
         '## Summary',
         '',
@@ -1190,6 +1210,9 @@ async function executeRemoteGateForTarget(target, mainSha) {
       lastRemoteActionState: state.state,
       lastRemoteDeployRunId: state.deployRunId ?? undefined,
       lastRemoteDeployUrl: state.deployRunUrl ?? undefined,
+      lastRemoteValidationRunId: state.validationRunId ?? undefined,
+      lastRemoteValidationUrl: state.validationRunUrl ?? undefined,
+      lastRemoteDatabaseName: state.databaseName ?? undefined,
       lastPublishedUrl: state.publishedUrl ?? undefined,
       lastRemoteSmokeRunId: state.smokeRunId ?? undefined,
       lastRemoteSmokeUrl: state.smokeRunUrl ?? undefined,
@@ -1201,6 +1224,8 @@ async function executeRemoteGateForTarget(target, mainSha) {
   const remoteRunner =
     target.responsibility === 'gateway-borda' && target.cycle === 'publicacao'
       ? executeGatewayBordaPublicationRemoteGate
+      : target.cycle === 'banco'
+        ? executeDatabaseValidationRemoteGate
       : target.cycle === 'publicacao'
         ? executeWorkerPublicationRemoteGate
         : executeWorkerDeployRemoteGate;
@@ -1219,11 +1244,15 @@ async function executeRemoteGateForTarget(target, mainSha) {
       lastRemoteActionState: REMOTE_GATE_STATE.FAILED,
       lastRemoteDeployRunId: result.deployRun?.runId ?? null,
       lastRemoteDeployUrl: result.deployRun?.runUrl ?? null,
+      lastRemoteValidationRunId: result.validationRun?.runId ?? null,
+      lastRemoteValidationUrl: result.validationRun?.runUrl ?? null,
+      lastRemoteDatabaseName: result.evidence?.databaseName ?? result.runbook?.databaseName ?? null,
       lastPublishedUrl: result.deployRun?.result?.publishedUrl ?? null,
       lastRemoteSmokeRunId: result.smokeRun?.runId ?? null,
       lastRemoteSmokeUrl: result.smokeRun?.runUrl ?? null,
       lastRemoteConclusion:
         result.smokeRun?.result?.conclusion ??
+        result.validationRun?.result?.conclusion ??
         result.deployRun?.result?.conclusion ??
         result.state ??
         'failed',
@@ -1235,8 +1264,11 @@ async function executeRemoteGateForTarget(target, mainSha) {
   await recordRemoteActionState({
     lastRemoteAction: `${target.responsibility}/${target.cycle}`,
     lastRemoteActionState: REMOTE_GATE_STATE.SUCCEEDED,
-    lastRemoteDeployRunId: result.deployRun.runId,
-    lastRemoteDeployUrl: result.deployRun.runUrl,
+    lastRemoteDeployRunId: result.deployRun?.runId ?? null,
+    lastRemoteDeployUrl: result.deployRun?.runUrl ?? null,
+    lastRemoteValidationRunId: result.validationRun?.runId ?? null,
+    lastRemoteValidationUrl: result.validationRun?.runUrl ?? null,
+    lastRemoteDatabaseName: result.evidence?.databaseName ?? result.runbook?.databaseName ?? null,
     lastPublishedUrl: result.evidence?.publishedUrl ?? '',
     lastRemoteSmokeRunId: result.smokeRun?.runId ?? null,
     lastRemoteSmokeUrl: result.smokeRun?.runUrl ?? null,

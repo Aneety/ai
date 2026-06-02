@@ -2,20 +2,46 @@
 
 ## Objetivo
 
-Preparar o módulo de estrutura de dados da responsabilidade `identidade-acesso` para os ciclos futuros de banco, isolamento, segurança e seeds sanitizados.
+Definir o contrato de dados do ciclo `banco` da responsabilidade `identidade-acesso`, cobrindo identidade própria, credenciais em hash, sessões com expiração/revogação, usuários, perfis, permissões, isolamento interno por tenant, rollback e seed sanitizado.
 
 ## Runtime permitido
 
-- Persistência deve usar bindings compatíveis com Cloudflare Workers, com D1 como caminho preferencial quando houver modelo relacional.
-- Este diretório ainda não contém migrations, DDL, seeds ou testes de dados; eles pertencem ao ciclo `banco`.
+- Persistência alvo: Cloudflare D1 acessado por Worker via binding `IDENTIDADE_ACESSO_DB`.
+- Migrations, rollback, seeds e fixtures deste diretório são versionáveis e compatíveis com Cloudflare Workers.
+- A conclusão operacional do ciclo depende de GitHub Actions e execução Cloudflare D1-backed; validação local só é usada como inspeção leve de sintaxe/contrato.
 - Não usar containers, banco local persistente, Python de runtime MVP, servidor tradicional ou fallback fora de Cloudflare Workers como aceite.
 
-## Dados e contratos
+## Artefatos do ciclo `banco`
 
-- Tabelas/coleções previstas: `app_identities`, `auth_credentials`, `auth_sessions`, `app_users`, `access_profiles`, `permissions` e `access_profile_permissions`.
-- Requisitos futuros: identificadores estáveis, datas de criação/atualização, expiração de sessão, revogação, trilha de auditoria e índices para validações de acesso.
-- Credenciais devem ser representadas somente por material protegido/derivado; senha, token bruto ou segredo não podem aparecer em migration, seed, log ou fixture pública.
+| Artefato | Finalidade |
+| --- | --- |
+| [`migrations/0001_identidade_acesso_d1.sql`](./migrations/0001_identidade_acesso_d1.sql) | Cria identidades, credenciais, sessões, usuários, perfis, permissões e auditoria com chaves, constraints, índices e isolamento por `tenant_id`. |
+| [`rollbacks/0001_identidade_acesso_d1.sql`](./rollbacks/0001_identidade_acesso_d1.sql) | Remove índices e tabelas do primeiro contrato de banco em ordem segura para rollback. |
+| [`seeds/0001_lia_demo_identity.sql`](./seeds/0001_lia_demo_identity.sql) | Insere massa sanitizada da identidade inicial de demonstração com hash sintético, perfil, permissões e sessão expirada/revogável sem dados reais. |
+| [`contracts/storage-contract.json`](./contracts/storage-contract.json) | Declara o binding D1, diretórios de banco, entidades, política de segurança e evidência remota necessária para conclusão. |
+| [`queries/crud-contract.sql`](./queries/crud-contract.sql) | Declara o contrato CRUD tenant-scoped que o BFF poderá expor no ciclo `backend`, sem acesso direto do frontend ao banco. |
+| [`tests/identity-access-fixture.sql`](./tests/identity-access-fixture.sql) | Fixture para validação D1-backed remota de sessão ativa, sessão revogada e isolamento cross-tenant. |
+| [`scripts/validate-db-contract.mjs`](./scripts/validate-db-contract.mjs) | Validação leve local de estrutura, hash, expiração, revogação, permissões, rollback e ausência de segredos em seeds. |
 
-## Próximo gate
+## Modelo de dados
 
-O próximo gate deste diretório é o ciclo `banco`, com migration/DDL ou contrato de storage, rollback, seeds sanitizados e testes remotos aceitos pelo fluxo GitHub Actions/Cloudflare.
+- `app_identities`: identidade própria por tenant com contatos representados por hash e status controlado.
+- `auth_credentials`: credenciais sempre armazenadas como hash forte e salgado, com algoritmo, expiração opcional e revogação.
+- `auth_sessions`: sessões próprias com hash de access/refresh, expiração, expiração de refresh, rotação e revogação explícita.
+- `access_profiles`: perfis tenant-scoped com papel operacional e status.
+- `app_users`: usuário operacional que vincula identidade, perfil efetivo e papel dentro do tenant.
+- `permissions`: catálogo global de permissões versionáveis.
+- `access_profile_permissions`: concessão tenant-scoped de permissões para perfis.
+- `identity_audit_events`: trilha mínima para criação, rotação, revogação, negativas e mudanças de acesso.
+
+## Regras de isolamento e segurança
+
+- Toda tabela operacional sensível contém `tenant_id` obrigatório; índices tenant-scoped começam por `tenant_id` quando a consulta opera dados de identidade, usuário, perfil ou auditoria.
+- Credenciais, sessões, recuperação e refresh são persistidos somente como hashes; o contrato não cria coluna para segredo, token cru ou senha em texto.
+- Sessões exigem `expires_at`, `refresh_expires_at`, suporte a `revoked_at`, motivo de revogação e vínculo explícito com identidade, tenant e perfil efetivo.
+- O contrato CRUD em `queries/crud-contract.sql` exige `WHERE tenant_id = :tenant_id` para leituras e mutações tenant-scoped.
+- A UI e o microfrontend não acessam D1 diretamente; o ciclo `backend` deve publicar o contrato HTTP/BFF sobre este banco.
+
+## Evidência para fechar o ciclo
+
+Este diff deixa o contrato versionável pronto para publicação pelo scheduler (`task_outcome=diff_ready`), mas o status permanece `validacao` até existir evidência remota de PR/checks verdes e execução Cloudflare D1-backed da migration, rollback e fixture negativa. Validação local não fecha o MVP.

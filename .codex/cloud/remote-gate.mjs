@@ -1,6 +1,12 @@
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  DEFAULT_COST_PROOF_REF,
+  loadCostProof,
+  validateCostProofDocument,
+} from './validate-cost-proof.mjs';
 
 const defaultRepo = process.env.CODEX_CLOUD_GITHUB_REPO ?? 'Aneety/ai';
 const remotePollIntervalSeconds = positiveInteger(process.env.CODEX_CLOUD_REMOTE_POLL_INTERVAL, 20);
@@ -22,6 +28,7 @@ export const REMOTE_AUTOMATION_KIND = {
 export const REMOTE_GATE_STATE = {
   NONE: 'none',
   RUNNING_DEPLOY: 'running_remote_deploy',
+  RUNNING_DATABASE: 'running_remote_database',
   RUNNING_SMOKE: 'running_remote_smoke',
   SUCCEEDED: 'succeeded',
   FAILED: 'failed',
@@ -74,6 +81,76 @@ export const workerPublicationRunbooks = Object.freeze({
   'onboarding-acesso': buildWorkerPublicationRunbook('onboarding-acesso'),
 });
 
+function buildDatabaseModulePath(responsibility) {
+  return `aneety-platform/apps/${responsibility}/db-${responsibility}`;
+}
+
+function readDatabaseContract({ repoRoot = process.cwd(), responsibility }) {
+  const modulePath = buildDatabaseModulePath(responsibility);
+  const contractPath = path.join(repoRoot, modulePath, 'contracts', 'storage-contract.json');
+  if (!existsSync(contractPath)) return null;
+
+  try {
+    const contract = JSON.parse(readFileSync(contractPath, 'utf8'));
+    const storage = contract?.storage ?? {};
+    if (
+      contract?.responsibility !== responsibility ||
+      contract?.cycle !== 'banco' ||
+      contract?.runtime !== 'cloudflare-workers' ||
+      storage?.type !== 'd1' ||
+      !storage?.binding ||
+      !storage?.databaseName ||
+      !storage?.migrationDirectory ||
+      !storage?.rollbackDirectory ||
+      !storage?.seedDirectory
+    ) {
+      return null;
+    }
+
+    return {
+      modulePath,
+      contract,
+      contractPath,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function listRelativeSqlFilesSync(moduleAbsolutePath, relativeDir) {
+  const absoluteDir = path.join(moduleAbsolutePath, relativeDir);
+  if (!existsSync(absoluteDir)) return [];
+  return readdirSync(absoluteDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.sql'))
+    .map((entry) => path.posix.join(relativeDir, entry.name))
+    .sort();
+}
+
+function buildDatabaseValidationRunbook(responsibility, repoRoot = process.cwd()) {
+  const dbContract = readDatabaseContract({ repoRoot, responsibility });
+  if (!dbContract) return null;
+
+  const moduleAbsolutePath = path.join(repoRoot, dbContract.modulePath);
+  const storage = dbContract.contract.storage;
+  return Object.freeze({
+    responsibility,
+    cycle: 'banco',
+    workflowId: 'cloudflare-d1-gate.yml',
+    modulePath: dbContract.modulePath,
+    responsibilityDoc: `docs/project/${responsibility}.md`,
+    artifactName: 'cloudflare-d1-gate-result',
+    resultFileName: 'cloudflare-d1-gate-result.json',
+    evidenceFile: `${dbContract.modulePath}/d1-validation-evidence.json`,
+    commitTitle: `chore(${responsibility}): record banco evidence`,
+    binding: String(storage.binding).trim(),
+    databaseName: String(storage.databaseName).trim(),
+    migrationFiles: listRelativeSqlFilesSync(moduleAbsolutePath, String(storage.migrationDirectory).trim()),
+    seedFiles: listRelativeSqlFilesSync(moduleAbsolutePath, String(storage.seedDirectory).trim()),
+    rollbackFiles: listRelativeSqlFilesSync(moduleAbsolutePath, String(storage.rollbackDirectory).trim()),
+    fixtureFiles: listRelativeSqlFilesSync(moduleAbsolutePath, 'tests'),
+  });
+}
+
 export const MISSING_SERVICE_DEPENDENCY_MAP = Object.freeze({
   'worker-identidade-acesso': Object.freeze({
     responsibility: 'identidade-acesso',
@@ -117,6 +194,8 @@ export function getRemoteAutomationKind(target) {
     return REMOTE_AUTOMATION_KIND.MANUAL_EXTERNAL;
   }
 
+  const repoRoot = target.repoRoot ?? process.cwd();
+
   if (target.responsibility === gatewayBordaPublicationRunbook.responsibility && target.cycle === gatewayBordaPublicationRunbook.cycle) {
     return REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE;
   }
@@ -126,6 +205,10 @@ export function getRemoteAutomationKind(target) {
   }
 
   if (target.cycle === 'deploy' && workerDeployRunbooks[target.responsibility]) {
+    return REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE;
+  }
+
+  if (target.cycle === 'banco' && buildDatabaseValidationRunbook(target.responsibility, repoRoot)) {
     return REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE;
   }
 
@@ -141,6 +224,9 @@ export function getRemoteAutomationRunbook(target) {
   }
   if (target.cycle === 'deploy' && workerDeployRunbooks[target.responsibility]) {
     return workerDeployRunbooks[target.responsibility];
+  }
+  if (target.cycle === 'banco') {
+    return buildDatabaseValidationRunbook(target.responsibility, target.repoRoot ?? process.cwd());
   }
   return gatewayBordaPublicationRunbook;
 }
@@ -168,6 +254,51 @@ export function parseRemoteGateResult(payload) {
     missingServices: Array.isArray(data.missingServices)
       ? data.missingServices.map((item) => String(item ?? '').trim()).filter(Boolean)
       : [],
+  };
+}
+
+function normalizeStepPayload(value) {
+  const payload = typeof value === 'object' && value ? value : {};
+  return {
+    status: String(payload.status ?? '').trim(),
+    detail: String(payload.detail ?? '').trim(),
+  };
+}
+
+export function parseDatabaseGateResult(payload) {
+  const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  const normalizeArray = (value) =>
+    Array.isArray(value) ? value.map((item) => String(item ?? '').trim()).filter(Boolean) : [];
+  return {
+    mode: String(data.mode ?? '').trim(),
+    modulePath: String(data.modulePath ?? '').trim(),
+    headSha: String(data.headSha ?? '').trim(),
+    runId: String(data.runId ?? '').trim(),
+    runUrl: String(data.runUrl ?? '').trim(),
+    conclusion: String(data.conclusion ?? '').trim(),
+    controllerNonce: String(data.controllerNonce ?? '').trim(),
+    failureCode: String(data.failureCode ?? '').trim(),
+    failureReason: String(data.failureReason ?? '').trim(),
+    responsibility: String(data.responsibility ?? '').trim(),
+    cycle: String(data.cycle ?? '').trim(),
+    runtime: String(data.runtime ?? '').trim(),
+    binding: String(data.binding ?? '').trim(),
+    databaseName: String(data.databaseName ?? '').trim(),
+    ephemeralDatabaseName: String(data.ephemeralDatabaseName ?? '').trim(),
+    migrationFiles: normalizeArray(data.migrationFiles),
+    seedFiles: normalizeArray(data.seedFiles),
+    fixtureFiles: normalizeArray(data.fixtureFiles),
+    rollbackFiles: normalizeArray(data.rollbackFiles),
+    steps: {
+      validate: normalizeStepPayload(data.steps?.validate),
+      create: normalizeStepPayload(data.steps?.create),
+      migrate: normalizeStepPayload(data.steps?.migrate),
+      seed: normalizeStepPayload(data.steps?.seed),
+      fixture: normalizeStepPayload(data.steps?.fixture),
+      rollback: normalizeStepPayload(data.steps?.rollback),
+      cleanup: normalizeStepPayload(data.steps?.cleanup),
+    },
+    validatedAt: String(data.validatedAt ?? '').trim(),
   };
 }
 
@@ -203,6 +334,10 @@ export function buildPublicationEvidence({
   smokeRunId,
   smokeRunUrl,
   validatedAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+  costProofRef = DEFAULT_COST_PROOF_REF,
+  costProofValidatedAt,
+  servicesChecked,
+  costResult = 'free',
 }) {
   return {
     responsibility,
@@ -215,8 +350,54 @@ export function buildPublicationEvidence({
     publishedUrl,
     headSha,
     validatedAt,
+    costProofRef,
+    costProofValidatedAt,
+    servicesChecked,
+    costResult,
     result: 'success',
   };
+}
+
+export function buildDatabaseValidationEvidence({
+  responsibility,
+  modulePath,
+  binding,
+  databaseName,
+  headSha,
+  runId,
+  runUrl,
+  controllerNonce,
+  migrationFiles,
+  seedFiles,
+  fixtureFiles,
+  rollbackFiles,
+  steps,
+  validatedAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+}) {
+  return {
+    responsibility,
+    cycle: 'banco',
+    runtime: 'cloudflare-workers',
+    modulePath,
+    binding,
+    databaseName,
+    headSha,
+    runId: String(runId),
+    runUrl,
+    controllerNonce,
+    migrationFiles,
+    seedFiles,
+    fixtureFiles,
+    rollbackFiles,
+    steps,
+    validatedAt,
+    result: 'success',
+  };
+}
+
+async function resolveCurrentCostProof(repoRoot) {
+  const proof = await loadCostProof(DEFAULT_COST_PROOF_REF, { repoRoot });
+  return validateCostProofDocument(proof);
 }
 
 export function updateGatewayPublicationDocs({ gatewayMarkdown, indexMarkdown, publishedUrl, headSha, deployRunUrl, smokeRunUrl }) {
@@ -347,6 +528,48 @@ export function updateWorkerPublicationDocs({
   };
 }
 
+export function updateDatabaseValidationDocs({
+  responsibility,
+  responsibilityMarkdown,
+  indexMarkdown,
+  headSha,
+  runUrl,
+}) {
+  const shortSha = headSha.slice(0, 7);
+  const commitUrl = `https://github.com/${defaultRepo}/commit/${headSha}`;
+  const runId = runUrl.match(/\/runs\/(\d+)$/)?.[1] ?? 'unknown';
+  const evidence =
+    `[\`Cloudflare D1 gate\` #${runId}](${runUrl}) validou migration, seed, fixture e rollback em banco efêmero D1; ` +
+    `\`db-${responsibility}/d1-validation-evidence.json\` registrou o SHA [` +
+    `${shortSha}](${commitUrl}).`;
+  const bancoNextAction = 'Executar `backend` com contrato HTTP/BFF sobre o banco validado remotamente.';
+  const backendNextAction = 'Executar `backend` agora que `banco` já ficou verde com evidência D1-backed remota.';
+
+  const nextResponsibilityMarkdown = responsibilityMarkdown
+    .replace(
+      /^\| `banco` \| .*$/m,
+      `| \`banco\` | \`concluido\` | alta | \`DB\` | ${evidence} | — | ${bancoNextAction} |`,
+    )
+    .replace(
+      /^\| `backend` \| .*$/m,
+      `| \`backend\` | \`triagem\` | alta | \`backend\` | — | — | ${backendNextAction} |`,
+    );
+
+  const rowPattern = new RegExp(`^\\| \`${responsibility}\` \\| ([^|]+) \\| ([^|]+) \\| .*?$`, 'm');
+  const rowMatch = indexMarkdown.match(rowPattern);
+  const owner = rowMatch?.[1]?.trim() ?? 'Ricardo Malnati';
+  const priority = rowMatch?.[2]?.trim() ?? 'alta';
+  const nextIndexMarkdown = indexMarkdown.replace(
+    new RegExp(`^\\| \`${responsibility}\` \\| .*?$`, 'm'),
+    `| \`${responsibility}\` | ${owner} | ${priority} | \`backend\` | \`triagem\` | [${responsibility}](./${responsibility}.md) | ${evidence} | — |`,
+  );
+
+  return {
+    responsibilityMarkdown: nextResponsibilityMarkdown,
+    indexMarkdown: nextIndexMarkdown,
+  };
+}
+
 export async function executeGatewayBordaPublicationRemoteGate({
   repoRoot,
   mainSha,
@@ -441,6 +664,7 @@ export async function executeGatewayBordaPublicationRemoteGate({
     };
   }
 
+  const costProof = await resolveCurrentCostProof(repoRoot);
   const evidence = buildPublicationEvidence({
     publishedUrl: deployRun.result.publishedUrl,
     headSha: mainSha,
@@ -448,6 +672,9 @@ export async function executeGatewayBordaPublicationRemoteGate({
     deployRunUrl: deployRun.runUrl,
     smokeRunId: smokeRun.runId,
     smokeRunUrl: smokeRun.runUrl,
+    costProofValidatedAt: costProof.validatedAt,
+    servicesChecked: costProof.servicesChecked,
+    costResult: costProof.result,
   });
 
   const evidencePath = path.join(repoRoot, runbook.evidenceFile);
@@ -672,6 +899,7 @@ export async function executeWorkerPublicationRemoteGate({
     };
   }
 
+  const costProof = await resolveCurrentCostProof(repoRoot);
   const evidence = buildPublicationEvidence({
     responsibility: runbook.responsibility,
     modulePath: runbook.modulePath,
@@ -681,6 +909,9 @@ export async function executeWorkerPublicationRemoteGate({
     deployRunUrl: deployRun.runUrl,
     smokeRunId: smokeRun.runId,
     smokeRunUrl: smokeRun.runUrl,
+    costProofValidatedAt: costProof.validatedAt,
+    servicesChecked: costProof.servicesChecked,
+    costResult: costProof.result,
   });
 
   const evidencePath = path.join(repoRoot, runbook.evidenceFile);
@@ -727,11 +958,126 @@ export async function executeWorkerPublicationRemoteGate({
   };
 }
 
+export async function executeDatabaseValidationRemoteGate({
+  target,
+  repoRoot,
+  mainSha,
+  run,
+  onStateChange = async () => {},
+  repo = defaultRepo,
+} = {}) {
+  const runbook = buildDatabaseValidationRunbook(target?.responsibility ?? '', repoRoot);
+  if (!runbook) {
+    return { ok: false, state: REMOTE_GATE_STATE.FAILED, blocker: 'remote_gate_unsupported' };
+  }
+
+  const validationNonce = buildWorkflowDispatchNonce({
+    responsibility: runbook.responsibility,
+    cycle: runbook.cycle,
+    stage: 'validate',
+  });
+
+  await onStateChange({
+    state: REMOTE_GATE_STATE.RUNNING_DATABASE,
+    stage: 'validate',
+    nonce: validationNonce,
+    databaseName: runbook.databaseName,
+  });
+
+  const validationRun = await dispatchAndWaitForWorkflow({
+    run,
+    repo,
+    workflowId: runbook.workflowId,
+    artifactName: runbook.artifactName,
+    resultFileName: runbook.resultFileName,
+    resultParser: parseDatabaseGateResult,
+    ref: 'main',
+    headSha: mainSha,
+    inputs: {
+      module_path: runbook.modulePath,
+      mode: 'validate',
+      controller_nonce: validationNonce,
+    },
+    nonce: validationNonce,
+  });
+
+  if (validationRun.result.conclusion !== 'success') {
+    return {
+      ok: false,
+      state: REMOTE_GATE_STATE.FAILED,
+      stage: 'validate',
+      runbook,
+      validationRun,
+      blocker: `remote_database_validation_failed run_id=${validationRun.runId} conclusion=${validationRun.result.conclusion || validationRun.runConclusion || 'unknown'}`,
+      failureCode: validationRun.result.failureCode || null,
+      failureReason: validationRun.result.failureReason || null,
+    };
+  }
+
+  const evidence = buildDatabaseValidationEvidence({
+    responsibility: runbook.responsibility,
+    modulePath: runbook.modulePath,
+    binding: runbook.binding,
+    databaseName: runbook.databaseName,
+    headSha: mainSha,
+    runId: validationRun.runId,
+    runUrl: validationRun.runUrl,
+    controllerNonce: validationNonce,
+    migrationFiles: validationRun.result.migrationFiles.length > 0 ? validationRun.result.migrationFiles : runbook.migrationFiles,
+    seedFiles: validationRun.result.seedFiles.length > 0 ? validationRun.result.seedFiles : runbook.seedFiles,
+    fixtureFiles: validationRun.result.fixtureFiles.length > 0 ? validationRun.result.fixtureFiles : runbook.fixtureFiles,
+    rollbackFiles: validationRun.result.rollbackFiles.length > 0 ? validationRun.result.rollbackFiles : runbook.rollbackFiles,
+    steps: validationRun.result.steps,
+    validatedAt: validationRun.result.validatedAt,
+  });
+
+  const evidencePath = path.join(repoRoot, runbook.evidenceFile);
+  const responsibilityPath = path.join(repoRoot, runbook.responsibilityDoc);
+  const indexPath = path.join(repoRoot, 'docs', 'project', 'index.md');
+  await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+
+  const [responsibilityMarkdown, indexMarkdown] = await Promise.all([
+    readFile(responsibilityPath, 'utf8'),
+    readFile(indexPath, 'utf8'),
+  ]);
+  const updatedDocs = updateDatabaseValidationDocs({
+    responsibility: runbook.responsibility,
+    responsibilityMarkdown,
+    indexMarkdown,
+    headSha: evidence.headSha,
+    runUrl: evidence.runUrl,
+  });
+  await Promise.all([
+    writeFile(responsibilityPath, updatedDocs.responsibilityMarkdown),
+    writeFile(indexPath, updatedDocs.indexMarkdown),
+  ]);
+
+  const validate = await run(
+    `cd ${shellQuote(path.join(repoRoot, runbook.modulePath))} && ANEETY_D1_VALIDATION_EVIDENCE_FILE=d1-validation-evidence.json npm run db:evidence:validate`,
+  );
+  assertResultOk(validate, 'd1_validation_evidence_failed');
+
+  return {
+    ok: true,
+    state: REMOTE_GATE_STATE.SUCCEEDED,
+    runbook,
+    validationRun,
+    evidence,
+    changedFiles: [
+      runbook.evidenceFile,
+      runbook.responsibilityDoc,
+      'docs/project/index.md',
+    ],
+  };
+}
+
 async function dispatchAndWaitForWorkflow({
   run,
   repo,
   workflowId,
   artifactName,
+  resultFileName = 'cloudflare-gate-result.json',
+  resultParser = parseRemoteGateResult,
   ref,
   headSha,
   inputs,
@@ -766,6 +1112,8 @@ async function dispatchAndWaitForWorkflow({
     repo,
     runId: discoveredRun.id,
     artifactName,
+    resultFileName,
+    resultParser,
   });
 
   return {
@@ -828,7 +1176,7 @@ async function waitForWorkflowCompletion({ run, repo, runId }) {
   throw new Error(`workflow_run_timeout_${runId}`);
 }
 
-async function downloadWorkflowArtifactResult({ run, repo, runId, artifactName }) {
+async function downloadWorkflowArtifactResult({ run, repo, runId, artifactName, resultFileName, resultParser }) {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'aneety-cloudflare-gate-'));
   try {
     const download = await run(
@@ -836,9 +1184,9 @@ async function downloadWorkflowArtifactResult({ run, repo, runId, artifactName }
     );
     assertResultOk(download, `workflow_artifact_download_failed_${runId}`);
 
-    const resultPath = path.join(tmpDir, 'cloudflare-gate-result.json');
+    const resultPath = path.join(tmpDir, resultFileName);
     const payload = await readFile(resultPath, 'utf8');
-    return parseRemoteGateResult(payload);
+    return resultParser(payload);
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }

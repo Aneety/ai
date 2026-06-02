@@ -44,7 +44,14 @@ jobs:
           test -f docs/remote-ci-gate.md
           grep -q 'GitHub Actions' README.md
           grep -q 'Cloudflare' docs/remote-ci-gate.md
-          grep -q 'PR -> GitHub Actions -> Cloudflare' docs/remote-ci-gate.md
+          grep -q 'PR -> GitHub Actions -> prova custo zero -> Cloudflare' docs/remote-ci-gate.md
+
+      - name: Validate zero-cost proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check .codex/cloud/validate-cost-proof.mjs
+          node .codex/cloud/validate-cost-proof.mjs
 
       - name: Check Mermaid rendered assets
         shell: bash
