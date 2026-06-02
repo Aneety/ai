@@ -1,0 +1,115 @@
+name: Cloudflare D1 gate
+run-name: Cloudflare D1 gate ${{ inputs.controller_nonce || github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      module_path:
+        description: Canonical db module path under aneety-platform/apps
+        required: true
+        type: string
+      controller_nonce:
+        description: Opaque controller correlation id
+        required: false
+        type: string
+      mode:
+        description: Run mode
+        required: true
+        default: validate
+        type: choice
+        options:
+          - validate
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  REQUESTED_MODULE_PATH: ${{ inputs.module_path }}
+  CONTROLLER_NONCE: ${{ inputs.controller_nonce || '' }}
+  D1_GATE_MODE: ${{ inputs.mode || 'validate' }}
+
+concurrency:
+  group: cloudflare-d1-gate-${{ github.ref }}-${{ inputs.module_path }}
+  cancel-in-progress: false
+
+jobs:
+  cloudflare-d1-gate:
+    name: Cloudflare D1 gate validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Initialize D1 gate result
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GATE_RESULT_PATH="$RUNNER_TEMP/cloudflare-d1-gate-result.json"
+          echo "GATE_RESULT_PATH=$GATE_RESULT_PATH" >> "$GITHUB_ENV"
+          node <<'NODE'
+          const { writeFileSync } = require('node:fs');
+          const payload = {
+            mode: process.env.D1_GATE_MODE,
+            modulePath: process.env.REQUESTED_MODULE_PATH,
+            headSha: process.env.GITHUB_SHA,
+            runId: process.env.GITHUB_RUN_ID,
+            runUrl: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            conclusion: 'pending',
+            controllerNonce: process.env.CONTROLLER_NONCE || '',
+            failureCode: '',
+            failureReason: '',
+            responsibility: '',
+            cycle: 'banco',
+            runtime: '',
+            binding: '',
+            databaseName: '',
+            ephemeralDatabaseName: '',
+            migrationFiles: [],
+            seedFiles: [],
+            fixtureFiles: [],
+            rollbackFiles: [],
+            steps: {
+              validate: { status: 'skipped', detail: '' },
+              create: { status: 'skipped', detail: '' },
+              migrate: { status: 'skipped', detail: '' },
+              seed: { status: 'skipped', detail: '' },
+              fixture: { status: 'skipped', detail: '' },
+              rollback: { status: 'skipped', detail: '' },
+              cleanup: { status: 'skipped', detail: '' }
+            },
+            validatedAt: ''
+          };
+          writeFileSync(process.env.GATE_RESULT_PATH, `${JSON.stringify(payload, null, 2)}\n`);
+          NODE
+
+      - name: Run D1 gate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${D1_GATE_MODE}" != "validate" ]; then
+            echo "Unsupported D1 gate mode: ${D1_GATE_MODE}" >&2
+            exit 1
+          fi
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "Cloudflare D1 gate requires CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID." >&2
+            exit 1
+          fi
+          node .codex/cloud/run-d1-gate.mjs
+
+      - name: Upload D1 gate result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-d1-gate-result
+          path: ${{ env.GATE_RESULT_PATH }}
+          if-no-files-found: error

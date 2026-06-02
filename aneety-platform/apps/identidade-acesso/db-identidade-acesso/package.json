@@ -8,6 +8,7 @@
     "lint": "node --check scripts/validate-db-contract.mjs",
     "typecheck": "node --check scripts/validate-db-contract.mjs",
     "test": "node --test tests/*.test.mjs",
-    "db:validate": "node scripts/validate-db-contract.mjs"
+    "db:validate": "node scripts/validate-db-contract.mjs",
+    "db:evidence:validate": "node scripts/validate-d1-validation-evidence.mjs"
   }
 }

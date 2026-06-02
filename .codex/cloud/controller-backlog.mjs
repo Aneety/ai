@@ -328,6 +328,7 @@ function resolveDependencyPreemption(backlog, parentSummaryRow, parentDetail, pa
 
     if (statusKind === 'pause') {
       const blockerAutomationKind = getRemoteAutomationKind({
+        repoRoot: backlog.repoRoot,
         state: 'blocked',
         blockKind: 'pause',
         responsibility: dependency.responsibility,
@@ -480,6 +481,7 @@ export function resolveResponsibilityTarget(backlog, responsibility) {
 
     if (statusKind === 'pause') {
       const blockerAutomationKind = getRemoteAutomationKind({
+        repoRoot: backlog.repoRoot,
         state: 'blocked',
         blockKind: 'pause',
         responsibility: summaryRow.responsibility,

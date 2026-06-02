@@ -14,7 +14,7 @@ function row(cycle, status = 'triagem', priority = 'alta', blocker = '—', next
   return `| \`${cycle}\` | \`${status}\` | ${priority} | \`gate\` | — | ${blocker} | ${nextAction} |`;
 }
 
-async function createFixture({ indexRows, responsibilityRows, dependencyRows = [] }) {
+async function createFixture({ indexRows, responsibilityRows, dependencyRows = [], extraFiles = {} }) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aneety-controller-backlog-'));
   await mkdir(path.join(root, 'docs', 'project'), { recursive: true });
 
@@ -48,6 +48,12 @@ async function createFixture({ indexRows, responsibilityRows, dependencyRows = [
 
     const markdown = `# ${responsibility}\n\n## Status operacional por ciclo\n\n| Ciclo | Status | Prioridade | Gate | Evidência | Bloqueio | Próxima ação |\n| --- | --- | --- | --- | --- | --- | --- |\n${rows}\n`;
     await writeFile(path.join(root, 'docs', 'project', `${responsibility}.md`), markdown);
+  }
+
+  for (const [relativePath, content] of Object.entries(extraFiles)) {
+    const targetPath = path.join(root, relativePath);
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, content);
   }
 
   return root;
@@ -105,6 +111,49 @@ test('pausa quando encontra ciclo em validacao', async () => {
     assert.equal(target.pauseStatus, 'validacao');
     assert.equal(target.responsibility, 'alta-a');
     assert.equal(target.cycle, 'deploy');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('marca banco validacao como remote_automable quando contrato D1 existe', async () => {
+  const root = await createFixture({
+    indexRows: [
+      '| `tenant-white-label` | Ricardo | alta | `banco` | `validacao` | [tenant-white-label](./tenant-white-label.md) | — | Aguardando validação D1-backed |',
+    ],
+    responsibilityRows: {
+      'tenant-white-label': {
+        repositorio: { status: 'concluido' },
+        deploy: { status: 'concluido' },
+        publicacao: { status: 'concluido' },
+        banco: { status: 'validacao', blocker: 'Aguardando validação D1-backed.' },
+      },
+    },
+    extraFiles: {
+      'aneety-platform/apps/tenant-white-label/db-tenant-white-label/contracts/storage-contract.json': JSON.stringify({
+        responsibility: 'tenant-white-label',
+        cycle: 'banco',
+        runtime: 'cloudflare-workers',
+        storage: {
+          type: 'd1',
+          binding: 'TENANT_WHITE_LABEL_DB',
+          databaseName: 'tenant-white-label-db',
+          migrationDirectory: 'migrations',
+          rollbackDirectory: 'rollbacks',
+          seedDirectory: 'seeds',
+        },
+      }, null, 2),
+    },
+  });
+
+  try {
+    const backlog = await loadControllerBacklog(root);
+    const target = resolveNextBacklogTarget(backlog);
+    assert.equal(target.state, 'blocked');
+    assert.equal(target.blockKind, 'pause');
+    assert.equal(target.blockerAutomationKind, 'remote_automable');
+    assert.equal(target.responsibility, 'tenant-white-label');
+    assert.equal(target.cycle, 'banco');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
