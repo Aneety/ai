@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { assertPublicationCostProof } from '../../../../../.codex/cloud/validate-cost-proof.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(scriptDir, '../../../../..');
 const workerDir = resolve(scriptDir, '..');
 const bundledTemplatePath = resolve(workerDir, 'publication-evidence.example.json');
 const canonicalEvidencePath = resolve(workerDir, 'publication-evidence.json');
@@ -67,4 +69,6 @@ if (isCanonicalEvidence) {
   assert.equal(Boolean(evidence.template), false, 'The canonical evidence file must not be marked as a template.');
 }
 
-console.log(`Publication evidence validation OK for ${evidence.publishedUrl}`);
+await assertPublicationCostProof(evidence, { repoRoot });
+
+console.log(`Publication evidence validation OK for ${evidence.publishedUrl} with zero-cost proof`);

@@ -8,9 +8,10 @@ Este repositório usa GitHub Actions como primeiro gate obrigatório para compil
 2. Aguardar os workflows `Remote CI gate`, `Governance policy gate` e `Security gate` no GitHub Actions.
 3. Se algum workflow falhar, ler logs/checks da PR, corrigir localmente e fazer novo push.
 4. Só iniciar `Cloudflare deploy gate` quando compilação, lint, typecheck, build, testes de módulo, política e segurança estiverem verdes na PR.
-5. Depois do deploy, executar smoke, testes integrados de API ou e2e contra a URL publicada.
+5. Validar `docs/ai-guardrails/cost-proofs/current-services.json` antes de qualquer Cloudflare dry-run, deploy, smoke, merge, fechamento ou conclusão final.
+6. Depois do deploy, executar smoke, testes integrados de API ou e2e contra a URL publicada.
 
-Resumo: PR -> GitHub Actions -> Cloudflare -> smoke/API/e2e publicado.
+Resumo: PR -> GitHub Actions -> prova custo zero -> Cloudflare -> smoke/API/e2e publicado.
 
 ## O que roda no GitHub Actions
 
@@ -19,11 +20,13 @@ Resumo: PR -> GitHub Actions -> Cloudflare -> smoke/API/e2e publicado.
 - `security.yml`: executa dependency review, CodeQL quando houver fonte compatível e varredura textual de segredos sem imprimir valores.
 - `cloudflare-gate.yml`: executa dry-run, deploy manual explícito ou smoke de URL publicada somente depois de CI verde ou por acionamento manual controlado.
 - `governance.yml`: audita periodicamente `docs/`, workflows, PRs e drift, publicando resumo como artifact/check summary sem auto-commit.
+- `validate-cost-proof.mjs`: valida o contrato versionado de custo zero antes de publicação e aceite.
 
 ## Restrições operacionais
 
 - Não usar deploy Cloudflare como verificador de compilação ou lint.
 - Não gastar ciclos Cloudflare com falhas que o GitHub Actions consegue detectar antes.
+- Não usar serviço pago, serviço sem preço oficial verificado, prova expirada ou consumo projetado acima da franquia gratuita.
 - Não usar execução local pesada como evidência final de aceite.
 - Não usar Podman, Docker, containers, servidor local persistente, Python de runtime MVP, Playwright/Cypress local ou Wrangler local para fechar aceite do MVP.
 - Manter o MVP em runtime 100% compatível com Cloudflare Workers.
@@ -31,4 +34,4 @@ Resumo: PR -> GitHub Actions -> Cloudflare -> smoke/API/e2e publicado.
 
 ## Evidência mínima
 
-Antes de deploy, a PR deve mostrar checks verdes de compilação/lint/teste, política e segurança. Depois do deploy, a evidência deve apontar para a URL real testada e para o resultado dos testes de smoke/API/e2e.
+Antes de deploy, a PR deve mostrar checks verdes de compilação/lint/teste, política e segurança, incluindo a prova de custo zero vigente. Depois do deploy, a evidência deve apontar para a URL real testada, o resultado dos testes de smoke/API/e2e e o `costProofRef` usado.
