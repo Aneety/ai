@@ -1,0 +1,27 @@
+{
+  "responsibility": "tenant-white-label",
+  "cycle": "backend",
+  "status": "validacao",
+  "runtime": "cloudflare-workers",
+  "service": "worker-tenant-white-label",
+  "publishedUrl": "https://worker-tenant-white-label.ricardomalnati.workers.dev",
+  "publicationEvidence": "publication-evidence.json",
+  "databaseBinding": "TENANT_WHITE_LABEL_DB",
+  "databaseEvidence": "../db-tenant-white-label/d1-validation-evidence.json",
+  "contractVersion": "2026-06-02.tenant-white-label.backend.v1",
+  "requiresRemoteAcceptance": true,
+  "costProofRef": "docs/ai-guardrails/cost-proofs/current-services.json",
+  "routes": [
+    {
+      "id": "tenant.branding.read",
+      "method": "GET",
+      "path": "/branding",
+      "tenantBoundary": "x-aneety-tenant-id",
+      "permissionsHeader": "x-aneety-permissions",
+      "requiredPermission": "tenant-white-label:read",
+      "storageContract": "../db-tenant-white-label/contracts/storage-contract.json"
+    }
+  ],
+  "blocker": "A conclusão ainda depende do scheduler publicar este diff, obter GitHub Actions verdes e executar gate remoto contra o Worker publicado com binding D1 TENANT_WHITE_LABEL_DB configurado no Cloudflare.",
+  "nextAction": "Publicar branch codex/backend-tenant-white-label, validar checks da PR e registrar execução remota do contrato /branding antes de marcar backend como concluido."
+}

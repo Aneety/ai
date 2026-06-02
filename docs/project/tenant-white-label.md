@@ -18,8 +18,8 @@
 | `publicacao` | `concluido` | alta | `processo` | [`Cloudflare deploy gate` deploy #26741516221](https://github.com/Aneety/ai/actions/runs/26741516221) publicou a URL real `https://worker-tenant-white-label.ricardomalnati.workers.dev`, [`Cloudflare deploy gate` smoke #26741553080](https://github.com/Aneety/ai/actions/runs/26741553080) validou o endpoint público e `worker-tenant-white-label/publication-evidence.json` registrou o SHA [7ea8e3b](https://github.com/Aneety/ai/commit/7ea8e3bda805834fa3ec1eb4da867ef4623418fb). | — | Executar `banco` com evidência objetiva do primeiro contrato persistido após a URL pública validada. |
 | `banco` | `concluido` | alta | `DB` | [`Cloudflare D1 gate` #26850845013](https://github.com/Aneety/ai/actions/runs/26850845013) validou migration, seed, fixture e rollback em banco efêmero D1; `db-tenant-white-label/d1-validation-evidence.json` registrou o SHA [42550e2](https://github.com/Aneety/ai/commit/42550e2807629a3807f3de90bf519ec6108db0a9). | — | Executar `backend` com contrato HTTP/BFF sobre o banco validado remotamente. |
 | `jobs` | `na` | alta | `job` | — | — | Reavaliar somente se houver mudança contratual aprovada nos documentos normativos. |
-| `backend` | `triagem` | alta | `backend` | — | — | Executar `backend` agora que `banco` já ficou verde com evidência D1-backed remota. |
-| `teste-integracao-api` | `triagem` | alta | `teste` | — | Aguardando ciclo `backend` ficar verde neste arquivo. | Executar `teste-integracao-api` depois de concluir `backend` com evidência objetiva. |
+| `backend` | `validacao` | alta | `backend` | `worker-tenant-white-label` adiciona contrato BFF `GET /branding`, leitura D1 tenant-scoped via `TENANT_WHITE_LABEL_DB`, `backend-readiness.json` e `npm run backend:validate`; prova de custo zero local passou em 2026-06-02. | A conclusão depende do scheduler publicar a PR, obter GitHub Actions verdes e executar gate remoto contra o Worker publicado com binding D1 configurado no Cloudflare. | Publicar branch `codex/backend-tenant-white-label`, validar checks da PR e registrar execução remota do contrato `/branding` antes de marcar `backend` como `concluido`. |
+| `teste-integracao-api` | `triagem` | alta | `teste` | — | Aguardando ciclo `backend` ficar `concluido` com evidência remota neste arquivo. | Executar `teste-integracao-api` depois de concluir `backend` com evidência objetiva. |
 | `microfrontend` | `triagem` | alta | `microfrontend` | — | Aguardando ciclo `teste-integracao-api` ficar verde neste arquivo. | Executar `microfrontend` depois de concluir `teste-integracao-api` com evidência objetiva. |
 | `smoke` | `triagem` | alta | `smoke` | — | Aguardando ciclo `microfrontend` ficar verde neste arquivo. | Executar `smoke` depois de concluir `microfrontend` com evidência objetiva. |
 | `teste` | `triagem` | alta | `teste` | — | Aguardando ciclo `smoke` ficar verde neste arquivo. | Executar `teste` depois de concluir `smoke` com evidência objetiva. |
@@ -43,6 +43,8 @@
 
 
 - 2026-06-01 — ciclo `banco` avançou para `validacao`: `db-tenant-white-label` recebeu migration/rollback D1 para `tenants`, `tenant_branding` e auditoria, seed sanitizado Lia Demonstração, contrato de storage `TENANT_WHITE_LABEL_DB`, queries CRUD tenant-scoped e validação leve; conclusão depende do scheduler publicar o diff, obter checks verdes e registrar execução Cloudflare D1-backed da migration/fixture.
+
+- 2026-06-02 — ciclo `backend` avançou para `validacao`: `worker-tenant-white-label` agora possui contrato BFF versionado `GET /branding`, exige contexto de tenant e permissão pública, consulta `TENANT_WHITE_LABEL_DB` com escopo por `tenant_id`, registra `backend-readiness.json` e validação leve `npm run backend:validate`; conclusão depende de PR/checks verdes e gate remoto contra Worker publicado com binding D1 configurado.
 
 ## Triagem Google Stitch
 
