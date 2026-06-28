@@ -36,6 +36,17 @@ export async function resolveSmokeContext({ publishedUrl, modulePath, repoRoot =
   };
 }
 
+export async function moduleHasPublishedSmokeScript({ modulePath, repoRoot = process.cwd() }) {
+  const normalizedModulePath = assertNonEmpty(modulePath, 'module_path');
+  const packagePath = path.join(repoRoot, normalizedModulePath, 'package.json');
+  try {
+    const pkg = JSON.parse(await readFile(packagePath, 'utf8'));
+    return Boolean(pkg?.scripts?.['smoke:published']);
+  } catch {
+    return false;
+  }
+}
+
 async function readJsonResponse(response, label) {
   const bodyText = await response.text();
   let bodyJson = null;

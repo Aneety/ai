@@ -77,6 +77,50 @@ test('classifica tenant-white-label/publicacao bloqueado como remote_automable',
   );
 });
 
+test('classifica relatorios-operacionais/deploy como remote_automable com worker-relatorios', () => {
+  const target = {
+    state: 'blocked',
+    blockKind: 'pause',
+    responsibility: 'relatorios-operacionais',
+    cycle: 'deploy',
+    pauseStatus: 'bloqueado',
+    cycleRow: {
+      status: 'bloqueado',
+      gate: 'processo',
+      blocker: 'Aguardando Cloudflare dry-run.',
+      nextAction: 'Executar gate remoto.',
+    },
+  };
+
+  assert.equal(getRemoteAutomationKind(target), REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE);
+  assert.equal(
+    getRemoteAutomationRunbook(target)?.modulePath,
+    'aneety-platform/apps/relatorios-operacionais/worker-relatorios',
+  );
+});
+
+test('classifica relatorios-operacionais/publicacao como remote_automable com evidence canônica', () => {
+  const target = {
+    state: 'blocked',
+    blockKind: 'pause',
+    responsibility: 'relatorios-operacionais',
+    cycle: 'publicacao',
+    pauseStatus: 'bloqueado',
+    cycleRow: {
+      status: 'bloqueado',
+      gate: 'processo',
+      blocker: 'Falta URL remota.',
+      nextAction: 'Executar deploy e smoke remotos.',
+    },
+  };
+
+  assert.equal(getRemoteAutomationKind(target), REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE);
+  assert.equal(
+    getRemoteAutomationRunbook(target)?.evidenceFile,
+    'aneety-platform/apps/relatorios-operacionais/worker-relatorios/publication-evidence.json',
+  );
+});
+
 test('classifica tenant-white-label/banco em validacao como remote_automable', () => {
   const target = {
     state: 'blocked',
@@ -110,6 +154,15 @@ test('parseRemoteGateResult normaliza payload JSON', () => {
     publishedUrl: 'https://aneety.example.workers.dev',
     smokeUrl: '',
     smokeStatus: '',
+    functionalSmokeStatus: 'success',
+    functionalSmoke: {
+      pdfSmoke: {
+        status: 'success',
+        contentType: 'application/pdf',
+        startsWithPdfMagic: true,
+        browserMsUsed: 1234,
+      },
+    },
     controllerNonce: 'nonce-1',
     failureCode: '10143',
     failureReason: 'service_binding_missing',
@@ -121,6 +174,8 @@ test('parseRemoteGateResult normaliza payload JSON', () => {
   assert.equal(result.controllerNonce, 'nonce-1');
   assert.equal(result.failureCode, '10143');
   assert.deepEqual(result.missingServices, ['worker-identidade-acesso']);
+  assert.equal(result.functionalSmokeStatus, 'success');
+  assert.equal(result.functionalSmoke.pdfSmoke.browserMsUsed, 1234);
 });
 
 test('parseDatabaseGateResult normaliza payload JSON do gate D1', () => {
@@ -219,6 +274,35 @@ test('buildPublicationEvidence gera contrato mínimo esperado', () => {
   });
 });
 
+test('buildPublicationEvidence inclui pdfSmoke quando smoke funcional retorna medição Browser Run', () => {
+  const evidence = buildPublicationEvidence({
+    responsibility: 'relatorios-operacionais',
+    modulePath: 'aneety-platform/apps/relatorios-operacionais/worker-relatorios',
+    publishedUrl: 'https://worker-relatorios.example.workers.dev',
+    headSha: '0123456789abcdef0123456789abcdef01234567',
+    deployRunId: '10',
+    deployRunUrl: 'https://github.com/Aneety/ai/actions/runs/10',
+    smokeRunId: '11',
+    smokeRunUrl: 'https://github.com/Aneety/ai/actions/runs/11',
+    validatedAt: '2026-06-28T23:04:35Z',
+    costProofValidatedAt: '2026-06-28T23:04:35Z',
+    servicesChecked: 7,
+    pdfSmoke: {
+      status: 'success',
+      contentType: 'application/pdf',
+      startsWithPdfMagic: true,
+      browserMsUsed: 2345,
+      browserDailyFreeAllowanceMs: 600000,
+      browserProjectedDailyMs: 300000,
+    },
+  });
+
+  assert.equal(evidence.responsibility, 'relatorios-operacionais');
+  assert.equal(evidence.modulePath, 'aneety-platform/apps/relatorios-operacionais/worker-relatorios');
+  assert.equal(evidence.pdfSmoke.browserMsUsed, 2345);
+  assert.equal(evidence.servicesChecked, 7);
+});
+
 test('buildDatabaseValidationEvidence gera contrato mínimo esperado', () => {
   const evidence = buildDatabaseValidationEvidence({
     responsibility: 'tenant-white-label',
@@ -309,6 +393,28 @@ test('updateWorkerPublicationDocs conclui publicacao e aponta banco como próxim
   assert.match(updated.responsibilityMarkdown, /\| `publicacao` \| `concluido` \|/);
   assert.match(updated.responsibilityMarkdown, /\| `banco` \| `triagem` \| alta \| `DB` \| — \| — \| Executar `banco`/);
   assert.match(updated.indexMarkdown, /\| `tenant-white-label` \| Ricardo Malnati \| alta \| `banco` \| `triagem` \|/);
+});
+
+test('updateWorkerPublicationDocs conclui relatorios-operacionais/publicacao e aponta backend como próximo ciclo', () => {
+  const sourceResponsibilityMarkdown =
+    '| `publicacao` | `bloqueado` | alta | `processo` | — | Sem URL real. | Executar publicacao remota. |\n' +
+    '| `backend` | `triagem` | alta | `backend` | — | Aguardando publicacao. | Executar backend depois. |';
+  const sourceIndexMarkdown =
+    '| `relatorios-operacionais` | Ricardo Malnati | alta | `publicacao` | `bloqueado` | [relatorios-operacionais](./relatorios-operacionais.md) | — | Sem URL real. |';
+
+  const updated = updateWorkerPublicationDocs({
+    responsibility: 'relatorios-operacionais',
+    responsibilityMarkdown: sourceResponsibilityMarkdown,
+    indexMarkdown: sourceIndexMarkdown,
+    publishedUrl: 'https://aneety-worker-relatorios.workers.dev',
+    headSha: '0123456789abcdef0123456789abcdef01234567',
+    deployRunUrl: 'https://github.com/Aneety/ai/actions/runs/123',
+    smokeRunUrl: 'https://github.com/Aneety/ai/actions/runs/124',
+  });
+
+  assert.match(updated.responsibilityMarkdown, /\| `publicacao` \| `concluido` \|/);
+  assert.match(updated.responsibilityMarkdown, /\| `backend` \| `triagem` \| alta \| `backend` \| — \| — \| Executar `backend`/);
+  assert.match(updated.indexMarkdown, /\| `relatorios-operacionais` \| Ricardo Malnati \| alta \| `backend` \| `triagem` \|/);
 });
 
 test('updateDatabaseValidationDocs conclui banco e aponta backend como próximo ciclo', () => {

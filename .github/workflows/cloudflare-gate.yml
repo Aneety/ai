@@ -196,6 +196,8 @@ jobs:
 
       - name: Smoke published URL
         if: env.CLOUDFLARE_DEPLOY_MODE == 'smoke'
+        env:
+          ANEETY_REPORTS_PDF_TOKEN: ${{ secrets.ANEETY_REPORTS_PDF_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -212,6 +214,21 @@ jobs:
           node .codex/cloud/validate-publication-smoke.mjs "$url" "$module_path" >/tmp/aneety-smoke-response
           bytes=$(wc -c </tmp/aneety-smoke-response | tr -d ' ')
           echo "Smoke OK for $url via /health + /contract (${bytes} bytes)."
+          if [ -f "$module_path/package.json" ] && node -e "const pkg=require('./' + process.argv[1] + '/package.json'); process.exit(pkg.scripts && pkg.scripts['smoke:published'] ? 0 : 1)" "$module_path"; then
+            echo "::group::functional smoke ${module_path}"
+            cd "$GITHUB_WORKSPACE/$module_path"
+            if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+              npm ci
+            else
+              npm install
+            fi
+            functional_smoke_result="$RUNNER_TEMP/aneety-functional-smoke.json"
+            ANEETY_PUBLICATION_SMOKE_URL="$url" npm run --silent smoke:published > "$functional_smoke_result"
+            echo "FUNCTIONAL_SMOKE_RESULT_FILE=$functional_smoke_result" >> "$GITHUB_ENV"
+            echo "FUNCTIONAL_SMOKE_STATUS=success" >> "$GITHUB_ENV"
+            echo "Functional smoke OK for ${module_path}."
+            echo "::endgroup::"
+          fi
           echo "SMOKE_STATUS=success" >> "$GITHUB_ENV"
 
       - name: Report no deployable module
@@ -237,6 +254,14 @@ jobs:
           payload.publishedUrl = process.env.PUBLISHED_URL || payload.publishedUrl || '';
           payload.smokeUrl = process.env.SMOKE_URL_INPUT || payload.smokeUrl || '';
           payload.smokeStatus = process.env.SMOKE_STATUS || payload.smokeStatus || '';
+          payload.functionalSmokeStatus = process.env.FUNCTIONAL_SMOKE_STATUS || payload.functionalSmokeStatus || '';
+          if (process.env.FUNCTIONAL_SMOKE_RESULT_FILE) {
+            try {
+              payload.functionalSmoke = JSON.parse(readFileSync(process.env.FUNCTIONAL_SMOKE_RESULT_FILE, 'utf8'));
+            } catch (error) {
+              payload.functionalSmoke = { error: 'functional_smoke_result_unreadable' };
+            }
+          }
           payload.failureCode = process.env.DEPLOY_FAILURE_CODE || payload.failureCode || '';
           payload.failureReason = process.env.DEPLOY_FAILURE_REASON || payload.failureReason || '';
           try {

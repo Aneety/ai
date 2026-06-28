@@ -183,6 +183,7 @@ Algumas responsabilidades do MVP não nascem de uma tabela própria em `04-model
 | Responsabilidade | Origem normativa | Responsabilidade raiz | Caminho no monorepo | Ciclos obrigatórios | Aceite e evidência base |
 | --- | --- | --- | --- | --- | --- |
 | `gateway-borda` | `01-arquitetura.md` (`## Runtime alvo do MVP`, `## Fluxo de dados`), `05-estrutura-repositorios.md` (`## Regras de runtime e evolução`, `## Responsabilidades funcionais v1 candidatas`) | `gateway-borda` | `aneety-platform/apps/gateway-borda/worker-gateway`, `pkg-contratos-publicos` | `repositorio`, `deploy`, `publicacao`, `backend`, `teste-integracao-api`, `smoke`, `teste`, `documentacao`, `governanca` | `worker-gateway` valida borda, CORS, versão de contrato, sessão pública Aneety e roteamento/service bindings para BFFs `worker-*`, sem segredo no frontend e sem runtime fora de Workers. Evidência: contrato HTTP, smoke de borda, teste de roteamento e docs atualizadas. |
+| `relatorios-operacionais` | `02-requisitos.md` (`### Relatórios operacionais em PDF`), `05-estrutura-repositorios.md` (`## Responsabilidades funcionais v1 candidatas`) | `relatorios-operacionais` | `aneety-platform/apps/relatorios-operacionais/worker-relatorios` | `repositorio`, `deploy`, `publicacao`, `backend`, `teste-integracao-api`, `smoke`, `teste`, `documentacao`, `governanca`; `banco`, `jobs`, `microfrontend` = `na` na v1 | Worker PDF recebe HTML final ou `templateHtml + content`, gera PDF por Cloudflare Workers + Browser Run Quick Actions, exige token operacional e mantém custo zero. Evidência: PR verde, Cloudflare dry-run/deploy/smoke, `%PDF` e `X-Browser-Ms-Used`. |
 
 ## Backlog por responsabilidade
 
@@ -201,6 +202,24 @@ Os blocos abaixo são prontos para registro no painel `docs/project` e, quando n
 | `teste` | `[teste][gateway-borda] consolidar cobertura da borda` | Cobertura unitária, contrato, integração e regressão do gateway consolidada. | Saída de testes com falhas zero. | Regressão em CORS, sessão ou roteamento. |
 | `documentacao` | `[documentacao][gateway-borda] sincronizar docs e evidências` | Arquitetura, estrutura de repositórios, contratos de borda e evidências refletem `worker-gateway`. | PR documental com links de evidência. | Docs continuarem sem backlog do gateway. |
 | `governanca` | `[governanca][gateway-borda] fechar ciclo com aceite e docs/project` | Issue tem aceite final, evidências e status coerentes no arquivo correspondente em `docs/project`. | Links de PR, testes, smoke e arquivo em `docs/project`. | Fechamento sem prova de borda publicada. |
+
+
+### `relatorios-operacionais`
+
+| Ciclo | Título | Aceite | Evidência esperada | Riscos |
+| --- | --- | --- | --- | --- |
+| `repositorio` | `[repositorio][relatorios-operacionais] preparar contrato, owner e estrutura monorepo` | Responsabilidade de relatórios PDF registrada com owner, custo zero, contrato HTTP e caminho `aneety-platform/apps/relatorios-operacionais/worker-relatorios`. | PR documental e scaffold Worker versionado. | Segredo em Git, custo Browser Run sem prova atual, escopo crescer para storage/fila sem contrato. |
+| `deploy` | `[deploy][relatorios-operacionais] preparar runtime Worker de custo zero` | `wrangler.toml` declara Cloudflare Workers, Browser Run binding, observabilidade e variáveis não secretas; token operacional fica só em secrets. | GitHub Actions verdes e Cloudflare dry-run. | Secret ausente, binding Browser Run incorreto, `.env` versionado. |
+| `publicacao` | `[publicacao][relatorios-operacionais] publicar endpoint PDF permitido` | URL real publicada, `/health`, `/contract` e `POST /reports/pdf` passam no ambiente publicado. | `publication-evidence.json` com URL, runs, SHA, `%PDF` e `X-Browser-Ms-Used`. | Publicar endpoint sem token ou sem medição de browser time. |
+| `banco` | `[banco][relatorios-operacionais] não aplicável na v1` | v1 não persiste PDF nem metadados em banco. | Linha `na` em `docs/project`. | Criar D1/R2/KV sem novo contrato e prova de custo. |
+| `jobs` | `[jobs][relatorios-operacionais] não aplicável na v1` | v1 é síncrona e retorna PDF direto. | Linha `na` em `docs/project`. | Introduzir fila assíncrona fora de escopo. |
+| `backend` | `[backend][relatorios-operacionais] publicar contrato HTTP do worker PDF` | Contrato cobre `GET /health`, `GET /contract`, `POST /reports/pdf`, erros públicos, auth, limites de HTML e bloqueio de recursos externos. | Testes de unidade/contrato e smoke funcional remoto. | HTML perigoso chegar ao renderizador ou erro técnico vazar ao usuário. |
+| `teste-integracao-api` | `[teste-integracao-api][relatorios-operacionais] validar geração PDF publicada` | Chamada autenticada contra URL publicada gera PDF real, `Content-Type: application/pdf` e bytes iniciam em `%PDF`. | Run remoto sanitizado com `X-Browser-Ms-Used`. | Usar simulação local como aceite. |
+| `microfrontend` | `[microfrontend][relatorios-operacionais] não aplicável na v1` | v1 não entrega UI nem editor visual de templates. | Linha `na` em `docs/project`. | Escopo virar editor sem ciclo próprio. |
+| `smoke` | `[smoke][relatorios-operacionais] validar fluxo crítico publicado` | Smoke remoto executa `/health`, `/contract` e `POST /reports/pdf` com HTML mínimo e CSS inline. | Artefato sanitizado do Cloudflare gate com status 200, `%PDF` e `X-Browser-Ms-Used <= 60000`. | Consumir Browser Run sem limite operacional. |
+| `teste` | `[teste][relatorios-operacionais] consolidar cobertura do renderer` | Cobertura unitária valida auth, contrato, payload, template, sanitização, filename, erro público e propagação de header. | `npm test`, `lint`, `typecheck`, `build` e Actions verdes. | Cobertura deixar passar recurso externo ou token ausente. |
+| `documentacao` | `[documentacao][relatorios-operacionais] sincronizar docs e evidências` | Requisitos, estrutura, planejamento, gate remoto, custo zero e painel operacional refletem a v1. | PR documental com links de prova e evidência. | Divergência entre worker e docs. |
+| `governanca` | `[governanca][relatorios-operacionais] fechar ciclo com aceite e docs/project` | Status operacional final só muda depois de PR, Actions, Cloudflare gate, evidence e prova custo zero vigente. | `docs/project/relatorios-operacionais.md` e `docs/project/index.md` atualizados. | Conclusão sem publicação/smoke real. |
 
 ### `tenant-white-label`
 
@@ -472,7 +491,7 @@ Os blocos abaixo são prontos para registro no painel `docs/project` e, quando n
 
 ### `repositorio`
 
-Registrar primeiro no painel `docs/project/<responsabilidade>.md` os itens `[repositorio][<responsabilidade>] preparar contrato, owner e estrutura monorepo` para todas as responsabilidades da matriz e para as responsabilidades transversais mandatórias. Issue histórica só deve ser aberta nesse ciclo quando a discussão, decisão ou trilha de evidência precisar de thread própria. Nenhum módulo deve nascer antes de contrato, owner, dados tratados, custo zero, teste e aceite. Prioridade inicial: `gateway-borda`, `tenant-white-label`, `identidade-acesso`, `onboarding-acesso`, `pedidos-customizados`, `workflow-estados`, `catalogo-operacional`.
+Registrar primeiro no painel `docs/project/<responsabilidade>.md` os itens `[repositorio][<responsabilidade>] preparar contrato, owner e estrutura monorepo` para todas as responsabilidades da matriz e para as responsabilidades transversais mandatórias. Issue histórica só deve ser aberta nesse ciclo quando a discussão, decisão ou trilha de evidência precisar de thread própria. Nenhum módulo deve nascer antes de contrato, owner, dados tratados, custo zero, teste e aceite. Prioridade inicial: `gateway-borda`, `relatorios-operacionais`, `tenant-white-label`, `identidade-acesso`, `onboarding-acesso`, `pedidos-customizados`, `workflow-estados`, `catalogo-operacional`.
 
 O ciclo `repositorio` só fica verde com evidência dupla: PR/documento canônico e presença física da raiz `aneety-platform/apps/<responsabilidade>/...` no repo destino `Aneety/ai`. Se o checkout local do repo destino estiver sujo ou se `aneety-platform/apps/` contiver apenas `.gitkeep`, `docs/project/<responsabilidade>.md` deve registrar `bloqueado` e não pode avançar para `deploy`.
 

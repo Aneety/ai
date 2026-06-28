@@ -1,0 +1,26 @@
+{
+  "responsibility": "relatorios-operacionais",
+  "cycle": "publicacao",
+  "template": true,
+  "modulePath": "aneety-platform/apps/relatorios-operacionais/worker-relatorios",
+  "deployRunId": "00000000000",
+  "deployRunUrl": "https://github.com/Aneety/ai/actions/runs/00000000000",
+  "smokeRunId": "00000000001",
+  "smokeRunUrl": "https://github.com/Aneety/ai/actions/runs/00000000001",
+  "publishedUrl": "https://aneety-worker-relatorios.placeholder.workers.dev",
+  "headSha": "0000000000000000000000000000000000000000",
+  "validatedAt": "2026-06-28T23:04:35Z",
+  "result": "success",
+  "pdfSmoke": {
+    "status": "success",
+    "contentType": "application/pdf",
+    "startsWithPdfMagic": true,
+    "browserMsUsed": 1,
+    "browserDailyFreeAllowanceMs": 600000,
+    "browserProjectedDailyMs": 300000
+  },
+  "costProofRef": "docs/ai-guardrails/cost-proofs/current-services.json",
+  "costProofValidatedAt": "2026-06-28T23:04:35Z",
+  "servicesChecked": 7,
+  "costResult": "free"
+}

@@ -378,6 +378,17 @@ flowchart TD
 - Google SSO não pode emitir sessão final da plataforma, substituir permissões internas, substituir controles internos de isolamento ou virar requisito de login.
 - Falha, recusa ou indisponibilidade do Google SSO deve preservar login próprio, administração de usuários, pedidos, evidências e auditoria.
 
+
+### Relatórios operacionais em PDF
+
+- Gerar relatórios PDF sob demanda para a operação a partir de HTML final com CSS embutido ou de `templateHtml + content`.
+- Não persistir PDF, não gerar link público e não manter histórico na v1.
+- Exigir autenticação operacional no endpoint de geração.
+- Bloquear recursos externos no HTML da v1, incluindo scripts, handlers inline, iframes, stylesheet externo, imports CSS e imagens remotas.
+- Permitir CSS inline dentro de `<style>` e imagens `data:image/...` quando o tamanho total permanecer dentro do limite contratado.
+- Medir o consumo de Browser Run no smoke remoto via header `X-Browser-Ms-Used`.
+- Manter projeção de uso abaixo da franquia gratuita antes de qualquer deploy, publicação, merge ou conclusão.
+
 ## Técnico
 
 - Org GitHub oficial: `https://github.com/Aneety`.
@@ -397,6 +408,7 @@ flowchart TD
 - Cada BFF deve possuir contrato HTTP, erros JSON padronizados, 401 para sessão ausente/inválida e 403 para permissão insuficiente.
 - Persistência do MVP deve usar bindings compatíveis com Cloudflare Workers, definidos por responsabilidade sem banco gerenciado externo obrigatório.
 - Quando a responsabilidade exigir modelo relacional no MVP, `D1` é o caminho preferencial; `KV`, `R2`, `Durable Objects`, `Queues` e `Workflows` entram conforme contrato local.
+- Relatórios PDF v1 não usam `D1`, `KV`, `R2`, `Queues`, `Workflows` ou storage persistente; esses itens ficam fora de escopo até novo ciclo aprovado.
 - Autenticação própria na camada de dados: identidades, credenciais, sessões, tokens, expiração, revogação e rotação.
 - Autorização por tenant, perfil e permissões, aplicada no gateway/BFF e reforçada por controles internos de isolamento.
 - Isolamento cross-tenant obrigatório.
@@ -416,7 +428,7 @@ flowchart TD
 
 - Seed E2E deve ser controlado, idempotente e sem segredos versionados.
 - Backup/export dos dados persistidos deve estar documentado antes de dados reais relevantes.
-- Smoke público deve cobrir, quando aplicável, microfrontend, gateway, BFF, banco, login, onboarding, catálogo, pedido, estado, SLA, orçamento, checkpoint, anexo, mapa, rastreabilidade, comunicação, suporte, exceção, auditoria e administração.
+- Smoke público deve cobrir, quando aplicável, microfrontend, gateway, BFF, banco, login, onboarding, catálogo, pedido, estado, SLA, orçamento, checkpoint, anexo, mapa, rastreabilidade, comunicação, suporte, exceção, auditoria e administração. Para `worker-relatorios`, o smoke obrigatório é `POST /reports/pdf` com PDF real, `%PDF` no início dos bytes e `X-Browser-Ms-Used` capturado.
 - Bloqueios operacionais devem ser registrados com causa objetiva, como DNS, secret ausente, regra de acesso falha, migration pendente, E2E sem credencial, mapa indisponível ou evento de rastreabilidade atrasado.
 - Gmail e Google SSO devem ter modo desligado validado antes de qualquer ativação por tenant.
 - Microfrontends com UI devem cobrir estados de carregando, vazio, erro e sucesso.
