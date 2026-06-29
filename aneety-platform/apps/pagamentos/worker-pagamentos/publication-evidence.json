@@ -1,0 +1,28 @@
+{
+  "responsibility": "pagamentos",
+  "cycle": "publicacao",
+  "template": false,
+  "modulePath": "aneety-platform/apps/pagamentos/worker-pagamentos",
+  "deployRunId": "28342458472",
+  "deployRunUrl": "https://github.com/Aneety/ai/actions/runs/28342458472",
+  "smokeRunId": "28342489105",
+  "smokeRunUrl": "https://github.com/Aneety/ai/actions/runs/28342489105",
+  "publishedUrl": "https://worker-pagamentos.ricardomalnati.workers.dev",
+  "headSha": "1e9bf51836a9b65a5d62f209da3b134b6046bf3a",
+  "validatedAt": "2026-06-29T01:12:58Z",
+  "result": "success",
+  "invoiceSmoke": {
+    "status": "success",
+    "contentType": "application/pdf",
+    "startsWithPdfMagic": true,
+    "browserMsUsed": 116,
+    "browserDailyFreeAllowanceMs": 600000,
+    "browserProjectedDailyMs": 300000,
+    "bytes": 50444,
+    "htmlLoaded": true
+  },
+  "costProofRef": "docs/ai-guardrails/cost-proofs/current-services.json",
+  "costProofValidatedAt": "2026-06-29T00:33:53Z",
+  "servicesChecked": 7,
+  "costResult": "free"
+}
