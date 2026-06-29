@@ -9,7 +9,7 @@
   "smokeRunUrl": "https://github.com/Aneety/ai/actions/runs/00000000001",
   "publishedUrl": "https://aneety-worker-relatorios.placeholder.workers.dev",
   "headSha": "0000000000000000000000000000000000000000",
-  "validatedAt": "2026-06-28T23:04:35Z",
+  "validatedAt": "2026-06-29T00:33:53Z",
   "result": "success",
   "pdfSmoke": {
     "status": "success",
@@ -20,7 +20,7 @@
     "browserProjectedDailyMs": 300000
   },
   "costProofRef": "docs/ai-guardrails/cost-proofs/current-services.json",
-  "costProofValidatedAt": "2026-06-28T23:04:35Z",
+  "costProofValidatedAt": "2026-06-29T00:33:53Z",
   "servicesChecked": 7,
   "costResult": "free"
 }

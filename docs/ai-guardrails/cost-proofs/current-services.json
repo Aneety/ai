@@ -1,7 +1,7 @@
 {
   "project": "Aneety/ai",
-  "validatedAt": "2026-06-28T23:04:35Z",
-  "validUntil": "2026-07-05T23:04:35Z",
+  "validatedAt": "2026-06-29T00:33:53Z",
+  "validUntil": "2026-07-06T00:33:53Z",
   "result": "free",
   "services": [
     {
@@ -9,7 +9,7 @@
       "service": "GitHub Actions standard runners",
       "planName": "GitHub Free for public repositories",
       "pricingSourceUrl": "https://docs.github.com/en/billing/concepts/product-billing/github-actions",
-      "pricingCheckedAt": "2026-06-28T23:04:35Z",
+      "pricingCheckedAt": "2026-06-29T00:33:53Z",
       "usageSource": "gh repo view Aneety/ai --json visibility,isPrivate; gh run list --repo Aneety/ai --limit 200 --json createdAt,updatedAt,status,conclusion,event,workflowName",
       "observedUsage": {
         "quantity": 100.25,
@@ -28,42 +28,42 @@
       },
       "projectedCostUsd": 0,
       "status": "free",
-      "calculation": "Aneety/ai visibility is PUBLIC. 100.25 observed minutes in the latest 200 GitHub Actions runs for the June 2026 month-to-date window through 2026-06-28T23:04:35Z; divided by elapsed month ratio 0.932050540123 = 107.56 projected minutes. GitHub standard runners are free for public repositories, so projected cost is 0."
+      "calculation": "Aneety/ai visibility is PUBLIC. 100.25 observed minutes in the latest 200 GitHub Actions runs for the June 2026 month-to-date window through 2026-06-29T00:33:53Z; divided by elapsed month ratio 0.932050540123 = 107.56 projected minutes. GitHub standard runners are free for public repositories, so projected cost is 0."
     },
     {
       "provider": "Cloudflare",
       "service": "Workers Free script count",
       "planName": "Workers Free",
       "pricingSourceUrl": "https://developers.cloudflare.com/workers/platform/limits/",
-      "pricingCheckedAt": "2026-06-28T23:04:35Z",
-      "usageSource": "Cloudflare API read from local .env: /accounts/:account_id/subscriptions and /accounts/:account_id/workers/scripts; sanitized output only.",
+      "pricingCheckedAt": "2026-06-29T00:33:53Z",
+      "usageSource": "Cloudflare API read from local .env: /accounts/:account_id/subscriptions and /accounts/:account_id/workers/scripts; sanitized output only. 2026-06-29 read returned Cloudflare Free Plan and 9 Workers after worker-relatorios publication.",
       "observedUsage": {
-        "quantity": 8,
+        "quantity": 9,
         "unit": "workers/account"
       },
-      "periodStart": "2026-06-28T23:04:35Z",
-      "periodEnd": "2026-07-05T23:04:35Z",
+      "periodStart": "2026-06-29T00:33:53Z",
+      "periodEnd": "2026-07-06T00:33:53Z",
       "freeAllowance": {
         "quantity": 100,
         "unit": "workers/account"
       },
       "projectedUsage": {
-        "quantity": 9,
+        "quantity": 10,
         "unit": "workers/account"
       },
       "projectedCostUsd": 0,
       "status": "free",
-      "calculation": "Cloudflare API returned Cloudflare Free Plan and 8 current Workers. The new PDF report Worker projects the account to 9 Workers, below the Workers Free allowance of 100 Workers per account. Token verify returned 401, but the account/subscription/Workers reads used for this proof succeeded."
+      "calculation": "Cloudflare API returned Cloudflare Free Plan and 9 current Workers after worker-relatorios publication. The new worker-pagamentos dashboard projects the account to 10 Workers, below the Workers Free allowance of 100 Workers per account."
     },
     {
       "provider": "Cloudflare",
       "service": "Workers Free runtime requests",
       "planName": "Workers Free",
       "pricingSourceUrl": "https://developers.cloudflare.com/workers/platform/limits/",
-      "pricingCheckedAt": "2026-06-28T23:04:35Z",
-      "usageSource": "Versioned publication-evidence.json files for current Workers plus planned worker-relatorios smokes: GET /health, GET /contract and POST /reports/pdf.",
+      "pricingCheckedAt": "2026-06-29T00:33:53Z",
+      "usageSource": "Versioned publication-evidence.json files for current Workers plus planned worker-pagamentos smokes: GET /health, GET /contract, SPA HTML/assets and POST /api/invoices/pdf, which server-side calls POST /reports/pdf.",
       "observedUsage": {
-        "quantity": 8,
+        "quantity": 11,
         "unit": "requests/month-to-date"
       },
       "periodStart": "2026-06-01T00:00:00Z",
@@ -73,26 +73,26 @@
         "unit": "requests/month"
       },
       "projectedUsage": {
-        "quantity": 500,
+        "quantity": 1000,
         "unit": "requests/month"
       },
       "projectedCostUsd": 0,
       "status": "free",
-      "calculation": "8 smoke requests are already represented by versioned publication evidence. The new worker-relatorios smoke adds three low-volume requests per smoke cycle (/health, /contract and POST /reports/pdf). A conservative 500 requests/month projection stays below 100,000/day * 30 days = 3,000,000 requests/month on Workers Free."
+      "calculation": "Versioned smokes now include worker-relatorios /health, /contract and POST /reports/pdf plus existing Worker publication checks. The new worker-pagamentos smoke adds /health, /contract, SPA HTML/assets and POST /api/invoices/pdf. A conservative 1,000 requests/month projection stays below 100,000/day * 30 days = 3,000,000 requests/month on Workers Free."
     },
     {
       "provider": "Cloudflare",
       "service": "Browser Run Quick Actions browser hours",
       "planName": "Workers Free",
       "pricingSourceUrl": "https://developers.cloudflare.com/browser-run/pricing/",
-      "pricingCheckedAt": "2026-06-28T23:04:35Z",
-      "usageSource": "Cloudflare API script settings read found 0 existing Browser Run bindings before worker-relatorios; smoke will measure X-Browser-Ms-Used from POST /reports/pdf.",
+      "pricingCheckedAt": "2026-06-29T00:33:53Z",
+      "usageSource": "Cloudflare Browser Run is used only by worker-relatorios through binding Quick Actions. worker-pagamentos calls worker-relatorios server-side; smoke captures X-Browser-Ms-Used from the final PDF response.",
       "observedUsage": {
-        "quantity": 0,
+        "quantity": 0.002,
         "unit": "minutes/day"
       },
-      "periodStart": "2026-06-28T23:04:35Z",
-      "periodEnd": "2026-07-05T23:04:35Z",
+      "periodStart": "2026-06-29T00:33:53Z",
+      "periodEnd": "2026-07-06T00:33:53Z",
       "freeAllowance": {
         "quantity": 10,
         "unit": "minutes/day"
@@ -103,15 +103,15 @@
       },
       "projectedCostUsd": 0,
       "status": "free",
-      "calculation": "Account is on Cloudflare Free Plan, 0 existing Workers have Browser Run bindings, and worker-relatorios v1 uses Browser Run Quick Actions through env.BROWSER.quickAction(\"pdf\", ...) instead of REST API or long-lived browser sessions. The POST /reports/pdf endpoint is bearer-token protected, the smoke captures X-Browser-Ms-Used, and the operational projection is capped at 5 minutes/day, below the Browser Run Free allowance of 10 minutes/day."
+      "calculation": "Account is on Cloudflare Free Plan. worker-relatorios v1 uses Browser Run Quick Actions through env.BROWSER.quickAction(\"pdf\", ...) instead of REST API or long-lived browser sessions. worker-pagamentos does not create another Browser Run binding; it calls worker-relatorios server-side with an operational token. The smoke captures X-Browser-Ms-Used, endpoint abuse risk is accepted for v1 without login, and the operational projection remains capped at 5 minutes/day, below the Browser Run Free allowance of 10 minutes/day."
     },
     {
       "provider": "Cloudflare",
       "service": "D1 Free rows read",
       "planName": "Workers Free",
       "pricingSourceUrl": "https://developers.cloudflare.com/d1/platform/pricing/",
-      "pricingCheckedAt": "2026-06-28T23:04:35Z",
-      "usageSource": "Static SQL inventory: find aneety-platform/apps -path */db-*/*.sql -type f; 21 SELECT statements across current D1 banco modules; no new D1 use in worker-relatorios v1.",
+      "pricingCheckedAt": "2026-06-29T00:33:53Z",
+      "usageSource": "Static SQL inventory: find aneety-platform/apps -path */db-*/*.sql -type f; 21 SELECT statements across current D1 banco modules; no new D1 use in worker-relatorios or worker-pagamentos v1.",
       "observedUsage": {
         "quantity": 120,
         "unit": "rows/day"
@@ -135,8 +135,8 @@
       "service": "D1 Free rows written",
       "planName": "Workers Free",
       "pricingSourceUrl": "https://developers.cloudflare.com/d1/platform/pricing/",
-      "pricingCheckedAt": "2026-06-28T23:04:35Z",
-      "usageSource": "Static SQL inventory: find aneety-platform/apps -path */db-*/*.sql -type f; 39 INSERT, 12 UPDATE, 48 CREATE and 43 DROP statements across current D1 banco modules; no new D1 use in worker-relatorios v1.",
+      "pricingCheckedAt": "2026-06-29T00:33:53Z",
+      "usageSource": "Static SQL inventory: find aneety-platform/apps -path */db-*/*.sql -type f; 39 INSERT, 12 UPDATE, 48 CREATE and 43 DROP statements across current D1 banco modules; no new D1 use in worker-relatorios or worker-pagamentos v1.",
       "observedUsage": {
         "quantity": 142,
         "unit": "rows/day"
@@ -160,14 +160,14 @@
       "service": "D1 Free storage",
       "planName": "Workers Free",
       "pricingSourceUrl": "https://developers.cloudflare.com/d1/platform/pricing/",
-      "pricingCheckedAt": "2026-06-28T23:04:35Z",
-      "usageSource": "D1 gate design creates one ephemeral database per validation and deletes it in cleanup; current SQL fixtures are tiny demo records and worker-relatorios v1 adds no storage.",
+      "pricingCheckedAt": "2026-06-29T00:33:53Z",
+      "usageSource": "D1 gate design creates one ephemeral database per validation and deletes it in cleanup; current SQL fixtures are tiny demo records and worker-relatorios/worker-pagamentos v1 add no storage.",
       "observedUsage": {
         "quantity": 0.001,
         "unit": "GB/account"
       },
-      "periodStart": "2026-06-28T23:04:35Z",
-      "periodEnd": "2026-07-05T23:04:35Z",
+      "periodStart": "2026-06-29T00:33:53Z",
+      "periodEnd": "2026-07-06T00:33:53Z",
       "freeAllowance": {
         "quantity": 5,
         "unit": "GB/account"

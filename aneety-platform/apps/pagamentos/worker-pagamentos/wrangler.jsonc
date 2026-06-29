@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "worker-pagamentos",
+  "main": "src/index.js",
+  "compatibility_date": "2026-06-29",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "../mfe-pagamentos/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/health", "/contract"]
+  },
+  "vars": {
+    "ANEETY_CONTRACT_VERSION": "2026-06-28.pagamentos.invoice-dashboard.v1",
+    "ANEETY_SERVICE_NAME": "worker-pagamentos",
+    "ANEETY_REPORTS_PDF_URL": "https://worker-relatorios.ricardomalnati.workers.dev",
+    "ANEETY_REPORTS_CONTRACT_VERSION": "2026-06-28.relatorios-operacionais.pdf.v1",
+    "ANEETY_INVOICE_MAX_ITEMS": "20",
+    "ANEETY_INVOICE_MAX_REQUEST_BYTES": "65536"
+  }
+}
