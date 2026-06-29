@@ -142,6 +142,15 @@ flowchart TD
 - Conciliar pagamento com pedido.
 - Permitir operação sem corromper pedido quando provedor externo estiver indisponível.
 
+#### Fatura operacional em PDF
+
+- Disponibilizar dashboard de fatura simples para cliente, pagamento e itens.
+- Gerar PDF sob demanda por `POST /api/invoices/pdf`, sem persistir arquivo, histórico ou link público na v1.
+- Manter o template HTML/CSS da fatura no Worker de pagamentos, não no microfrontend.
+- Calcular subtotal, desconto, acréscimos e total de forma coerente entre UI e BFF.
+- Chamar o gerador de PDF server-side; token operacional nunca pode chegar ao browser.
+- Limitar a fatura v1 a 20 itens e bloquear erro público com linguagem técnica.
+
 ### Marketplace operacional
 
 #### Fluxo de marketplace operacional
@@ -428,7 +437,7 @@ flowchart TD
 
 - Seed E2E deve ser controlado, idempotente e sem segredos versionados.
 - Backup/export dos dados persistidos deve estar documentado antes de dados reais relevantes.
-- Smoke público deve cobrir, quando aplicável, microfrontend, gateway, BFF, banco, login, onboarding, catálogo, pedido, estado, SLA, orçamento, checkpoint, anexo, mapa, rastreabilidade, comunicação, suporte, exceção, auditoria e administração. Para `worker-relatorios`, o smoke obrigatório é `POST /reports/pdf` com PDF real, `%PDF` no início dos bytes e `X-Browser-Ms-Used` capturado.
+- Smoke público deve cobrir, quando aplicável, microfrontend, gateway, BFF, banco, login, onboarding, catálogo, pedido, estado, SLA, orçamento, checkpoint, anexo, mapa, rastreabilidade, comunicação, suporte, exceção, auditoria e administração. Para `worker-relatorios`, o smoke obrigatório é `POST /reports/pdf` com PDF real, `%PDF` no início dos bytes e `X-Browser-Ms-Used` capturado. Para `worker-pagamentos`, o smoke obrigatório cobre `/health`, `/contract`, HTML do dashboard e `POST /api/invoices/pdf` com PDF real e `X-Browser-Ms-Used` propagado.
 - Bloqueios operacionais devem ser registrados com causa objetiva, como DNS, secret ausente, regra de acesso falha, migration pendente, E2E sem credencial, mapa indisponível ou evento de rastreabilidade atrasado.
 - Gmail e Google SSO devem ter modo desligado validado antes de qualquer ativação por tenant.
 - Microfrontends com UI devem cobrir estados de carregando, vazio, erro e sucesso.

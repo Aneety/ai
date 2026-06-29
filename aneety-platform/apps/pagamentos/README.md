@@ -3,36 +3,34 @@
 ## Owner e escopo
 
 - **Owner:** Ricardo Malnati.
-- **Responsabilidade:** operar intenção financeira, custódia, congelamento por disputa, liberação, conciliação, fatura e repasse.
+- **Responsabilidade:** operar intenções financeiras, faturas simples, status de pagamento e repasses futuros.
 - **Caminho canônico:** `aneety-platform/apps/pagamentos/...`.
-- **Runtime permitido no MVP:** somente Cloudflare Workers e mecanismos compatíveis. Não há runtime local, container, servidor persistente, Python de runtime MVP ou fallback fora de Workers neste scaffold.
+- **Entrega v1 deste ciclo:** dashboard operacional para preencher dados de fatura e gerar PDF sob demanda.
+- **Runtime permitido no MVP:** Cloudflare Workers e microfrontend React/Single SPA empacotado como assets estáticos. Não há runtime local, container, servidor persistente, Python de runtime MVP ou fallback fora de Workers para aceite.
 
-## Ciclos previstos
+## Módulos v1
 
-Ordem operacional registrada em `docs/project/pagamentos.md` e `docs/08-planejamento-ciclos-implementacao-repositorios.md`:
+- [`worker-pagamentos`](./worker-pagamentos/README.md) — hospeda o dashboard e expõe o BFF `POST /api/invoices/pdf`.
+- [`mfe-pagamentos`](./mfe-pagamentos/README.md) — form React/Single SPA com componentes shadcn-style.
+- [`db-pagamentos`](./db-pagamentos/README.md) — permanece reservado; a fatura PDF v1 não usa banco.
 
-1. `repositorio` — criar raiz física, owner, escopo e diretórios folha mínimos.
-2. `deploy` — preparar ambiente Cloudflare Workers de custo zero, sem segredo em repositório.
-3. `publicacao` — publicar artefato/URL permitida pelo ciclo.
-4. `banco` — versionar estruturas de dados da responsabilidade com isolamento por tenant.
-5. `backend` — expor contrato BFF em `worker-pagamentos`.
-6. `teste-integracao-api` — validar API integrada à camada de dados real do ciclo.
-7. `microfrontend` — entregar fluxo visual em linguagem de produto.
-8. `smoke`, `teste`, `documentacao` e `governanca` — consolidar evidências e aceite.
+## Fluxo da fatura PDF
 
-## Contratos e dados
+1. Usuário preenche cliente, pagamento e itens da fatura.
+2. O dashboard envia os dados para `/api/invoices/pdf` no mesmo Worker.
+3. `worker-pagamentos` valida os campos, calcula totais e monta `templateHtml + content` usando template HTML/CSS versionado neste projeto.
+4. `worker-pagamentos` chama `worker-relatorios` server-side com token operacional secreto.
+5. O navegador recebe o PDF diretamente, sem persistência, fila, histórico ou link público.
 
-- Dados previstos: `payment_intents, custody_entries, payouts, invoices, financial_adjustments e payment_events`.
-- Contrato de isolamento: todo dado precisa preservar fronteira por tenant e evitar cross-tenant.
-- Contrato de experiência: telas e mensagens não podem expor stack, banco, runtime, fornecedor técnico, segredo ou ferramenta interna ao usuário final.
-- Custo: nenhuma dependência paga obrigatória pode ser introduzida no MVP.
+## Segredos e custo
 
-## Módulos iniciais
+- `ANEETY_REPORTS_PDF_TOKEN` fica apenas como secret de runtime. Não pode ir ao browser, repo, PR, logs ou artefatos.
+- `ANEETY_REPORTS_PDF_URL` aponta para `https://worker-relatorios.ricardomalnati.workers.dev`.
+- Custo zero obrigatório: prova vigente em `docs/ai-guardrails/cost-proofs/current-services.json`.
+- V1 não cria R2, KV, D1, Queue, storage, banco ou serviço pago.
 
-- [`db-pagamentos`](./db-pagamentos/README.md) — estrutura de dados, migrations futuras, seeds e controles de isolamento.
-- [`worker-pagamentos`](./worker-pagamentos/README.md) — BFF HTTP compatível com Cloudflare Workers/Hono.
-- [`mfe-pagamentos`](./mfe-pagamentos/README.md) — microfrontend Single SPA para custódia, extrato, detalhe financeiro, bloqueio, liberação e recebimento.
+## Gates
 
-## Próximo gate
+Ordem obrigatória: branch -> PR -> GitHub Actions verdes -> prova custo zero vigente -> Cloudflare dry-run -> deploy -> smoke publicado -> evidência versionada.
 
-Após este scaffold do ciclo `repositorio`, o próximo gate é PR/GitHub Actions. `deploy`, `publicacao`, `banco`, `backend` e `microfrontend` só avançam com evidência remota exigida pelos documentos normativos.
+Aceite remoto da fatura: `/health`, `/contract`, SPA HTML e `POST /api/invoices/pdf` com PDF real, `application/pdf`, bytes `%PDF` e `X-Browser-Ms-Used` propagado.

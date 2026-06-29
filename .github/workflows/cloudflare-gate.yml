@@ -150,6 +150,9 @@ jobs:
                 npm install
               fi
             fi
+            if [ -f package.json ] && node -e "const pkg=require('./package.json'); process.exit(pkg.scripts && pkg.scripts.build ? 0 : 1)"; then
+              npm run build
+            fi
             npx --yes wrangler deploy --dry-run
             echo "::endgroup::"
           done <<< "${{ steps.discover.outputs.worker_dirs }}"
@@ -173,6 +176,14 @@ jobs:
             [ -n "$worker_dir" ] || continue
             echo "::group::deploy ${worker_dir}"
             cd "$GITHUB_WORKSPACE/$worker_dir"
+            if [ -f package.json ] && node -e "const pkg=require('./package.json'); process.exit(pkg.scripts && pkg.scripts.build ? 0 : 1)"; then
+              if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+                npm ci
+              else
+                npm install
+              fi
+              npm run build
+            fi
             set +e
             npx --yes wrangler deploy 2>&1 | tee -a "$deploy_log"
             deploy_status=${PIPESTATUS[0]}

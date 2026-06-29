@@ -18,7 +18,7 @@ Resumo: PR -> GitHub Actions -> prova custo zero -> Cloudflare -> smoke/API/e2e 
 - `ci.yml`: descobre módulos em `aneety-platform/apps/**`, detecta package manager, instala dependências em runner remoto, executa `lint`, `typecheck`, `build` e `test` quando existirem.
 - `policy.yml`: valida workflows, arquivos obrigatórios, assets Mermaid, proibições de runtime MVP e vazamento técnico em copy de UI.
 - `security.yml`: executa dependency review, CodeQL quando houver fonte compatível e varredura textual de segredos sem imprimir valores.
-- `cloudflare-gate.yml`: executa dry-run, deploy manual explícito ou smoke de URL publicada somente depois de CI verde ou por acionamento manual controlado. Quando um módulo publicado tiver `npm run smoke:published`, o gate executa esse smoke funcional além de `/health` e `/contract`.
+- `cloudflare-gate.yml`: executa dry-run, deploy manual explícito ou smoke de URL publicada somente depois de CI verde ou por acionamento manual controlado. Quando um módulo tiver script `build`, o gate constrói assets antes de `wrangler deploy --dry-run` e `wrangler deploy`. Quando um módulo publicado tiver `npm run smoke:published`, o gate executa esse smoke funcional além de `/health` e `/contract`.
 - `governance.yml`: audita periodicamente `docs/`, workflows, PRs e drift, publicando resumo como artifact/check summary sem auto-commit.
 - `validate-cost-proof.mjs`: valida o contrato versionado de custo zero antes de publicação e aceite.
 
@@ -34,4 +34,4 @@ Resumo: PR -> GitHub Actions -> prova custo zero -> Cloudflare -> smoke/API/e2e 
 
 ## Evidência mínima
 
-Antes de deploy, a PR deve mostrar checks verdes de compilação/lint/teste, política e segurança, incluindo a prova de custo zero vigente. Depois do deploy, a evidência deve apontar para a URL real testada, o resultado dos testes de smoke/API/e2e e o `costProofRef` usado. Para `worker-relatorios`, o smoke funcional obrigatório é `POST /reports/pdf`, validando status 200, `Content-Type: application/pdf`, bytes iniciando em `%PDF` e header `X-Browser-Ms-Used` dentro do limite do contrato.
+Antes de deploy, a PR deve mostrar checks verdes de compilação/lint/teste, política e segurança, incluindo a prova de custo zero vigente. Depois do deploy, a evidência deve apontar para a URL real testada, o resultado dos testes de smoke/API/e2e e o `costProofRef` usado. Para `worker-relatorios`, o smoke funcional obrigatório é `POST /reports/pdf`, validando status 200, `Content-Type: application/pdf`, bytes iniciando em `%PDF` e header `X-Browser-Ms-Used` dentro do limite do contrato. Para `worker-pagamentos`, o smoke funcional obrigatório valida `/health`, `/contract`, carregamento do HTML do dashboard e `POST /api/invoices/pdf`, conferindo PDF real, `%PDF`, `X-Browser-Ms-Used` propagado e custo zero vigente.

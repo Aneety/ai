@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: A4; margin: 18mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #1d1b20; font-family: Arial, Helvetica, sans-serif; background: #ffffff; }
+    .page { width: 100%; }
+    .header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #4f378a; padding-bottom: 18px; margin-bottom: 24px; }
+    .brand { font-size: 28px; font-weight: 700; color: #4f378a; letter-spacing: -0.02em; }
+    .title { font-size: 22px; font-weight: 700; margin: 8px 0 0; }
+    .meta { text-align: right; font-size: 12px; color: #494551; line-height: 1.6; }
+    .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #e9ddff; color: #4f378a; font-weight: 700; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 22px; }
+    .card { border: 1px solid #cbc4d2; border-radius: 14px; padding: 16px; background: #ffffff; }
+    h2 { font-size: 13px; color: #4f378a; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px; }
+    .line { margin: 6px 0; font-size: 13px; line-height: 1.45; }
+    .label { color: #494551; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th { background: #f8f2fa; color: #494551; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; text-align: left; padding: 10px; border-bottom: 1px solid #cbc4d2; }
+    td { padding: 11px 10px; border-bottom: 1px solid #ebe5ef; font-size: 13px; vertical-align: top; }
+    .number { text-align: right; white-space: nowrap; }
+    .totals { margin-left: auto; margin-top: 18px; width: 280px; border: 1px solid #cbc4d2; border-radius: 14px; overflow: hidden; }
+    .total-row { display: flex; justify-content: space-between; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #ebe5ef; }
+    .total-row.final { background: #4f378a; color: #ffffff; font-size: 18px; font-weight: 700; border-bottom: 0; }
+    .notes { margin-top: 22px; font-size: 12px; line-height: 1.5; color: #494551; }
+    .footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #ebe5ef; font-size: 11px; color: #494551; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="header">
+      <div>
+        <div class="brand">Aneety</div>
+        <p class="title">Fatura {{invoiceNumber}}</p>
+      </div>
+      <div class="meta">
+        <div><span class="badge">{{statusLabel}}</span></div>
+        <div>Emissão: {{issuedAt}}</div>
+        <div>Vencimento: {{dueAt}}</div>
+        <div>Forma de pagamento: {{paymentMethodLabel}}</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Cliente</h2>
+        <p class="line"><strong>{{customerName}}</strong></p>
+        <p class="line"><span class="label">Documento</span><br>{{customerDocument}}</p>
+        <p class="line"><span class="label">E-mail</span><br>{{customerEmail}}</p>
+        <p class="line"><span class="label">Endereço</span><br>{{customerAddress}}</p>
+      </div>
+      <div class="card">
+        <h2>Resumo</h2>
+        <p class="line">Esta fatura reúne os dados de pagamento informados para conferência e cobrança operacional.</p>
+        <p class="line"><span class="label">Total</span><br><strong>{{totalFormatted}}</strong></p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Itens da fatura</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Descrição</th>
+            <th class="number">Qtd.</th>
+            <th class="number">Valor unitário</th>
+            <th class="number">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{{itemsRowsHtml}}}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="totals">
+      <div class="total-row"><span>Subtotal</span><strong>{{subtotalFormatted}}</strong></div>
+      <div class="total-row"><span>Desconto</span><strong>{{discountFormatted}}</strong></div>
+      <div class="total-row"><span>Acréscimos</span><strong>{{surchargeFormatted}}</strong></div>
+      <div class="total-row final"><span>Total</span><span>{{totalFormatted}}</span></div>
+    </section>
+
+    <section class="notes">
+      <strong>Observações</strong><br>
+      {{notes}}
+    </section>
+
+    <footer class="footer">
+      Documento gerado para conferência operacional a partir dos dados informados.
+    </footer>
+  </main>
+</body>
+</html>

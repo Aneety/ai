@@ -2,25 +2,33 @@
 
 ## Objetivo
 
-Reservar o microfrontend operacional da responsabilidade `pagamentos` para custódia, extrato, detalhe financeiro, bloqueio, liberação e recebimento.
+Microfrontend React/Single SPA para gerar faturas simples em PDF a partir de dados de cliente, pagamento e itens.
 
-## Runtime permitido
+## Experiência v1
 
-- Microfrontend Single SPA é o padrão para frontends operacionais do MVP.
-- A interface deve consumir somente gateway/BFF autorizados; nunca banco, segredo, storage privilegiado ou fornecedor externo diretamente.
-- Este scaffold não implementa build, rotas, componentes ou lógica visual.
+- Form à esquerda com seções `Cliente`, `Pagamento` e `Itens da fatura`.
+- Resumo lateral com subtotal, desconto, acréscimos, total, vencimento, status e ação `Gerar PDF`.
+- Paleta lavanda/branca e copy em linguagem de produto.
+- Sem login/autenticação na v1, por escopo aprovado.
+- Sem segredo no browser.
 
-## Design Google Stitch
+## Stack de UI
 
-- Usar `docs/design/google-stitch-mvp-triage.md` como referência de escopo visual.
-- Usar `aneety-platform/templates/mfe-react-shadcn/` como base de arquitetura de UI.
-- Usar tokens semânticos inspirados no `Aneety Core Identity`, sem copiar HTML do Stitch.
-- Remover copy técnica, inglês operacional e acoplamento odontológico fora de demo/seed Lia.
+- React + Vite;
+- Single SPA via `single-spa-react` com exports `bootstrap`, `mount`, `unmount`;
+- componentes locais shadcn-style: `Card`, `FieldGroup`, `Field`, `Input`, `Textarea`, `Select`, `Button`, `Alert`, `Separator`, `Badge`, `Skeleton`.
 
-## Estados obrigatórios futuros
+## Contrato de integração
 
-Carregando, vazio, erro recuperável, sucesso, offline quando aplicável, conflito quando aplicável, permissão insuficiente e operação confirmada.
+O form chama `POST /api/invoices/pdf` no mesmo Worker, com header `x-aneety-contract-version` e payload de fatura. O template HTML/CSS não vive no frontend; ele é propriedade de `worker-pagamentos`.
 
-## Próximo gate
+## Validação local leve
 
-O próximo gate deste diretório é `microfrontend`, após backend e teste de integração de API verdes em GitHub Actions/Cloudflare.
+```bash
+npm install
+npm run lint
+npm run build
+npm test
+```
+
+Aceite visual final depende de URL publicada e screenshot remoto quando PR/issue exigir evidência UI.

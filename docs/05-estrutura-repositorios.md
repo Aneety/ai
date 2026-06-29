@@ -79,8 +79,9 @@ A lista acima define categorias possíveis. Não obriga toda responsabilidade a 
 ## Regras de runtime e evolução
 
 - Todos os frontends operacionais devem ser `mfe-<nome>` Single SPA.
-- BFFs do MVP devem ser `worker-<nome>` em Cloudflare Workers/Hono.
+- BFFs do MVP devem ser `worker-<nome>` em Cloudflare Workers, com Hono apenas quando o módulo exigir explicitamente.
 - `relatorios-operacionais` v1 usa `aneety-platform/apps/relatorios-operacionais/worker-relatorios` em Cloudflare Workers com Browser Run Quick Actions, sem banco, storage ou fila, e com custo zero obrigatório.
+- `pagamentos` fatura PDF v1 usa `aneety-platform/apps/pagamentos/worker-pagamentos` para hospedar assets e BFF, e `aneety-platform/apps/pagamentos/mfe-pagamentos` para o form React/Single SPA; não usa banco, storage ou fila na v1.
 - Gateway do MVP deve ser `worker-gateway` em Cloudflare Workers/Hono.
 - Gateway dedicado futuro fica fora do escopo do MVP atual e exige PR documental aprovado.
 - Persistência do MVP deve usar bindings compatíveis com Cloudflare Workers, versionados e documentados em `db-<nome>`.
@@ -118,6 +119,7 @@ As lacunas de produto adicionadas aos requisitos devem ser tratadas como respons
 - `privacidade-consentimento`: consentimento, retenção, visibilidade e exportação de dados sensíveis.
 - `auditoria-operacional`: eventos sensíveis, valores antes/depois, motivo e correlação com pedido ou demanda.
 - `relatorios-operacionais`: geração operacional de relatórios PDF sob demanda, recebendo HTML final ou template simples com conteúdo, sem persistência na v1.
+- `pagamentos`: fatura operacional simples em PDF, com dashboard para dados de cliente/pagamento/itens e template HTML/CSS versionado no Worker.
 
 ## Responsabilidades opcionais do MVP
 
@@ -158,9 +160,12 @@ Aneety/ai
     apps/
       relatorios-operacionais/
         worker-relatorios
+      pagamentos/
+        worker-pagamentos
+        mfe-pagamentos
 ```
 
-`worker-relatorios` é runtime Cloudflare Workers + Browser Run Quick Actions. A v1 não cria banco, storage, fila, histórico, link público persistente nem editor visual de template. Qualquer evolução fora disso exige novo contrato e prova de custo zero atualizada.
+`worker-relatorios` é runtime Cloudflare Workers + Browser Run Quick Actions. `worker-pagamentos` hospeda assets estáticos do dashboard e chama `worker-relatorios` server-side para PDF. A v1 não cria banco, storage, fila, histórico, link público persistente nem editor visual de template. Qualquer evolução fora disso exige novo contrato e prova de custo zero atualizada.
 
 ## Regras de migração
 

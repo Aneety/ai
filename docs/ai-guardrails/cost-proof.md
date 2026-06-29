@@ -14,8 +14,8 @@ Este contrato e a prova JSON versionada em `docs/ai-guardrails/cost-proofs/curre
 ```json
 {
   "project": "Aneety/ai",
-  "validatedAt": "2026-06-28T23:04:35Z",
-  "validUntil": "2026-07-05T23:04:35Z",
+  "validatedAt": "2026-06-29T00:33:53Z",
+  "validUntil": "2026-07-06T00:33:53Z",
   "result": "free",
   "services": [
     {
@@ -53,7 +53,7 @@ Cada `publication-evidence.json` deve incluir:
 ```json
 {
   "costProofRef": "docs/ai-guardrails/cost-proofs/current-services.json",
-  "costProofValidatedAt": "2026-06-28T23:04:35Z",
+  "costProofValidatedAt": "2026-06-29T00:33:53Z",
   "servicesChecked": 7,
   "costResult": "free"
 }
@@ -61,10 +61,10 @@ Cada `publication-evidence.json` deve incluir:
 
 Sem esses campos, a publicacao nao pode virar aceite.
 
-## Observações da prova 2026-06-28
+## Observações da prova 2026-06-29
 
-- Leitura Cloudflare sanitizada confirmou conta em `Cloudflare Free Plan`, 8 Workers atuais e projeção de 9 Workers com `worker-relatorios`, abaixo do limite de 100 Workers/account.
-- Nenhum Worker existente tinha binding Browser Run antes da implementação de `worker-relatorios`.
-- A API de billing/paygo não foi usada por permissão insuficiente; a prova usa API Cloudflare de conta/subscriptions/Workers, documentação oficial de preço/limite e medição futura por `X-Browser-Ms-Used`.
-- `token verify` retornou 401, mas as leituras necessárias de conta, subscriptions e Workers passaram; isso é limitação do método de autenticação, não blocker enquanto os endpoints necessários continuarem respondendo.
-- `worker-relatorios` não adiciona R2, KV, Queue, D1, link persistente ou storage de PDF na v1.
+- Leitura Cloudflare sanitizada confirmou conta em `Cloudflare Free Plan`, 9 Workers atuais após publicação de `worker-relatorios` e projeção de 10 Workers com `worker-pagamentos`, abaixo do limite de 100 Workers/account.
+- `worker-pagamentos` hospeda assets estáticos do dashboard e expõe um BFF `/api/invoices/pdf`; não adiciona banco, storage, fila, R2, KV, D1 ou link persistente na v1.
+- Browser Run continua concentrado em `worker-relatorios`; `worker-pagamentos` chama esse Worker server-side e propaga `X-Browser-Ms-Used` no smoke da fatura.
+- A API de billing/paygo não foi usada por permissão insuficiente; a prova usa API Cloudflare de conta/subscriptions/Workers, documentação oficial de preço/limite e medição por `X-Browser-Ms-Used`.
+- O endpoint público sem login é risco aceito na v1; a projeção operacional continua limitada a 5 minutes/day de Browser Run, abaixo dos 10 minutes/day gratuitos.

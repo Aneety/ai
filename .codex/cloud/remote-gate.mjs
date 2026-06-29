@@ -74,6 +74,7 @@ export const workerDeployRunbooks = Object.freeze({
   'identidade-acesso': buildWorkerDeployRunbook('identidade-acesso'),
   'onboarding-acesso': buildWorkerDeployRunbook('onboarding-acesso'),
   'relatorios-operacionais': buildWorkerDeployRunbook('relatorios-operacionais', { workerName: 'relatorios' }),
+  pagamentos: buildWorkerDeployRunbook('pagamentos'),
 });
 
 export const workerPublicationRunbooks = Object.freeze({
@@ -81,6 +82,7 @@ export const workerPublicationRunbooks = Object.freeze({
   'identidade-acesso': buildWorkerPublicationRunbook('identidade-acesso'),
   'onboarding-acesso': buildWorkerPublicationRunbook('onboarding-acesso'),
   'relatorios-operacionais': buildWorkerPublicationRunbook('relatorios-operacionais', { workerName: 'relatorios' }),
+  pagamentos: buildWorkerPublicationRunbook('pagamentos'),
 });
 
 function buildDatabaseModulePath(responsibility) {
@@ -343,6 +345,7 @@ export function buildPublicationEvidence({
   servicesChecked,
   costResult = 'free',
   pdfSmoke = null,
+  invoiceSmoke = null,
 }) {
   const evidence = {
     responsibility,
@@ -363,6 +366,9 @@ export function buildPublicationEvidence({
   };
   if (pdfSmoke) {
     evidence.pdfSmoke = pdfSmoke;
+  }
+  if (invoiceSmoke) {
+    evidence.invoiceSmoke = invoiceSmoke;
   }
   return evidence;
 }
@@ -511,16 +517,30 @@ export function updateWorkerPublicationDocs({
     `[\`Cloudflare deploy gate\` smoke #${smokeRunId}](${smokeRunUrl}) validou o endpoint público e ` +
     `\`${workerEvidenceDir}/publication-evidence.json\` registrou o SHA [` +
     `${shortSha}](${commitUrl}).`;
-  const nextCycle = responsibility === 'relatorios-operacionais' ? 'backend' : 'banco';
-  const nextGate = responsibility === 'relatorios-operacionais' ? 'backend' : 'DB';
+  const nextCycle =
+    responsibility === 'relatorios-operacionais'
+      ? 'backend'
+      : responsibility === 'pagamentos'
+        ? 'teste-integracao-api'
+        : 'banco';
+  const nextGate =
+    responsibility === 'relatorios-operacionais'
+      ? 'backend'
+      : responsibility === 'pagamentos'
+        ? 'API'
+        : 'DB';
   const publicacaoNextAction =
     responsibility === 'relatorios-operacionais'
       ? 'Executar `backend` com evidência objetiva do contrato HTTP do Worker PDF publicado.'
-      : 'Executar `banco` com evidência objetiva do primeiro contrato persistido após a URL pública validada.';
+      : responsibility === 'pagamentos'
+        ? 'Executar `teste-integracao-api` com evidência objetiva do dashboard e BFF publicados.'
+        : 'Executar `banco` com evidência objetiva do primeiro contrato persistido após a URL pública validada.';
   const nextCycleAction =
     responsibility === 'relatorios-operacionais'
       ? 'Executar `backend` agora que `publicacao` já ficou verde com URL real publicada.'
-      : 'Executar `banco` agora que `publicacao` já ficou verde com URL real publicada.';
+      : responsibility === 'pagamentos'
+        ? 'Executar `teste-integracao-api` agora que `publicacao` já ficou verde com URL real publicada.'
+        : 'Executar `banco` agora que `publicacao` já ficou verde com URL real publicada.';
 
   const nextResponsibilityMarkdown = responsibilityMarkdown
     .replace(
@@ -695,6 +715,7 @@ export async function executeGatewayBordaPublicationRemoteGate({
     servicesChecked: costProof.servicesChecked,
     costResult: costProof.result,
     pdfSmoke: smokeRun.result.functionalSmoke?.pdfSmoke ?? null,
+    invoiceSmoke: smokeRun.result.functionalSmoke?.invoiceSmoke ?? null,
   });
 
   const evidencePath = path.join(repoRoot, runbook.evidenceFile);
@@ -933,6 +954,7 @@ export async function executeWorkerPublicationRemoteGate({
     servicesChecked: costProof.servicesChecked,
     costResult: costProof.result,
     pdfSmoke: smokeRun.result.functionalSmoke?.pdfSmoke ?? null,
+    invoiceSmoke: smokeRun.result.functionalSmoke?.invoiceSmoke ?? null,
   });
 
   const evidencePath = path.join(repoRoot, runbook.evidenceFile);

@@ -121,6 +121,47 @@ test('classifica relatorios-operacionais/publicacao como remote_automable com ev
   );
 });
 
+test('classifica pagamentos/deploy como remote_automable com worker-pagamentos', () => {
+  const target = {
+    state: 'blocked',
+    blockKind: 'pause',
+    responsibility: 'pagamentos',
+    cycle: 'deploy',
+    pauseStatus: 'bloqueado',
+    cycleRow: {
+      status: 'bloqueado',
+      gate: 'processo',
+      blocker: 'Aguardando Cloudflare dry-run.',
+      nextAction: 'Executar gate remoto.',
+    },
+  };
+
+  assert.equal(getRemoteAutomationKind(target), REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE);
+  assert.equal(getRemoteAutomationRunbook(target)?.modulePath, 'aneety-platform/apps/pagamentos/worker-pagamentos');
+});
+
+test('classifica pagamentos/publicacao como remote_automable com evidence canônica', () => {
+  const target = {
+    state: 'blocked',
+    blockKind: 'pause',
+    responsibility: 'pagamentos',
+    cycle: 'publicacao',
+    pauseStatus: 'bloqueado',
+    cycleRow: {
+      status: 'bloqueado',
+      gate: 'processo',
+      blocker: 'Falta URL remota.',
+      nextAction: 'Executar deploy e smoke remotos.',
+    },
+  };
+
+  assert.equal(getRemoteAutomationKind(target), REMOTE_AUTOMATION_KIND.REMOTE_AUTOMABLE);
+  assert.equal(
+    getRemoteAutomationRunbook(target)?.evidenceFile,
+    'aneety-platform/apps/pagamentos/worker-pagamentos/publication-evidence.json',
+  );
+});
+
 test('classifica tenant-white-label/banco em validacao como remote_automable', () => {
   const target = {
     state: 'blocked',
@@ -284,8 +325,8 @@ test('buildPublicationEvidence inclui pdfSmoke quando smoke funcional retorna me
     deployRunUrl: 'https://github.com/Aneety/ai/actions/runs/10',
     smokeRunId: '11',
     smokeRunUrl: 'https://github.com/Aneety/ai/actions/runs/11',
-    validatedAt: '2026-06-28T23:04:35Z',
-    costProofValidatedAt: '2026-06-28T23:04:35Z',
+    validatedAt: '2026-06-29T00:33:53Z',
+    costProofValidatedAt: '2026-06-29T00:33:53Z',
     servicesChecked: 7,
     pdfSmoke: {
       status: 'success',
@@ -300,6 +341,36 @@ test('buildPublicationEvidence inclui pdfSmoke quando smoke funcional retorna me
   assert.equal(evidence.responsibility, 'relatorios-operacionais');
   assert.equal(evidence.modulePath, 'aneety-platform/apps/relatorios-operacionais/worker-relatorios');
   assert.equal(evidence.pdfSmoke.browserMsUsed, 2345);
+  assert.equal(evidence.servicesChecked, 7);
+});
+
+test('buildPublicationEvidence inclui invoiceSmoke para dashboard de pagamentos', () => {
+  const evidence = buildPublicationEvidence({
+    responsibility: 'pagamentos',
+    modulePath: 'aneety-platform/apps/pagamentos/worker-pagamentos',
+    publishedUrl: 'https://worker-pagamentos.example.workers.dev',
+    headSha: '0123456789abcdef0123456789abcdef01234567',
+    deployRunId: '10',
+    deployRunUrl: 'https://github.com/Aneety/ai/actions/runs/10',
+    smokeRunId: '11',
+    smokeRunUrl: 'https://github.com/Aneety/ai/actions/runs/11',
+    validatedAt: '2026-06-29T12:00:00Z',
+    costProofValidatedAt: '2026-06-29T12:00:00Z',
+    servicesChecked: 7,
+    invoiceSmoke: {
+      status: 'success',
+      htmlLoaded: true,
+      contentType: 'application/pdf',
+      startsWithPdfMagic: true,
+      browserMsUsed: 3456,
+      browserDailyFreeAllowanceMs: 600000,
+      browserProjectedDailyMs: 300000,
+    },
+  });
+
+  assert.equal(evidence.responsibility, 'pagamentos');
+  assert.equal(evidence.modulePath, 'aneety-platform/apps/pagamentos/worker-pagamentos');
+  assert.equal(evidence.invoiceSmoke.browserMsUsed, 3456);
   assert.equal(evidence.servicesChecked, 7);
 });
 
@@ -415,6 +486,31 @@ test('updateWorkerPublicationDocs conclui relatorios-operacionais/publicacao e a
   assert.match(updated.responsibilityMarkdown, /\| `publicacao` \| `concluido` \|/);
   assert.match(updated.responsibilityMarkdown, /\| `backend` \| `triagem` \| alta \| `backend` \| — \| — \| Executar `backend`/);
   assert.match(updated.indexMarkdown, /\| `relatorios-operacionais` \| Ricardo Malnati \| alta \| `backend` \| `triagem` \|/);
+});
+
+
+test('updateWorkerPublicationDocs conclui pagamentos/publicacao e preserva banco na v1', () => {
+  const sourceResponsibilityMarkdown =
+    '| `publicacao` | `bloqueado` | alta | `processo` | — | Sem URL real. | Executar publicacao remota. |\n' +
+    '| `banco` | `na` | alta | `DB` | Fatura v1 sem banco. | — | Reavaliar só com novo contrato. |\n' +
+    '| `teste-integracao-api` | `bloqueado` | alta | `API` | — | Aguardando publicacao. | Executar teste depois. |';
+  const sourceIndexMarkdown =
+    '| `pagamentos` | Ricardo Malnati | alta | `publicacao` | `bloqueado` | [pagamentos](./pagamentos.md) | — | Sem URL real. |';
+
+  const updated = updateWorkerPublicationDocs({
+    responsibility: 'pagamentos',
+    responsibilityMarkdown: sourceResponsibilityMarkdown,
+    indexMarkdown: sourceIndexMarkdown,
+    publishedUrl: 'https://worker-pagamentos.example.workers.dev',
+    headSha: '0123456789abcdef0123456789abcdef01234567',
+    deployRunUrl: 'https://github.com/Aneety/ai/actions/runs/123',
+    smokeRunUrl: 'https://github.com/Aneety/ai/actions/runs/124',
+  });
+
+  assert.match(updated.responsibilityMarkdown, /\| `publicacao` \| `concluido` \|/);
+  assert.match(updated.responsibilityMarkdown, /\| `banco` \| `na` \|/);
+  assert.match(updated.responsibilityMarkdown, /\| `teste-integracao-api` \| `triagem` \| alta \| `API` \| — \| — \| Executar `teste-integracao-api`/);
+  assert.match(updated.indexMarkdown, /\| `pagamentos` \| Ricardo Malnati \| alta \| `teste-integracao-api` \| `triagem` \|/);
 });
 
 test('updateDatabaseValidationDocs conclui banco e aponta backend como próximo ciclo', () => {

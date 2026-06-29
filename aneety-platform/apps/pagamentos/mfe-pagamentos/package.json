@@ -1,0 +1,28 @@
+{
+  "name": "@aneety/mfe-pagamentos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "React, Vite, Single SPA and shadcn-style invoice dashboard for Aneety payments.",
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "single-spa": "latest",
+    "single-spa-react": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "vitest": "latest"
+  }
+}

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const CONTRACT_VERSION_HEADER = 'x-aneety-contract-version';
@@ -13,17 +13,77 @@ function assertNonEmpty(value, label) {
 }
 
 export function extractContractVersionFromWrangler(source) {
-  const match = String(source).match(/^\s*ANEETY_CONTRACT_VERSION\s*=\s*"([^"]+)"\s*$/m);
-  if (!match) {
-    throw new Error('contract_version_not_found');
+  const text = String(source);
+  const tomlMatch = text.match(/^\s*ANEETY_CONTRACT_VERSION\s*=\s*"([^"]+)"\s*$/m);
+  if (tomlMatch) return tomlMatch[1].trim();
+
+  try {
+    const json = JSON.parse(stripJsonComments(text));
+    const version = String(json?.vars?.ANEETY_CONTRACT_VERSION ?? '').trim();
+    if (version) return version;
+  } catch {
+    // Fall through to explicit error below.
   }
-  return match[1].trim();
+
+  throw new Error('contract_version_not_found');
+}
+
+async function findWranglerConfig(moduleRoot) {
+  for (const fileName of ['wrangler.toml', 'wrangler.jsonc', 'wrangler.json']) {
+    const candidate = path.join(moduleRoot, fileName);
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      // Try next supported config name.
+    }
+  }
+  throw new Error('wrangler_config_not_found');
+}
+
+function stripJsonComments(source) {
+  let output = '';
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+    if (inString) {
+      output += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      output += char;
+      continue;
+    }
+    if (char === '/' && next === '/') {
+      while (index < source.length && source[index] !== '\n') index += 1;
+      output += '\n';
+      continue;
+    }
+    if (char === '/' && next === '*') {
+      index += 2;
+      while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) index += 1;
+      index += 1;
+      continue;
+    }
+    output += char;
+  }
+  return output;
 }
 
 export async function resolveSmokeContext({ publishedUrl, modulePath, repoRoot = process.cwd() }) {
   const normalizedUrl = assertNonEmpty(publishedUrl, 'published_url');
   const normalizedModulePath = assertNonEmpty(modulePath, 'module_path');
-  const wranglerPath = path.join(repoRoot, normalizedModulePath, 'wrangler.toml');
+  const wranglerPath = await findWranglerConfig(path.join(repoRoot, normalizedModulePath));
   const wrangler = await readFile(wranglerPath, 'utf8');
   const contractVersion = extractContractVersionFromWrangler(wrangler);
   const origin = new URL(normalizedUrl).toString();

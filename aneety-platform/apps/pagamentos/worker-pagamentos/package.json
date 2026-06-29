@@ -1,0 +1,20 @@
+{
+  "name": "@aneety/worker-pagamentos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker BFF and static shell for Aneety invoice PDF generation.",
+  "scripts": {
+    "lint": "node --check src/index.js",
+    "typecheck": "node --check src/index.js",
+    "build": "node --check src/index.js && npm run deploy:validate && npm run assets:build",
+    "test": "node --test tests/*.test.js",
+    "assets:build": "npm install --prefix ../mfe-pagamentos && npm run build --prefix ../mfe-pagamentos",
+    "deploy:validate": "node scripts/validate-deploy-contract.mjs",
+    "publication:validate": "node scripts/validate-publication-evidence.mjs",
+    "smoke:published": "node scripts/smoke-invoice-pdf.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "latest"
+  }
+}
