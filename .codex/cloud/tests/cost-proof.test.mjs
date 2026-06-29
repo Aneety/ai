@@ -55,6 +55,13 @@ test('validateCostProofDocument bloqueia prova expirada', () => {
   );
 });
 
+test('validateCostProofDocument bloqueia validUntil acima de 7 dias de validatedAt', () => {
+  assert.throws(
+    () => validateCostProofDocument(validProof({ validUntil: '2026-06-10T10:00:01Z' }), { now }),
+    /validUntil must be at most 7 days after validatedAt/,
+  );
+});
+
 test('validateCostProofDocument bloqueia servico pago ou desconhecido', () => {
   for (const status of ['paid', 'unknown', 'expired']) {
     assert.throws(

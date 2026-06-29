@@ -7,6 +7,7 @@ import test from 'node:test';
 
 import {
   extractContractVersionFromWrangler,
+  moduleHasPublishedSmokeScript,
   resolveSmokeContext,
   runPublicationSmoke,
 } from '../validate-publication-smoke.mjs';
@@ -84,6 +85,26 @@ test('runPublicationSmoke valida /health e /contract com header de versão', asy
     assert.equal(calls[1].init.headers['x-aneety-contract-version'], '2026-06-01.tenant-white-label.deploy.v1');
     assert.equal(result.routes.health.status, 200);
     assert.equal(result.routes.contract.status, 200);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('moduleHasPublishedSmokeScript detecta smoke funcional específico do módulo PDF', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'aneety-smoke-script-'));
+  try {
+    const pdfModulePath = 'aneety-platform/apps/relatorios-operacionais/worker-relatorios';
+    const genericModulePath = 'aneety-platform/apps/tenant-white-label/worker-tenant-white-label';
+    await mkdir(path.join(tempDir, pdfModulePath), { recursive: true });
+    await mkdir(path.join(tempDir, genericModulePath), { recursive: true });
+    await writeFile(
+      path.join(tempDir, pdfModulePath, 'package.json'),
+      JSON.stringify({ scripts: { 'smoke:published': 'node scripts/smoke-pdf.mjs' } }),
+    );
+    await writeFile(path.join(tempDir, genericModulePath, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }));
+
+    assert.equal(await moduleHasPublishedSmokeScript({ modulePath: pdfModulePath, repoRoot: tempDir }), true);
+    assert.equal(await moduleHasPublishedSmokeScript({ modulePath: genericModulePath, repoRoot: tempDir }), false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

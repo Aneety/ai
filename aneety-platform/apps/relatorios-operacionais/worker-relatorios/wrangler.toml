@@ -1,0 +1,17 @@
+name = "worker-relatorios"
+main = "src/index.js"
+compatibility_date = "2026-06-28"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[observability]
+enabled = true
+
+[browser]
+binding = "BROWSER"
+
+[vars]
+ANEETY_CONTRACT_VERSION = "2026-06-28.relatorios-operacionais.pdf.v1"
+ANEETY_SERVICE_NAME = "worker-relatorios"
+ANEETY_REPORTS_MAX_HTML_BYTES = "1048576"
+ANEETY_REPORTS_MAX_BROWSER_MS_PER_SMOKE = "60000"

@@ -10,8 +10,8 @@
   "headSha": "7ea8e3bda805834fa3ec1eb4da867ef4623418fb",
   "validatedAt": "2026-06-01T07:36:05Z",
   "costProofRef": "docs/ai-guardrails/cost-proofs/current-services.json",
-  "costProofValidatedAt": "2026-06-02T21:40:57Z",
-  "servicesChecked": 6,
+  "costProofValidatedAt": "2026-06-28T23:04:35Z",
+  "servicesChecked": 7,
   "costResult": "free",
   "result": "success"
 }

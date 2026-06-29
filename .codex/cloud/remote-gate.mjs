@@ -44,25 +44,25 @@ export const gatewayBordaPublicationRunbook = {
   commitTitle: 'chore(gateway-borda): record publicacao evidence',
 };
 
-function buildWorkerDeployRunbook(responsibility) {
+function buildWorkerDeployRunbook(responsibility, { workerName = responsibility } = {}) {
   return Object.freeze({
     responsibility,
     cycle: 'deploy',
     workflowId: 'cloudflare-gate.yml',
-    modulePath: `aneety-platform/apps/${responsibility}/worker-${responsibility}`,
+    modulePath: `aneety-platform/apps/${responsibility}/worker-${workerName}`,
     artifactName: 'cloudflare-gate-result',
     responsibilityDoc: `docs/project/${responsibility}.md`,
     commitTitle: `chore(${responsibility}): record deploy evidence`,
   });
 }
 
-function buildWorkerPublicationRunbook(responsibility) {
+function buildWorkerPublicationRunbook(responsibility, { workerName = responsibility } = {}) {
   return Object.freeze({
     responsibility,
     cycle: 'publicacao',
     workflowId: 'cloudflare-gate.yml',
-    modulePath: `aneety-platform/apps/${responsibility}/worker-${responsibility}`,
-    evidenceFile: `aneety-platform/apps/${responsibility}/worker-${responsibility}/publication-evidence.json`,
+    modulePath: `aneety-platform/apps/${responsibility}/worker-${workerName}`,
+    evidenceFile: `aneety-platform/apps/${responsibility}/worker-${workerName}/publication-evidence.json`,
     artifactName: 'cloudflare-gate-result',
     responsibilityDoc: `docs/project/${responsibility}.md`,
     commitTitle: `chore(${responsibility}): record publicacao evidence`,
@@ -73,12 +73,14 @@ export const workerDeployRunbooks = Object.freeze({
   'tenant-white-label': buildWorkerDeployRunbook('tenant-white-label'),
   'identidade-acesso': buildWorkerDeployRunbook('identidade-acesso'),
   'onboarding-acesso': buildWorkerDeployRunbook('onboarding-acesso'),
+  'relatorios-operacionais': buildWorkerDeployRunbook('relatorios-operacionais', { workerName: 'relatorios' }),
 });
 
 export const workerPublicationRunbooks = Object.freeze({
   'tenant-white-label': buildWorkerPublicationRunbook('tenant-white-label'),
   'identidade-acesso': buildWorkerPublicationRunbook('identidade-acesso'),
   'onboarding-acesso': buildWorkerPublicationRunbook('onboarding-acesso'),
+  'relatorios-operacionais': buildWorkerPublicationRunbook('relatorios-operacionais', { workerName: 'relatorios' }),
 });
 
 function buildDatabaseModulePath(responsibility) {
@@ -248,6 +250,8 @@ export function parseRemoteGateResult(payload) {
     publishedUrl: String(data.publishedUrl ?? '').trim(),
     smokeUrl: String(data.smokeUrl ?? '').trim(),
     smokeStatus: String(data.smokeStatus ?? '').trim(),
+    functionalSmokeStatus: String(data.functionalSmokeStatus ?? '').trim(),
+    functionalSmoke: typeof data.functionalSmoke === 'object' && data.functionalSmoke !== null ? data.functionalSmoke : null,
     controllerNonce: String(data.controllerNonce ?? '').trim(),
     failureCode: String(data.failureCode ?? '').trim(),
     failureReason: String(data.failureReason ?? '').trim(),
@@ -338,8 +342,9 @@ export function buildPublicationEvidence({
   costProofValidatedAt,
   servicesChecked,
   costResult = 'free',
+  pdfSmoke = null,
 }) {
-  return {
+  const evidence = {
     responsibility,
     cycle: 'publicacao',
     modulePath,
@@ -356,6 +361,10 @@ export function buildPublicationEvidence({
     costResult,
     result: 'success',
   };
+  if (pdfSmoke) {
+    evidence.pdfSmoke = pdfSmoke;
+  }
+  return evidence;
 }
 
 export function buildDatabaseValidationEvidence({
@@ -495,13 +504,23 @@ export function updateWorkerPublicationDocs({
   const commitUrl = `https://github.com/${defaultRepo}/commit/${headSha}`;
   const deployRunId = deployRunUrl.match(/\/runs\/(\d+)$/)?.[1] ?? 'unknown';
   const smokeRunId = smokeRunUrl.match(/\/runs\/(\d+)$/)?.[1] ?? 'unknown';
+  const workerEvidenceDir =
+    responsibility === 'relatorios-operacionais' ? 'worker-relatorios' : `worker-${responsibility}`;
   const publicationEvidence =
     `[\`Cloudflare deploy gate\` deploy #${deployRunId}](${deployRunUrl}) publicou a URL real \`${publishedUrl}\`, ` +
     `[\`Cloudflare deploy gate\` smoke #${smokeRunId}](${smokeRunUrl}) validou o endpoint público e ` +
-    `\`worker-${responsibility}/publication-evidence.json\` registrou o SHA [` +
+    `\`${workerEvidenceDir}/publication-evidence.json\` registrou o SHA [` +
     `${shortSha}](${commitUrl}).`;
-  const publicacaoNextAction = 'Executar `banco` com evidência objetiva do primeiro contrato persistido após a URL pública validada.';
-  const bancoNextAction = 'Executar `banco` agora que `publicacao` já ficou verde com URL real publicada.';
+  const nextCycle = responsibility === 'relatorios-operacionais' ? 'backend' : 'banco';
+  const nextGate = responsibility === 'relatorios-operacionais' ? 'backend' : 'DB';
+  const publicacaoNextAction =
+    responsibility === 'relatorios-operacionais'
+      ? 'Executar `backend` com evidência objetiva do contrato HTTP do Worker PDF publicado.'
+      : 'Executar `banco` com evidência objetiva do primeiro contrato persistido após a URL pública validada.';
+  const nextCycleAction =
+    responsibility === 'relatorios-operacionais'
+      ? 'Executar `backend` agora que `publicacao` já ficou verde com URL real publicada.'
+      : 'Executar `banco` agora que `publicacao` já ficou verde com URL real publicada.';
 
   const nextResponsibilityMarkdown = responsibilityMarkdown
     .replace(
@@ -509,8 +528,8 @@ export function updateWorkerPublicationDocs({
       `| \`publicacao\` | \`concluido\` | alta | \`processo\` | ${publicationEvidence} | — | ${publicacaoNextAction} |`,
     )
     .replace(
-      /^\| `banco` \| .*$/m,
-      `| \`banco\` | \`triagem\` | alta | \`DB\` | — | — | ${bancoNextAction} |`,
+      new RegExp(`^\\| \`${nextCycle}\` \\| .*$`, 'm'),
+      `| \`${nextCycle}\` | \`triagem\` | alta | \`${nextGate}\` | — | — | ${nextCycleAction} |`,
     );
 
   const rowPattern = new RegExp(`^\\| \`${responsibility}\` \\| ([^|]+) \\| ([^|]+) \\| .*?$`, 'm');
@@ -519,7 +538,7 @@ export function updateWorkerPublicationDocs({
   const priority = rowMatch?.[2]?.trim() ?? 'alta';
   const nextIndexMarkdown = indexMarkdown.replace(
     new RegExp(`^\\| \`${responsibility}\` \\| .*?$`, 'm'),
-    `| \`${responsibility}\` | ${owner} | ${priority} | \`banco\` | \`triagem\` | [${responsibility}](./${responsibility}.md) | ${publicationEvidence} | — |`,
+    `| \`${responsibility}\` | ${owner} | ${priority} | \`${nextCycle}\` | \`triagem\` | [${responsibility}](./${responsibility}.md) | ${publicationEvidence} | — |`,
   );
 
   return {
@@ -675,6 +694,7 @@ export async function executeGatewayBordaPublicationRemoteGate({
     costProofValidatedAt: costProof.validatedAt,
     servicesChecked: costProof.servicesChecked,
     costResult: costProof.result,
+    pdfSmoke: smokeRun.result.functionalSmoke?.pdfSmoke ?? null,
   });
 
   const evidencePath = path.join(repoRoot, runbook.evidenceFile);
@@ -912,6 +932,7 @@ export async function executeWorkerPublicationRemoteGate({
     costProofValidatedAt: costProof.validatedAt,
     servicesChecked: costProof.servicesChecked,
     costResult: costProof.result,
+    pdfSmoke: smokeRun.result.functionalSmoke?.pdfSmoke ?? null,
   });
 
   const evidencePath = path.join(repoRoot, runbook.evidenceFile);

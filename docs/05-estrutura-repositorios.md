@@ -80,6 +80,7 @@ A lista acima define categorias possíveis. Não obriga toda responsabilidade a 
 
 - Todos os frontends operacionais devem ser `mfe-<nome>` Single SPA.
 - BFFs do MVP devem ser `worker-<nome>` em Cloudflare Workers/Hono.
+- `relatorios-operacionais` v1 usa `aneety-platform/apps/relatorios-operacionais/worker-relatorios` em Cloudflare Workers com Browser Run Quick Actions, sem banco, storage ou fila, e com custo zero obrigatório.
 - Gateway do MVP deve ser `worker-gateway` em Cloudflare Workers/Hono.
 - Gateway dedicado futuro fica fora do escopo do MVP atual e exige PR documental aprovado.
 - Persistência do MVP deve usar bindings compatíveis com Cloudflare Workers, versionados e documentados em `db-<nome>`.
@@ -116,6 +117,7 @@ As lacunas de produto adicionadas aos requisitos devem ser tratadas como respons
 - `offline-sync`: fila local, replay, conflito e evidência capturada sem rede.
 - `privacidade-consentimento`: consentimento, retenção, visibilidade e exportação de dados sensíveis.
 - `auditoria-operacional`: eventos sensíveis, valores antes/depois, motivo e correlação com pedido ou demanda.
+- `relatorios-operacionais`: geração operacional de relatórios PDF sob demanda, recebendo HTML final ou template simples com conteúdo, sem persistência na v1.
 
 ## Responsabilidades opcionais do MVP
 
@@ -146,6 +148,19 @@ Aneety/ai
 ```
 
 Os módulos dessas responsabilidades só devem existir quando houver contrato local, owner, dados tratados, segredos, custo zero sempre, testes de degradação e critérios de aceite. Quando existirem, seguem a regra geral: implementação dentro de `aneety-platform/apps/`, documentação canônica em `docs/` e assets compartilhados em `assets/`.
+
+
+Estrutura inicial aprovada para relatórios operacionais:
+
+```text
+Aneety/ai
+  aneety-platform/
+    apps/
+      relatorios-operacionais/
+        worker-relatorios
+```
+
+`worker-relatorios` é runtime Cloudflare Workers + Browser Run Quick Actions. A v1 não cria banco, storage, fila, histórico, link público persistente nem editor visual de template. Qualquer evolução fora disso exige novo contrato e prova de custo zero atualizada.
 
 ## Regras de migração
 

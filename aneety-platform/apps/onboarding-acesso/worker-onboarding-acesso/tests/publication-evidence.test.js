@@ -39,8 +39,8 @@ async function writeEvidence(overrides = {}) {
     validatedAt: '2026-06-01T00:00:00Z',
     result: 'success',
     costProofRef: 'docs/ai-guardrails/cost-proofs/current-services.json',
-    costProofValidatedAt: '2026-06-02T21:40:57Z',
-    servicesChecked: 6,
+    costProofValidatedAt: '2026-06-28T23:04:35Z',
+    servicesChecked: 7,
     costResult: 'free',
     ...overrides,
   };
